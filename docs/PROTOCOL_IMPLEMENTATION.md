@@ -531,6 +531,11 @@ WHOOP 4 probe described below.
 | 142 | `START_FIRMWARE_LOAD_NEW` | firmware write |
 | 143 | `LOAD_FIRMWARE_DATA_NEW` | firmware write |
 | 144 | `PROCESS_FIRMWARE_IMAGE_NEW` | firmware write |
+| 155–158 | `START_CERTIFICATE_TRANSFER`, `LOAD_CERTIFICATE`, `VERIFY_CERTIFICATE`, `PROCESS_CERTIFICATE` | replaces the strap's device certificate |
+| 159 | `LOCK_DEVICE` | locks the strap; effect and reversal unknown |
+
+155–159 are named in the official app 5.473.0 (found via [wearable5.0](https://github.com/LeonardSEO/wearable5.0));
+they are in the schema for log legibility only and absent from the send allowlist on both platforms.
 
 The 142–144 family is the high-opcode-space counterpart of 36/37/38, in the same style as the clock
 family answering at 145–147 on MAVERICK. It is named by the schema and absent from the sender enum on

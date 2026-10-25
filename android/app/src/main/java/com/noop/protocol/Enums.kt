@@ -423,6 +423,13 @@ object CommandNames {
         151 to "GET_BATTERY_PACK_INFO",
         153 to "TOGGLE_PERSISTENT_R20",
         154 to "TOGGLE_PERSISTENT_R21",
+        // 155-159: certificate transfer and LOCK_DEVICE (official app 5.473.0, via wearable5.0). Named for
+        // log legibility only; all five are destructive and absent from the send allowlist.
+        155 to "START_CERTIFICATE_TRANSFER",
+        156 to "LOAD_CERTIFICATE",
+        157 to "VERIFY_CERTIFICATE",
+        158 to "PROCESS_CERTIFICATE",
+        159 to "LOCK_DEVICE",
     )
 
     /** `"NAME(raw)"` for a known opcode, else `"0xHH(raw)"` — byte-identical to Swift `Schema.enumName`. */
