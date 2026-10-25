@@ -4,6 +4,46 @@ import WhoopProtocol
 @testable import WhoopStore
 
 final class MigrationTests: XCTestCase {
+    func testV48PreservesRowsAndCoversAbsentOwnerTransportLookup() async throws {
+        let queue = try DatabaseQueue()
+        try WhoopStore.makeMigrator().migrate(queue, upTo: "v47-rr-whoop5-fill")
+        try await queue.write { db in
+            for ts in 0..<1_000 {
+                try db.execute(sql: """
+                    INSERT INTO rrInterval(deviceId, ts, rrMs, seq, ord, srcChannel, tsSuspect)
+                    VALUES ('whoop4', ?, 812, 0, ?, ?, ?)
+                    """, arguments: [ts, ts, ts % 2 == 0 ? 8 : nil, ts % 3 == 0 ? 1 : nil])
+            }
+            try db.execute(sql: """
+                INSERT INTO rrInterval(deviceId, ts, rrMs, seq, srcChannel)
+                VALUES ('other-whoop5', 100, 800, 0, 5)
+                """)
+        }
+        let rowsSQL = """
+            SELECT quote(deviceId) || '|' || quote(ts) || '|' || quote(rrMs) || '|' || quote(seq)
+                || '|' || quote(synced) || '|' || quote(ord) || '|' || quote(srcChannel)
+                || '|' || quote(tsSuspect) FROM rrInterval ORDER BY deviceId, ts, rrMs, seq
+            """
+        let before = try await queue.read { try String.fetchAll($0, sql: rowsSQL) }
+        try WhoopStore.makeMigrator().migrate(queue)
+        let after = try await queue.read { try String.fetchAll($0, sql: rowsSQL) }
+        XCTAssertEqual(before, after, "An indexing migration must not rewrite sensor history")
+
+        // This unbounded owner witness runs even for an empty day's cache key. With no WHOOP 5
+        // rows for the owner, a device/time index walks every historical beat to prove absence.
+        let witnessSQL = "SELECT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = ? AND srcChannel IN (5, 6, 7))"
+        let plan = try await queue.read { db in
+            try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + witnessSQL, arguments: ["whoop4"])
+                .map { $0["detail"] as String }
+        }
+        XCTAssertTrue(plan.contains { $0.contains("USING COVERING INDEX rrInterval_device_source")
+            && $0.contains("deviceId=? AND srcChannel=?") }, plan.joined(separator: "\n"))
+        let hasWhoop5 = try await queue.read { db in
+            try Bool.fetchOne(db, sql: witnessSQL, arguments: ["whoop4"])
+        }
+        XCTAssertEqual(hasWhoop5, false, "Another strap's WHOOP 5 rows must not change this owner's witness")
+    }
+
     func testInMemoryRunsMigrations() async throws {
         let store = try await WhoopStore.inMemory()
         let tables = try await store.tableNames()
@@ -192,7 +232,7 @@ final class MigrationTests: XCTestCase {
             let cols = try await store.columnNamesForTest(table: table)
             XCTAssertTrue(cols.contains("synced"), "\(table) missing synced column")
         }
-        XCTAssertEqual(WhoopStoreInfo.schemaVersion, 18)
+        XCTAssertEqual(WhoopStoreInfo.schemaVersion, 19)
     }
 
     /// v13 adds the `userEdited` flag to sleepSession (user-corrected wake times survive re-sync).
