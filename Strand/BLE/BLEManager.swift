@@ -577,6 +577,13 @@ public final class BLEManager: NSObject, ObservableObject {
     /// (`DeviceRegistry`, and the coordinator that watches it) follows too — the store write above is not
     /// observable, so without this the UI would keep showing the old id until relaunch.
     var onSerialIdentityAdopted: ((String) -> Void)?
+    /// Fired on every inbound notification. Each one is a moment iOS lets a backgrounded app run, so
+    /// the incoming-call alert uses it to re-check for a ringing call (`CallBuzzMonitor.poll`).
+    var onInboundFrame: (() -> Void)?
+    /// Asked before a strap-pushed EVENT kicks a history sync; true holds that sync off. AppModel points
+    /// it at the incoming-call alert: a sync started by the alert's own HAPTICS_FIRED events delayed the
+    /// strap's DOUBLE_TAP by ~1.5 s on hardware. Held syncs aren't lost; the next trigger or tick runs one.
+    var holdStrapEventSync: (() -> Bool)?
     private var registryStore: DeviceRegistryStore?
     /// #716: true once the seeded "WHOOP" model has been stamped to the correct family.
     private var modelStamped = false
@@ -1327,6 +1334,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// The last entry point `whoopConnectAllowed` turned away, so the block is logged once per path
     /// rather than on every tick of the family-rotation timer.
     private var lastBlockedConnectReason: String?
+    /// Mirror mode's refusal is logged once per launch (see `mirrorModeRefuses`).
+    private var mirrorRefusalLogged = false
 
     /// #1635: one `ScanAdvertisementSummary` line per SCAN, not per process — the question it answers
     /// is only visible by comparing a scan before the strap was put in pairing mode against one after,
@@ -1380,7 +1389,10 @@ public final class BLEManager: NSObject, ObservableObject {
         central = CBCentralManager(delegate: self, queue: .main)
         #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
-        router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
+        router.onSyncTrigger = { [weak self] in
+            guard let self, self.holdStrapEventSync?() != true else { return }
+            self.requestSync(.strap)
+        }
         router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
         // #78 hole-4: a paused-for-bond-loop strap gets one bounded salvage attempt per app-foreground.
         installForegroundSalvageProbe()
@@ -1592,7 +1604,10 @@ public final class BLEManager: NSObject, ObservableObject {
         central = CBCentralManager(delegate: self, queue: .main)
         #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
-        router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
+        router.onSyncTrigger = { [weak self] in
+            guard let self, self.holdStrapEventSync?() != true else { return }
+            self.requestSync(.strap)
+        }
         router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
         // #78 hole-4: a paused-for-bond-loop strap gets one bounded salvage attempt per app-foreground.
         installForegroundSalvageProbe()
@@ -1652,6 +1667,7 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     private func connectCore(model: WhoopModel) {
+        guard !mirrorModeRefuses("connect") else { return }
         intentionalDisconnect = false
         // Connection test mode: stamp when this connect attempt began so didConnect can report the connect
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
@@ -2086,6 +2102,19 @@ public final class BLEManager: NSObject, ObservableObject {
             : "WHOOP is no longer the active device — not scanning or connecting until it is again (#1881)")
     }
 
+    /// Mirror mode (Mac) refuses every scan and connect: this app shows a copy of the iPhone's data and
+    /// must never take the strap's single bond away from the phone. Checked by `whoopConnectAllowed` and
+    /// by the user-initiated entry points that bypass it (`connectCore`, `scanForWhoops`, `startScan`,
+    /// the discovery connect). Logged once per launch.
+    private func mirrorModeRefuses(_ reason: String) -> Bool {
+        guard MirrorMode.isEnabled else { return false }
+        if !mirrorRefusalLogged {
+            mirrorRefusalLogged = true
+            log("Mirror mode: \(reason) refused. This Mac mirrors the iPhone's data and never connects to the strap.")
+        }
+        return true
+    }
+
     /// The one gate every WHOOP scan/connect entry point passes through (#1881).
     ///
     /// Deliberately at the CONNECT sites rather than only at `connectCore`: there are five
@@ -2098,6 +2127,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// says which path tried. Logged only on the transition into blocking, so a rotation timer cannot
     /// flood the log.
     private func whoopConnectAllowed(_ reason: String) -> Bool {
+        if mirrorModeRefuses(reason) { return false }
         if whoopIsActiveDevice { return true }
         // The flag is a CACHE of a registry fact, and the registry is the authority. Re-validate before
         // refusing, so the gate can never latch: it is set from the coordinator's stop/start closures and
@@ -2153,6 +2183,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// The wizard MUST call `stopWhoopScan()` before any normal connect resumes — this mode owns the
     /// central while active. No-op-to-the-connect-path: it never touches `peripheral`/bond state.
     public func scanForWhoops() {
+        guard !mirrorModeRefuses("add-a-WHOOP scan") else { return }
         guard central.state == .poweredOn else {
             log("Add-a-WHOOP scan: Bluetooth not powered on (state=\(central.state.rawValue))")
             return
@@ -2300,7 +2331,8 @@ public final class BLEManager: NSObject, ObservableObject {
     ///   - writeType: BLE write type; defaults to `.withoutResponse` so all existing call
     ///     sites are unaffected. Pass `.withResponse` for acked commands (e.g. historicalDataResult).
     public func send(_ command: WhoopCommand, payload: [UInt8] = [0x00],
-                     writeType: CBCharacteristicWriteType = .withoutResponse) {
+                     writeType: CBCharacteristicWriteType = .withoutResponse,
+                     maverickEffect: UInt8 = 47) {   // 5/MG buzz strength, see MaverickHaptics.notificationBuzz
         // #314 parity: CoreBluetooth already covers both Android defects here — this `p.state == .connected`
         // guard makes a write a no-op once the radio powers off (no DeadObjectException to crash on), and
         // centralManagerDidUpdateState publishes state.connected = false on .poweredOff, so the iOS/macOS UI
@@ -2447,7 +2479,7 @@ public final class BLEManager: NSObject, ObservableObject {
             // that asked for one. Kotlin twin: `WhoopBleClient.maverickHapticBody`.
             let buzzLoops = payload.count >= 2 ? Int(payload[1]) : 1
             let puffinPayload: [UInt8] = isHaptics
-                ? MaverickHaptics.notificationBuzz(loops: buzzLoops) : payload
+                ? MaverickHaptics.notificationBuzz(loops: buzzLoops, effect: maverickEffect) : payload
             seq = seq &+ 1
             let frame = puffinCommandFrame(cmd: puffinCmd, seq: seq, payload: puffinPayload)
             p.writeValue(Data(frame), for: ch, type: writeType)
@@ -5115,6 +5147,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// from the already-gated `connectFromSystem` — and this method's own family-rotation timer, which
     /// cannot start a scan that one of those did not. Gating here as well would block the user's Connect.
     private func startScan(for model: WhoopModel, allowFallback: Bool) {
+        guard !mirrorModeRefuses("scan") else { return }
         advertisementLogged = false
         cancelScanFallback()
         selectedModel = model
@@ -5613,6 +5646,21 @@ public final class BLEManager: NSObject, ObservableObject {
         log("Buzz: one-shot fired (patternId=2 loops=3 + runAlarm, acked)")
     }
 
+    /// Incoming-call wrist alert (`CallBuzzMonitor`). On a 5/MG this is the maverick notify buzz alone
+    /// (the same hardware-confirmed one-shot Haptic Clock uses), acknowledged so a backgrounded link
+    /// can't silently drop it, and without RUN_ALARM so a repeated call buzz never starts the alarm.
+    /// One notch softer than other buzzes: DRV2625 effect 48 ("Buzz 2 – 80%") instead of 47 (100%).
+    /// Other families take the full one-shot sequence, since a bare pattern write was seen ignored on a
+    /// WHOOP 4.0 (#921).
+    func buzzCallAlert() {
+        guard selectedModel.deviceFamily == .whoop5 else {
+            buzzStrapOnce()
+            return
+        }
+        // 2 pulses (~1.3 s): short, so little of a burst already sent plays on after a double-tap.
+        send(.runHapticsPattern, payload: [2, 2, 0, 0, 0], writeType: .withResponse, maverickEffect: 48)
+    }
+
     /// Haptic Clock (#460): buzz the current wall-clock time out on the strap so the user can read it
     /// off their wrist without a screen. The pure, unit-tested `HapticClock` encoder turns now into an
     /// ordered pulse list (long = a "ten", short = a "unit", in HH-tens / HH-units / MM-tens / MM-units
@@ -5960,6 +6008,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         }
         // No gate here for the same reason as `startScan`: reaching a discovery means a scan is running,
         // and a scan only runs because the user asked or because the gated system entry allowed it.
+        guard !mirrorModeRefuses("discovery connect") else { central.stopScan(); return }
         cancelScanFallback()
         persistSelectedModel(selectedModel)
         log("Discovered \(safeName) (rssi \(RSSI)) — connecting")
@@ -7334,6 +7383,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         guard let data = characteristic.value else { return }
         let bytes = [UInt8](data)
         lastDataAt = Date()   // feed the liveness watchdog on every notification
+        onInboundFrame?()
         // #1809: count BEFORE the per-characteristic switch below, so the tally covers every inbound
         // frame including ones no branch consumes - the epitaph must answer "did anything arrive at all".
         inboundFrames += 1

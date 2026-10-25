@@ -296,7 +296,8 @@ final class Repository: ObservableObject {
     /// disagree, and a future namespace added to the read alone would reintroduce exactly this bug.
     nonisolated static func workoutNamespaces(rawIds: [String]) -> [String] {
         deletableWorkoutNamespaces(rawIds: rawIds)
-            + [WorkoutSource.appleHealthSource, "lifting", "activity-file"]
+            // Local patch: Apple Health workouts left out (they are WHOOP's own copies synced into Health).
+            + ["lifting", "activity-file"]
     }
 
     /// The subset of [workoutNamespaces] a DELETE may touch: the strap namespaces only.

@@ -141,6 +141,9 @@ final class SourceCoordinator: ObservableObject {
     /// default preferred peripheral (nil) — no scan/disconnect churn. The connected-uuid sink drives
     /// first-connect identity adoption.
     func start() {
+        // Mirror mode (Mac): never start any live source. The mirrored registry lists the iPhone's
+        // devices, and connecting to them would take the strap's single bond away from the phone.
+        guard !MirrorMode.isEnabled else { return }
         registry.$activeDeviceId
             .removeDuplicates()
             .sink { [weak self] id in self?.activeDeviceChanged(to: id) }

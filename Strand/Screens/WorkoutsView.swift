@@ -663,7 +663,7 @@ struct WorkoutsView: View {
     }
 
     /// How many of the most recent sessions "Current" holds.
-    static let currentScopeCount = 10
+    static let currentScopeCount = Int.max   // Local patch: show every session in "Current" (was 10).
 
     /// Split rows into the most recent `currentCount` and everything older.
     ///

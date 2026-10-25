@@ -301,6 +301,9 @@ enum FolderBackup {
     /// Returns true on success. Runs the whole-DB ZIP off the caller's thread; never touches UI.
     @discardableResult
     static func backupNow(checkpoint: @escaping () async -> Bool) async -> Bool {
+        // A mirroring Mac never writes here: its snapshot would become the newest one it then mirrors,
+        // and the prune below could delete the iPhone's snapshots. (Covers the daily catch-up too.)
+        guard !MirrorMode.isEnabled else { return false }
         guard let folder = resolveFolder() else { return false }
         let scoped = folder.startAccessingSecurityScopedResource()
         defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
@@ -439,6 +442,51 @@ enum FolderBackup {
         }
         return DataBackup.restore(from: source)
     }
+
+    #if os(macOS)
+    enum MirrorOutcome {
+        case restored(name: String, timeMs: Int)
+        case upToDate(timeMs: Int)
+        case downloading
+        case noFolder
+        case noBackups
+        case failed(String)
+    }
+
+    /// Mirror mode's launch step (`MirrorMode.restoreNewestOnLaunch`): restore the newest backup in the
+    /// folder unless it is the one already loaded (`skipping`, matched by name AND time so a re-written
+    /// hand-named file still counts as new). Uses the same hardened `DataBackup.restore` core as a manual
+    /// restore, with the size cap lifted (the user opted in to whole-store replacement). The pre-restore
+    /// copy is deleted on success: a mirror's own data is disposable, and keeping one per launch would
+    /// pile up full-size copies. Does NOT wait on an undownloaded iCloud placeholder: it starts the
+    /// download and reports `.downloading`, so launch is never held up by the network.
+    static func mirrorRestoreNewest(skipping last: (name: String, timeMs: Int)?) -> MirrorOutcome {
+        guard let folder = resolveFolder() else { return .noFolder }
+        guard let newest = listSnapshots().first else { return .noBackups }
+        if let last, last.name == newest.name, last.timeMs == newest.timeMs {
+            return .upToDate(timeMs: newest.timeMs)
+        }
+        let scoped = folder.startAccessingSecurityScopedResource()
+        defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
+        let source = folder.appendingPathComponent(newest.name)
+        guard FileManager.default.fileExists(atPath: source.path) else {
+            let placeholder = folder.appendingPathComponent("." + newest.name + ".icloud")
+            try? FileManager.default.startDownloadingUbiquitousItem(at: placeholder)
+            return .downloading
+        }
+        let dbPath: String
+        do { dbPath = try StorePaths.defaultDatabasePath() } catch { return .failed(error.localizedDescription) }
+        switch DataBackup.restore(from: source, toDatabaseAt: dbPath, allowOversize: true) {
+        case .imported(let sidecar):
+            if sidecar.path != dbPath { try? FileManager.default.removeItem(at: sidecar) }
+            return .restored(name: newest.name, timeMs: newest.timeMs)
+        case .failure(let message):
+            return .failed(message)
+        default:
+            return .failed(String(localized: "The backup couldn't be read."))
+        }
+    }
+    #endif
 
     // MARK: - Folder picker
 

@@ -1,5 +1,8 @@
 import SwiftUI
 import StrandDesign
+#if os(macOS)
+import AppKit
+#endif
 
 /// Backup & Sync (folder destination). The Apple mirror of the Android `BackupSyncScreen`: pick a
 /// folder, turn on daily auto-backup (an on-launch catch-up), back up now, or restore from a snapshot
@@ -13,6 +16,8 @@ struct BackupSyncView: View {
     @State private var lastMs = FolderBackup.lastBackupMs
     @State private var keep = FolderBackup.keepCount
     @State private var busy = false
+    /// Mirror mode (macOS only; always false on iOS). While on, this device never backs up to the folder.
+    @State private var mirror = MirrorMode.isEnabled
 
     // Result alert (backup outcome / restore outcome).
     @State private var alertTitle = ""
@@ -33,6 +38,9 @@ struct BackupSyncView: View {
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 folderCard
+                #if os(macOS)
+                mirrorCard
+                #endif
                 autoCard
                 restoreCard
             }
@@ -117,7 +125,7 @@ struct BackupSyncView: View {
                     Spacer(minLength: 0)
                     Toggle("Daily auto-backup", isOn: $auto)
                         .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
-                        .disabled(folderLabel == nil)
+                        .disabled(folderLabel == nil || mirror)
                         .onChangeCompat(of: auto) { on in FolderBackup.autoEnabled = on }
                 }
                 // Retention: how many dated snapshots to keep. Wired to FolderBackup.keepCount; the next
@@ -159,10 +167,50 @@ struct BackupSyncView: View {
                 }
                 NoopButton(busy ? "Working…" : "Back up now",
                            systemImage: "icloud.and.arrow.up", kind: .primary, fullWidth: true) { backupNow() }
-                    .disabled(folderLabel == nil || busy)
+                    .disabled(folderLabel == nil || busy || mirror)
             }
         }
     }
+
+    #if os(macOS)
+    /// Mirror mode: this Mac loads the iPhone's newest backup at every launch and never touches the strap.
+    private var mirrorCard: some View {
+        StrandCard(padding: 20, tint: mirror ? StrandPalette.accent : nil) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mirror my iPhone")
+                            .font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        Text("Each time NOOP opens, it loads the newest iPhone backup from this folder and never connects to your strap, so the strap stays with your iPhone. Changes made on this Mac are replaced by the next backup, and this Mac doesn't back up while mirroring.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Toggle("Mirror my iPhone", isOn: $mirror)
+                        .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
+                        .disabled(folderLabel == nil && !mirror)   // needs a folder to turn on, never to turn off
+                        .onChangeCompat(of: mirror) { on in
+                            UserDefaults.standard.set(on, forKey: MirrorMode.enabledKey)
+                            if on { auto = false; FolderBackup.autoEnabled = false }
+                        }
+                }
+                Text("On your iPhone: Backup & Sync → choose a folder in iCloud Drive → turn on Daily auto-backup. On this Mac: choose the same folder above.")
+                    .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if mirror {
+                    Text(MirrorMode.ranThisLaunch
+                         ? (MirrorMode.lastStatus ?? String(localized: "Mirroring."))
+                         : String(localized: "Quit and reopen NOOP to load the newest iPhone backup."))
+                        .font(StrandFont.caption).foregroundStyle(StrandPalette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                    NoopButton("Quit NOOP", systemImage: "power", kind: .secondary) {
+                        NSApplication.shared.terminate(nil)
+                    }
+                }
+            }
+        }
+    }
+    #endif
 
     private var restoreCard: some View {
         StrandCard(padding: 20) {
