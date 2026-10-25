@@ -194,11 +194,50 @@ public enum AnalyticsEngine {
     /// This is a UTC midnight that callers pair with one captured offset and fixed 86,400-second blocks,
     /// so every boundary beyond a clock change sits an hour from the local midnight it names.
     /// `LocalDayWindows` is the zone-rule-correct primitive built to replace that, and is deliberately
-    /// called by nothing yet. This function remains the shipped answer until a switch-over lands; the two
-    /// disagree by an hour on the far side of a transition, and `LocalDayWindowsTests` pins both answers
-    /// so the difference is visible rather than discovered.
+    /// called by nothing yet. This function remains the shipped answer; the two disagree by an hour on
+    /// the far side of a transition, and `LocalDayWindowsTests` pins both answers so the difference is
+    /// visible rather than discovered.
+    ///
+    /// THE 24-HOUR DAY IS NOW A DECISION RATHER THAN AN OPEN QUESTION (#2517). A transition day stays
+    /// 86,400 seconds wide and the hour it misplaces is RECORDED instead of corrected, by
+    /// `dayWindowSkewLine` below. What that buys is stated plainly on that function: scoring keeps
+    /// one definition of a day, the per-sample integer window keeps its cost, and no stored day row moves.
     static func dayStartUtcSeconds(_ day: String) -> Int {
         Int(isoDay.date(from: day)?.timeIntervalSince1970 ?? 0)
+    }
+
+    /// The line a scored day emits when the local day it names is NOT the 86,400 seconds the day window
+    /// assumes (#2517). `nil` on every ordinary day, which is the point: this costs one integer compare
+    /// on the 363 days a year that have nothing to say.
+    ///
+    /// ALWAYS-ON rather than Test-Centre gated, and deliberately so. A clock change is the textbook
+    /// rare-event evidence the contribution guide says to leave always-on: it costs nothing when nothing
+    /// happens, it is exactly what is missing when somebody reports a strange day without a diagnostic
+    /// profile enabled, and it happens twice a year rather than twice a minute.
+    ///
+    /// WHAT IT ASSERTS, and no more. The day window is 86,400 seconds; the local day is
+    /// `86400 + (offsetAtStart - offsetAtFixedEnd)` seconds, because an offset that drops by an hour
+    /// lengthens the day by one. So the line names the real length, the window's length, and the signed
+    /// difference. It does NOT say which samples moved or which day they landed in: knowing that needs a
+    /// scan of the samples, this is derived from two offsets, and a line that claimed it would be
+    /// asserting more than it observed.
+    ///
+    /// Offsets rather than a zone identifier, and integers rather than names, for two reasons. A strap
+    /// log already carries the UTC offset, so this adds no new location detail about the person reading
+    /// it, where a zone name would. And the arithmetic is exact for any transition size, including the
+    /// 30- and 45-minute ones, which a hardcoded 3,600 would quietly get wrong.
+    ///
+    /// Cross-checked against `LocalDayWindows`, which computes the same length from the zone rules
+    /// instead: `AnalyticsEngineDayWindowSkewTests` asserts this arithmetic reproduces the 90,000 and
+    /// 82,800 second days that the committed `local_day_windows_oracle.json` already pins, so the cheap
+    /// path and the correct one are held to the same answer. Kotlin twin: `dayWindowSkewLine`.
+    public static func dayWindowSkewLine(day: String, offsetAtStart: Int,
+                                             offsetAtFixedEnd: Int) -> String? {
+        guard offsetAtStart != offsetAtFixedEnd else { return nil }
+        let realSeconds = 86_400 + (offsetAtStart - offsetAtFixedEnd)
+        let skewMin = (realSeconds - 86_400) / 60
+        return "day-window-skew day=\(day) realS=\(realSeconds) windowS=86400 skewMin=\(skewMin) "
+            + "offsetStart=\(offsetAtStart) offsetEnd=\(offsetAtFixedEnd) policy=keep-24h"
     }
 
     /// Skip the redundant calendar-day re-read in analyzeRecent's per-day scan (#997, ryanbr). For a

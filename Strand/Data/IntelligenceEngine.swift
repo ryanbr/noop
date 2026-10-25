@@ -1193,6 +1193,16 @@ final class IntelligenceEngine: ObservableObject {
                 if offset > 0 { await RescoreBackgroundScheduler.paceIfBackgrounded(since: &paceMark) }
                 let dayStart = nowLocalMidnight - offset * 86_400
                 let day = AnalyticsEngine.dayString(dayStart, offsetSec: tzOffset)
+                // #2517: the day window is a fixed 86,400 seconds and a transition day is not, so the
+                // hour it misplaces is RECORDED here rather than corrected. Two offset lookups per
+                // scored day and a nil on every ordinary one; see `dayWindowSkewLine` for why this
+                // is always-on and for what it deliberately does not claim.
+                let dayWindowSkew = AnalyticsEngine.dayWindowSkewLine(
+                    day: day,
+                    offsetAtStart: TimeZone.current.secondsFromGMT(
+                        for: Date(timeIntervalSince1970: Double(dayStart))),
+                    offsetAtFixedEnd: TimeZone.current.secondsFromGMT(
+                        for: Date(timeIntervalSince1970: Double(dayStart + 86_400))))
                 // Read a generous window around the night that ends on `day`; the stager finds the span.
                 let from = dayStart - StreamReadCap.lookbackSeconds
                 // Sleep read-window END — see `sleepReadWindowEnd`.
@@ -1823,7 +1833,9 @@ final class IntelligenceEngine: ObservableObject {
                                    respLine: respLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
-                                   hrvDiag: Self.mergedDayDiag(hrvDiag, strainDiagLines),
+                                   hrvDiag: Self.mergedDayDiag(
+                                       hrvDiag,
+                                       strainDiagLines + (dayWindowSkew.map { [$0] } ?? [])),
                                    spo2Candidate: spo2CandidateMean,
                                    hrvOverCounted: hrvOverCounted,
                                    primarySessionRHR: primarySessionRHR,
