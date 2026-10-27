@@ -23,6 +23,12 @@ class AppLanguageTest {
     }
 
     @Test
+    fun dutchCatalogTagIsSupported() {
+        assertEquals(AppLanguage.DUTCH, AppLanguage.fromStorage("nl"))
+        assertEquals("Nederlands", AppLanguage.DUTCH.autonym)
+    }
+
+    @Test
     fun polishCatalogTagIsSupported() {
         assertEquals(AppLanguage.POLISH, AppLanguage.fromStorage("pl"))
         assertEquals("Polski", AppLanguage.POLISH.autonym)

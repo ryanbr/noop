@@ -21,6 +21,7 @@ android/app/src/main/res/values-de/strings.xml de 17
 android/app/src/main/res/values-es/strings.xml es 42
 android/app/src/main/res/values-fr/strings.xml fr 14
 android/app/src/main/res/values-it/strings.xml it 26
+android/app/src/main/res/values-nl/strings.xml nl 28
 android/app/src/main/res/values-pl/strings.xml pl 11
 android/app/src/main/res/values-pt-rPT/strings.xml pt-rPT 9
 android/app/src/main/res/values-zh/strings.xml zh 15

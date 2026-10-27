@@ -19,6 +19,7 @@ enum class AppLanguage(val storageValue: String?, val autonym: String) {
     SPANISH("es", "Español"),
     FRENCH("fr", "Français"),
     ITALIAN("it", "Italiano"),
+    DUTCH("nl", "Nederlands"),
     PORTUGUESE("pt-PT", "Português"),
     POLISH("pl", "Polski"),
     CHINESE("zh", "中文");
