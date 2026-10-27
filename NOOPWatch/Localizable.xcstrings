@@ -27,6 +27,12 @@
             "value": "%@ resp/min"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ademh./min"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -89,6 +95,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ritmo %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempo %@"
           }
         },
         "pt-PT": {
@@ -155,6 +167,12 @@
             "value": "%@ · %@s dentro / %@s fuori"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ s in / %@ s uit"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -214,6 +232,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %lld kcal"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ · %lld kcal"
@@ -281,6 +305,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld respiri · %@"
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld ademhaling · %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld ademhalingen · %@"
+                }
+              }
+            }
           }
         },
         "pt-PT": {
@@ -371,6 +413,24 @@
             "value": "%1$lld secondi rimanenti in %2$@"
           }
         },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Nog %1$lld seconde in %2$@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Nog %1$lld seconden in %2$@"
+                }
+              }
+            }
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -459,6 +519,12 @@
             "value": "Consenti accesso"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toegang geven"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -518,6 +584,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Box"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "Box"
@@ -593,6 +665,12 @@
             "value": "Respira"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ademen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -649,6 +727,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ispira"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adem in"
           }
         },
         "pt-PT": {
@@ -713,6 +797,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inspira per %lld secondi"
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Adem %lld seconde in"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Adem %lld seconden in"
+                }
+              }
+            }
           }
         },
         "pt-PT": {
@@ -803,6 +905,12 @@
             "value": "Espira"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adem uit"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -865,6 +973,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Espira per %lld secondi"
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Adem %lld seconde uit"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Adem %lld seconden uit"
+                }
+              }
+            }
           }
         },
         "pt-PT": {
@@ -961,6 +1087,12 @@
             "value": "Carica"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1017,6 +1149,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Coerenza"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coherentie"
           }
         },
         "pt-PT": {
@@ -1083,6 +1221,12 @@
             "value": "FATTO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KLAAR"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1145,6 +1289,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fatto"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klaar"
           }
         },
         "pt-PT": {
@@ -1217,6 +1367,12 @@
             "value": "Sforzo"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspanning"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1273,6 +1429,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fine"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beëindigen"
           }
         },
         "pt-PT": {
@@ -1339,6 +1501,12 @@
             "value": "Termina allenamento"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workout beëindigen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1403,6 +1571,12 @@
             "value": "Forza funzionale"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Functionele kracht"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1465,6 +1639,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Concedi l'accesso a Salute"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toegang tot Gezondheid geven"
           }
         },
         "pt-PT": {
@@ -1537,6 +1717,12 @@
             "value": "FREQUENZA CARDIACA"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HARTSLAG"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1593,6 +1779,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "FC non disponibile"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HS niet beschikbaar"
           }
         },
         "pt-PT": {
@@ -1659,6 +1851,12 @@
             "value": "Frequenza cardiaca ed energia in diretta, registrate al polso. Restano sul dispositivo."
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live hartslag en energie, vastgelegd om je pols. Blijft op het apparaat."
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1723,6 +1921,12 @@
             "value": "Apri NOOP sul tuo iPhone per sincronizzare"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open NOOP op je iPhone om te synchroniseren"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1785,6 +1989,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "IN PAUSA"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GEPAUZEERD"
           }
         },
         "pt-PT": {
@@ -1857,6 +2067,12 @@
             "value": "Pausa"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pauzeren"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1913,6 +2129,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "REGISTRAZIONE"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OPNAME"
           }
         },
         "pt-PT": {
@@ -1979,6 +2201,12 @@
             "value": "RIPOSO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RUST"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2043,6 +2271,12 @@
             "value": "Pronto a respirare"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klaar om te ademen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2105,6 +2339,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rilassati"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontspan"
           }
         },
         "pt-PT": {
@@ -2177,6 +2417,12 @@
             "value": "Reimposta"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resetten"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2239,6 +2485,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Riposo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rust"
           }
         },
         "pt-PT": {
@@ -2305,6 +2557,12 @@
             "value": "Riavvia"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herstarten"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2361,6 +2619,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Riprendi"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hervatten"
           }
         },
         "pt-PT": {
@@ -2427,6 +2691,12 @@
             "value": "Round %lld di %lld"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ronde %lld van %lld"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2486,6 +2756,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SEC"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "SEC"
@@ -2553,6 +2829,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sessione completata"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessie klaar"
           }
         },
         "pt-PT": {
@@ -2625,6 +2907,12 @@
             "value": "Avvia"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Begin"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2689,6 +2977,12 @@
             "value": "Avvia sessione"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessie starten"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2745,6 +3039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ferma"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stoppen"
           }
         },
         "pt-PT": {
@@ -2817,6 +3117,12 @@
             "value": "Termina sessione"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessie stoppen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -2873,6 +3179,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "LAVORO"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WERK"
           }
         },
         "pt-PT": {
@@ -2939,6 +3251,12 @@
             "value": "Allenamento"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workout"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -3003,6 +3321,12 @@
             "value": "Allenamento salvato"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workout opgeslagen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -3065,6 +3389,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "al %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "per %@"
           }
         },
         "pt-PT": {
@@ -3132,6 +3462,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bpm"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "bpm"
@@ -3219,6 +3555,12 @@
             "value": "cal"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cal"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -3257,6 +3599,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "obsoleto · %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verouderd · %@"
           }
         },
         "pt-PT": {
@@ -3335,6 +3683,12 @@
             "value": "%lld"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3388,6 +3742,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/ %lld"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "/ %lld"
@@ -3451,6 +3811,12 @@
             "value": "Aperto"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -3510,6 +3876,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 min"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "5 min"
@@ -3579,6 +3951,12 @@
             "value": "10 min"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 min"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -3638,6 +4016,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 min"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "15 min"
@@ -3707,6 +4091,12 @@
             "value": "Trattieni…"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vasthouden…"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -3771,6 +4161,12 @@
             "value": "Deep"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diep"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -3830,6 +4226,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4-7-8"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "4-7-8"
@@ -3899,6 +4301,12 @@
             "value": "Coerente"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coherent"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -3958,6 +4366,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Presence"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "Presence"
@@ -4027,6 +4441,12 @@
             "value": "Mid"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mid"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -4091,6 +4511,12 @@
             "value": "Punch"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Punch"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -4149,6 +4575,12 @@
             "value": "Guidato"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Begeleid"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -4202,6 +4634,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5m"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "5m"
@@ -4265,6 +4703,12 @@
             "value": "10m"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10m"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -4318,6 +4762,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15m"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "15m"
@@ -4381,6 +4831,12 @@
             "value": "Trattieni"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vasthouden"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -4437,6 +4893,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Segui l’indicazione"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volg het signaal"
           }
         },
         "pl": {

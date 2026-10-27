@@ -45,6 +45,12 @@
             "value": "%@ %lld"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lld"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -107,6 +113,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ in calibrazione"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kalibreert"
           }
         },
         "pl": {
@@ -173,6 +185,12 @@
             "value": "%@ non disponibile"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ niet beschikbaar"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -223,6 +241,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading"
           }
         },
         "pt-PT": {
@@ -301,6 +325,12 @@
             "value": "Carica %lld su 100"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading %lld van 100"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -363,6 +393,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica %lld · %lld bpm%@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading %lld · %lld bpm%@"
           }
         },
         "pl": {
@@ -429,6 +465,12 @@
             "value": "Carica %lld%@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading %lld%@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -491,6 +533,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica in calibrazione"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading kalibreert"
           }
         },
         "pl": {
@@ -557,6 +605,12 @@
             "value": "Carica in calibrazione, servono più dati"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading kalibreert, meer gegevens nodig"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -619,6 +673,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica non aggiornata, ultima sincronizzazione %@. Apri NOOP su iPhone."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading verouderd, laatst gesynchroniseerd %@. Open NOOP op iPhone."
           }
         },
         "pl": {
@@ -685,6 +745,12 @@
             "value": "Carica datata · %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading verouderd · %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -747,6 +813,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica non disponibile"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading niet beschikbaar"
           }
         },
         "pl": {
@@ -813,6 +885,12 @@
             "value": "Carica · %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading · %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -875,6 +953,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica · cal"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading · cal"
           }
         },
         "pl": {
@@ -941,6 +1025,12 @@
             "value": "Carica –"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lading –"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -991,6 +1081,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sforzo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inspanning"
           }
         },
         "pt-PT": {
@@ -1049,6 +1145,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carica NOOP"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP Lading"
           }
         },
         "pt-PT": {
@@ -1133,6 +1235,12 @@
             "value": "NOOP · apri su iPhone"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP · open op iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1192,6 +1300,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. %@, %@, %@."
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "NOOP. %@, %@, %@."
@@ -1261,6 +1375,12 @@
             "value": "NOOP. Ancora nessun dato, apri NOOP sul tuo iPhone per sincronizzare."
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Nog geen gegevens, open NOOP op je iPhone om te synchroniseren."
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1323,6 +1443,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP. Punteggi non aggiornati, ultima sincronizzazione %@. Apri NOOP su iPhone per aggiornare."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Scores verouderd, laatst gesynchroniseerd %@. Open NOOP op iPhone om te vernieuwen."
           }
         },
         "pl": {
@@ -1389,6 +1515,12 @@
             "value": "Nessun dato, apri NOOP su iPhone"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen gegevens, open NOOP op iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1453,6 +1585,12 @@
             "value": "Apri NOOP"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open NOOP"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1503,6 +1641,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Riposo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rust"
           }
         },
         "pt-PT": {
@@ -1561,6 +1705,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "La tua Carica (recupero) sul quadrante, con Sforzo e Riposo nella scheda rettangolare."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je Lading (herstel) op de wijzerplaat, met Inspanning en Rust in de rechthoekige kaart."
           }
         },
         "pt-PT": {
@@ -1645,6 +1795,12 @@
             "value": "tempo fa"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "een tijdje geleden"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1704,6 +1860,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cal"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "cal"
@@ -1773,6 +1935,12 @@
             "value": "vecchio"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "oud"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1837,6 +2005,12 @@
             "value": "apri iPhone"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "open iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1899,6 +2073,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "datato"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verouderd"
           }
         },
         "pl": {

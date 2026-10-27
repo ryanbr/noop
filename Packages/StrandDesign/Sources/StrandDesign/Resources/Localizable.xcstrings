@@ -45,6 +45,12 @@
             "value": "%lld giorni fa"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dagen geleden"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -89,6 +95,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld ore"
+          }
+        },
+        "nl": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld uur"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld uur"
+                }
+              }
+            }
           }
         },
         "pt-PT": {
@@ -197,6 +221,12 @@
             "value": "%lld minuti"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld minuten"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -259,6 +289,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld punti, media %@, intervallo da %@ a %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld punten, gemiddeld %@, bereik %@ tot %@"
           }
         },
         "pl": {
@@ -325,6 +361,12 @@
             "value": "%lld letture"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld metingen"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -387,6 +429,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld allenamenti"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld workouts"
           }
         },
         "pl": {
@@ -453,6 +501,12 @@
             "value": "%lldg fa"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldd geleden"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -497,6 +551,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lldh fa"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldh geleden"
           }
         },
         "pt-PT": {
@@ -581,6 +641,12 @@
             "value": "%lldm fa"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldm geleden"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -625,6 +691,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 ora"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 uur"
           }
         },
         "pt-PT": {
@@ -709,6 +781,12 @@
             "value": "1 minuto"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 minuut"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -771,6 +849,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 allenamento"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 workout"
           }
         },
         "pl": {
@@ -837,6 +921,12 @@
             "value": "MASSIMO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MAXIMAAL"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -887,6 +977,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sveglio"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wakker"
           }
         },
         "pt-PT": {
@@ -965,6 +1061,12 @@
             "value": "Classico"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klassiek"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1029,6 +1131,12 @@
             "value": "ESAURITO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UITGEPUT"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1079,6 +1187,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Scuro"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Donker"
           }
         },
         "pt-PT": {
@@ -1145,6 +1259,12 @@
             "value": "Profondo"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diep"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -1201,6 +1321,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Predefinito"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standaard"
           }
         },
         "pt-PT": {
@@ -1265,6 +1391,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ALTO"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HOOG"
           }
         },
         "pt-PT": {
@@ -1349,6 +1481,12 @@
             "value": "LEGGERO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LICHT"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1393,6 +1531,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "BASSO"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LAAG"
           }
         },
         "pt-PT": {
@@ -1463,6 +1607,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leggero"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licht"
           }
         },
         "pt-PT": {
@@ -1541,6 +1691,12 @@
             "value": "MODERATO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MATIG"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1591,6 +1747,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nessun dato"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen gegevens"
           }
         },
         "pt-PT": {
@@ -1669,6 +1831,12 @@
             "value": "Nessun dato di frequenza cardiaca"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geen hartslaggegevens"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1713,6 +1881,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "PICCO"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PIEK"
           }
         },
         "pt-PT": {
@@ -1797,6 +1971,12 @@
             "value": "PRONTO"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TOPFIT"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1859,6 +2039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Calendario recupero, %lld giorni, media %lld, minimo %lld, massimo %lld"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herstelkalender, %lld dagen, gemiddeld %lld, laagste %lld, hoogste %lld"
           }
         },
         "pl": {
@@ -1925,6 +2111,12 @@
             "value": "Calendario recupero, nessun dato"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herstelkalender, geen gegevens"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1987,6 +2179,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "INTENSO"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ZWAAR"
           }
         },
         "pl": {
@@ -2053,6 +2251,12 @@
             "value": "Fasi del sonno, %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slaapfasen, %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2117,6 +2321,12 @@
             "value": "Fasi del sonno, nessun dato"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slaapfasen, geen gegevens"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2167,6 +2377,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sincronizzazione"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchroniseren"
           }
         },
         "pt-PT": {
@@ -2245,6 +2461,12 @@
             "value": "Sistema"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systeem"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2295,6 +2517,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oggi"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vandaag"
           }
         },
         "pt-PT": {
@@ -2373,6 +2601,12 @@
             "value": "Andamento, %lld punti, ultimo %@, minimo %@, massimo %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trend, %lld punten, laatste %@, laagste %@, hoogste %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2417,6 +2651,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ieri"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gisteren"
           }
         },
         "pt-PT": {
@@ -2501,6 +2741,12 @@
             "value": "sonno %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "geslapen %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2565,6 +2811,12 @@
             "value": "media %@ bpm"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gemiddeld %@ bpm"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2609,6 +2861,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "proprio ora"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zojuist"
           }
         },
         "pt-PT": {
@@ -2693,6 +2951,12 @@
             "value": "intervallo da %@ a %@"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bereik %@ tot %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2734,6 +2998,12 @@
           }
         },
         "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
+        "nl": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld"
@@ -3289,6 +3559,12 @@
             "value": "Fine"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klaar"
+          }
+        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3459,6 +3735,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frequenza cardiaca, 24 ore"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hartslag, 24 uur"
           }
         },
         "pt-PT": {
@@ -3937,6 +4219,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Movimento durante il sonno"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beweging tijdens slaap"
           }
         },
         "pt-PT": {
@@ -4603,6 +4891,12 @@
             "value": "Salva"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opslaan"
+          }
+        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -5057,6 +5351,12 @@
             "value": "Cancella ricerca"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoekopdracht wissen"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -5119,6 +5419,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giorno successivo"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volgende dag"
           }
         },
         "pt-PT": {
@@ -5185,6 +5491,12 @@
             "value": "Scegli una data"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kies een datum"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -5241,6 +5553,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giorno precedente"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorige dag"
           }
         },
         "pt-PT": {
@@ -5305,6 +5623,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Andamento"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trend"
           }
         },
         "pt-PT": {
@@ -5383,6 +5707,12 @@
             "value": "Pieno"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gevuld"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -5447,6 +5777,12 @@
             "value": "Nastro"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lint"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -5497,6 +5833,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pieno"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vulling"
           }
         },
         "pt-PT": {
@@ -5563,6 +5905,12 @@
             "value": "Riempimento Garmin"
           }
         },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garmin-vulling"
+          }
+        },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
@@ -5626,6 +5974,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chiaro"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Licht"
           }
         },
         "pl": {
