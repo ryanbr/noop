@@ -24,7 +24,9 @@ SPEC.loader.exec_module(check_source_references)
 class SourceReferenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        # Resolved because the checker resolves every path it is given, and on macOS the
+        # temp directory sits under /var, a symlink to /private/var.
+        self.root = Path(self.temp.name).resolve()
         self.docs = self.root / "docs"
         self.sources = self.root / "Sources"
         self.docs.mkdir()
