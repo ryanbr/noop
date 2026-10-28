@@ -286,7 +286,7 @@ fun IntervalsScreen(vm: AppViewModel) {
                                 modifier = Modifier.padding(end = 6.dp),
                             )
                             Text(
-                                if (running) "Pause" else if (isFinished) "Restart" else "Start",
+                                if (running) uiString(R.string.workout_action_pause) else if (isFinished) uiString(R.string.intervals_restart) else uiString(R.string.ground_truth_marker_start),
                                 style = NoopType.headline,
                             )
                         }
@@ -509,7 +509,7 @@ private fun ConfigStepper(
                     R.string.intervals_range_step,
                     range.first,
                     range.last,
-                    unit?.let { " $it" } ?: "",
+                    unit?.let { uiString(R.string.intervals_screen_format, it) } ?: "",
                     step,
                 ),
                 style = NoopType.footnote,

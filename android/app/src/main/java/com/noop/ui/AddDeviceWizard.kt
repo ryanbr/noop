@@ -1470,9 +1470,7 @@ private fun OuraFailedStep(reason: String?, onTryAgain: () -> Unit, onUseFileImp
         // Surface the live adopt-failure reason when the source reported one; otherwise the static help.
         // Mirrors the Swift wizard's `model.ouraNeedsPairing ?? <static fallback>`.
         Text(
-            reason ?: "The most common cause is the ring was not fully reset in the Oura app, or the Oura " +
-                "app is still running. Reset the ring again, force-quit Oura, then try once more. If it keeps " +
-                "failing, your ring may be a generation NOOP cannot adopt yet. You can still use file import.",
+            reason ?: uiString(R.string.add_device_wizard_most_common_cause_ring_was_not),
             style = NoopType.subhead,
             color = Palette.textSecondary,
         )

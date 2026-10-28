@@ -330,7 +330,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                         if (live.bonded)
                             uiString(R.string.smart_alarm_5mg_armed_experimental)
                         else
-                            "Connect your strap to arm this; it's set on the strap's own firmware alarm. Confirmed working on WHOOP 4.0; still experimental on 5.0 and MG. Keep a backup alarm for anything you truly can't miss.",
+                            uiString(R.string.smart_alarm_screen_connect_strap_arm_this_s_set),
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                 } else {
@@ -338,9 +338,9 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                         if (live.bonded)
                             // Truth-sync (#535): confirmed buzzing on a real WHOOP 4.0; byte-identical
                             // wording to the Swift SmartAlarmView.
-                            "Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss."
+                            uiString(R.string.smart_alarm_screen_armed_strap_itself_so_can_buzz)
                         else
-                            "Connect your strap to arm this; it's set on the strap's own firmware alarm. Confirmed working on WHOOP 4.0; still experimental on 5.0 and MG. Keep a backup alarm for anything you truly can't miss.",
+                            uiString(R.string.smart_alarm_screen_connect_strap_arm_this_s_set),
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                     // #1706: ask the strap what it actually has stored. The readback was previously only

@@ -309,9 +309,9 @@ private fun UpdateRow(
             )
             .semantics {
                 contentDescription = if (item.read) {
-                    "${item.title}. ${item.message}"
+                    uiString(R.string.l10n_add_device_wizard_title_subtitle_8d9004e8, item.title, item.message)
                 } else {
-                    "Unread. ${item.title}. ${item.message}"
+                    uiString(R.string.updates_inbox_screen_unread, item.title, item.message)
                 }
             },
     ) {

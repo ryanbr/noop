@@ -372,7 +372,7 @@ private fun ComparisonCard(rows: List<StepsComparisonRow>) {
                         Text(grouped(row.estimated), style = NoopType.captionNumber, color = Palette.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(64.dp))
                         Text(grouped(row.actual), style = NoopType.captionNumber, color = Palette.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(64.dp))
                         Text(
-                            String.format(Locale.US, "%+.0f%%", row.errorPct),
+                            uiString(R.string.steps_calibration_screen_label, row.errorPct),
                             style = NoopType.captionNumber,
                             color = if (abs(row.errorPct) <= 15) Palette.metricCyan else Palette.statusWarning,
                             textAlign = TextAlign.End,
@@ -427,12 +427,12 @@ private fun ManualAdjustCard(
             )
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    if (manual > 0) String.format(Locale.US, "%.1f", manual) else "Auto",
+                    if (manual > 0) String.format(Locale.US, "%.1f", manual) else uiString(R.string.steps_calibration_screen_auto),
                     style = NoopType.number(24f),
                     color = if (manual > 0) Palette.accent else Palette.textSecondary,
                 )
                 Text(
-                    if (manual > 0) "steps / motion unit" else "fit from your phone",
+                    if (manual > 0) uiString(R.string.steps_calibration_screen_steps_motion_unit) else uiString(R.string.steps_calibration_screen_fit_from_phone),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                     modifier = Modifier.padding(bottom = 4.dp),

@@ -323,8 +323,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                 )
                 Text(
                     if (live.syncChunksThisSession > 0)
-                        "Syncing your strap history… ${live.syncChunksThisSession} chunks pulled"
-                    else "Syncing your strap history…",
+                        uiString(R.string.live_screen_syncing_strap_history_chunks_pulled, live.syncChunksThisSession)
+                    else uiString(R.string.live_screen_syncing_strap_history),
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                 )
@@ -604,9 +604,9 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                 )
                 Text(
                     when {
-                        live.scanning -> "Searching…"
-                        live.connected -> "Re-scan"
-                        else -> "Connect"
+                        live.scanning -> uiString(R.string.l10n_add_device_wizard_searching_1a6a5ba8)
+                        live.connected -> uiString(R.string.live_scan_rescan)
+                        else -> uiString(R.string.l10n_coach_screen_connect_b65463cb)
                     },
                     style = NoopType.captionNumber,
                     maxLines = 1,
@@ -709,7 +709,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                     )
                 }
                 Text(
-                    if (live.backfilling) "Syncing…" else "Sync now",
+                    if (live.backfilling) uiString(R.string.health_screen_syncing) else uiString(R.string.health_screen_sync_now),
                     style = NoopType.captionNumber,
                     maxLines = 1,
                     softWrap = false,
@@ -756,9 +756,9 @@ private fun MaxHrZoneCard(hrMax: Int, zone5Bpm: Int, coachingOn: Boolean) {
             }
             Text(
                 if (coachingOn)
-                    "Strap buzzes when you climb into Zone 5 (≥ $zone5Bpm bpm). Manage it in Automations → Haptic coaching."
+                    uiString(R.string.live_screen_strap_buzzes_when_climb_into_zone, zone5Bpm)
                 else
-                    "Turn on HR-zone coaching in Automations for a wrist buzz when you reach Zone 5 (≥ $zone5Bpm bpm).",
+                    uiString(R.string.live_screen_turn_hr_zone_coaching_automations_wrist, zone5Bpm),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
                 modifier = Modifier.fillMaxWidth(),
@@ -942,7 +942,7 @@ private fun OfflineConnectCallout(scanning: Boolean, onConnect: () -> Unit) {
                     modifier = Modifier.size(18.dp).padding(end = 4.dp),
                 )
                 Text(
-                    if (scanning) "Searching…" else "Scan & Connect",
+                    if (scanning) uiString(R.string.l10n_add_device_wizard_searching_1a6a5ba8) else uiString(R.string.live_scan_connect),
                     style = NoopType.captionNumber,
                     maxLines = 1,
                     softWrap = false,
@@ -1265,8 +1265,8 @@ private fun RRStrip(rrRecent: List<Int>) {
             }
         }
         Text(
-            if (values.isEmpty()) "Waiting for R-R intervals."
-            else "Recent intervals: " + values.takeLast(5).joinToString(" · ") + " ms",
+            if (values.isEmpty()) uiString(R.string.live_screen_waiting_r_r_intervals)
+            else uiString(R.string.live_screen_recent_intervals_ms, values.takeLast(5).joinToString(" · ")),
             style = NoopType.footnote,
             color = Palette.textTertiary,
             maxLines = 1,

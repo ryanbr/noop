@@ -112,17 +112,12 @@ object RhythmConsent {
 
     /** The points the user must read before turning the feature on (spec §9). No condition
      *  name, no diagnosis, no "consider a clinician" verdict. Kept identical to macOS. */
-    val points: List<Pair<String, String>> = listOf(
-        "Experimental, and not a medical device" to
-            "This is an experimental wellness visualization of your beat-to-beat timing. It is NOT an ECG, and it cannot diagnose, detect, or rule out any heart condition.",
-        "It is a picture, not a verdict" to
-            "It shows the shape of your heartbeat timing and a plain-language description of how steady it looked. It does not tell you whether anything is right or wrong.",
-        "Variation is normal and often benign" to
-            "Beat-to-beat timing varies for many ordinary reasons: breathing, movement, an imperfect optical reading, or the occasional extra or skipped beat that most healthy people have.",
-        "It is not a substitute for a professional" to
-            "If you feel unwell or are worried about your heart, contact a qualified professional; in an emergency, your local emergency service. Do not rely on NOOP.",
-        "Everything stays on your device" to
-            "All of this is computed on your own device from data you already have. No heartbeat data leaves it.",
+    val points: List<Pair<Int, Int>> = listOf(
+        R.string.rhythm_consent_point_1_title to R.string.rhythm_consent_point_1_body,
+        R.string.rhythm_consent_point_2_title to R.string.rhythm_consent_point_2_body,
+        R.string.rhythm_consent_point_3_title to R.string.rhythm_consent_point_3_body,
+        R.string.rhythm_consent_point_4_title to R.string.rhythm_consent_point_4_body,
+        R.string.rhythm_consent_point_5_title to R.string.rhythm_consent_point_5_body,
     )
 }
 
@@ -157,8 +152,8 @@ fun RhythmConsentGate(
             ) {
                 RhythmConsent.points.forEach { (head, body) ->
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(head, style = NoopType.headline, color = Palette.textPrimary)
-                        Text(body, style = NoopType.footnote, color = Palette.textSecondary)
+                        Text(uiString(head), style = NoopType.headline, color = Palette.textPrimary)
+                        Text(uiString(body), style = NoopType.footnote, color = Palette.textSecondary)
                     }
                 }
                 Text(

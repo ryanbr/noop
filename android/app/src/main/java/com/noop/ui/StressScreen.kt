@@ -1516,9 +1516,9 @@ private fun StressMethodologyCard(model: StressModel, modifier: Modifier = Modif
             Overline("How this is computed")
             Text(
                 if (model.usingStored) {
-                    "Today's value is your recorded daily stress score (0-3)."
+                    uiString(R.string.stress_screen_today_s_value_recorded_daily_stress)
                 } else {
-                    "Stress is derived from two autonomic signals."
+                    uiString(R.string.stress_screen_stress_derived_from_two_autonomic_signals)
                 },
                 style = NoopType.body,
                 color = Palette.textPrimary,

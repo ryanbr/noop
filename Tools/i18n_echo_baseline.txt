@@ -23,4 +23,8 @@ android/app/src/main/res/values-fr/strings.xml fr 14
 android/app/src/main/res/values-it/strings.xml it 26
 android/app/src/main/res/values-pl/strings.xml pl 11
 android/app/src/main/res/values-pt-rPT/strings.xml pt-rPT 9
+# ru residue: the add-device sample MAC (hex placeholder), Apple Health / Health Connect / Xiaomi Mi Band
+# (official product names, kept Latin in 6 of 7 Android locales), and 7 Compose animation-inspector labels
+# (wordmark-*, glowring-*, NoopButton.scale) that never render.
+android/app/src/main/res/values-ru/strings.xml ru 13
 android/app/src/main/res/values-zh/strings.xml zh 15

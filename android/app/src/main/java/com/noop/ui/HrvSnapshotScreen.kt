@@ -306,7 +306,7 @@ fun HrvSnapshotScreen(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.accent),
                 ) {
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
-                    Text(if (saved) "Saved" else "Save", style = NoopType.body)
+                    Text(if (saved) uiString(R.string.hrv_snapshot_saved) else uiString(R.string.l10n_journal_log_save_efc007a3), style = NoopType.body)
                 }
             }
         }
@@ -356,8 +356,8 @@ private fun CaptureDial(fraction: Float, value: String, unit: String, sub: Strin
         label = uiString(R.string.l10n_hrv_snapshot_screen_hrvdial_4c244c45),
     )
     val a11y = when {
-        sub != null -> "Capturing. $value milliseconds RMSSD so far. $sub."
-        else -> "$value $unit"
+        sub != null -> uiString(R.string.hrv_snapshot_screen_capturing_milliseconds_rmssd_so_far, value, sub)
+        else -> uiString(R.string.l10n_automations_screen_value_suffix_26985180, value, unit)
     }
     Box(
         modifier = Modifier

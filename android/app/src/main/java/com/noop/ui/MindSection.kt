@@ -198,7 +198,7 @@ fun MindSection(vm: AppViewModel) {
 @Composable
 private fun MoodFaceButton(face: MoodFace, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    val desc = "${face.word}, mood ${face.value.toInt()} of 5"
+    val desc = uiString(R.string.mind_section_mood_5, face.word, face.value.toInt())
     Box(
         modifier = Modifier
             .clip(shape)
@@ -257,7 +257,7 @@ private fun MindCorrelationRow(line: MindLine) {
                 modifier = Modifier.weight(1f),
             )
             Text(
-                String.format(Locale.US, "r = %+.2f", line.r),
+                uiString(R.string.insights_screen_r, line.r),
                 style = NoopType.captionNumber,
                 color = Palette.textSecondary,
             )

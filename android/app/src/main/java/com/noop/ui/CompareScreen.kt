@@ -645,7 +645,7 @@ private fun AddMetricMenu(
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                if (atMax) "Max 4" else "Add metric",
+                if (atMax) uiString(R.string.compare_screen_max_4) else uiString(R.string.compare_screen_add_metric),
                 style = NoopType.subhead,
                 color = tint,
                 maxLines = 1,
@@ -805,9 +805,9 @@ private fun OverlaySection(
                 Overline("Normalized overlay")
                 Text(
                     if (anyWidened) {
-                        "Each line min-max normalized · sparse series widened past ${range.phrase}"
+                        uiString(R.string.compare_screen_each_line_min_max_normalized_sparse, range.phrase)
                     } else {
-                        "Each line min-max normalized within ${range.phrase}"
+                        uiString(R.string.compare_screen_each_line_min_max_normalized_within, range.phrase)
                     },
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
@@ -1157,7 +1157,7 @@ private fun CompareChartTooltip(
                 Text(
                     preparedSeries.pointsByDay[day]?.value?.let {
                         source.metric.format(it, unitSystem, tempUnit)
-                    } ?: "\u2014",
+                    } ?: uiString(R.string.compare_screen_u2014),
                     style = NoopType.captionNumber,
                     color = Palette.textPrimary,
                     maxLines = 1,

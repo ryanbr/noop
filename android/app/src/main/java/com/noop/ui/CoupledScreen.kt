@@ -245,7 +245,7 @@ fun CoupledScreen(
             // The brief quotes the footer with the brand word, but the hard legal / anonymity rule wins over
             // the illustrative copy: this keeps the exact intent without the branding word. Byte-identical to
             // the Swift footer caption.
-            "A classic one-glance read of NOOP's own scores. Same data, different lens.",
+            uiString(R.string.coupled_screen_classic_one_glance_read_noop_s),
             style = NoopType.footnote,
             color = Palette.textTertiary,
             modifier = Modifier.padding(top = 4.dp),
@@ -304,10 +304,10 @@ private fun HeroCard(
     onTap: () -> Unit,
 ) {
     val a11y = when {
-        recovery != null -> "Recovery ${recovery.roundToInt()} percent. See what shaped your Charge"
+        recovery != null -> uiString(R.string.coupled_screen_recovery_percent_see_what_shaped_charge, recovery.roundToInt())
         calibrationNights != null ->
-            "Recovery calibrating, $calibrationNights of ${Baselines.minNightsSeed} nights"
-        else -> "Recovery, no data yet"
+            uiString(R.string.coupled_screen_recovery_calibrating_nights, calibrationNights, Baselines.minNightsSeed)
+        else -> uiString(R.string.coupled_screen_recovery_no_data_yet)
     }
     // The vessel runs LIVE (per-frame slosh + tilt) once there's a real value to show; an empty/calibrating
     // hero poses it static so a brand-new user's launch churn isn't fighting a live canvas (the Today

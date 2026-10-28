@@ -740,7 +740,7 @@ private fun AppRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(app.name, style = NoopType.body, color = Palette.textPrimary)
             Text(
-                if (enabled) "Buzzes your wrist" else "Off",
+                if (enabled) uiString(R.string.notifications_buzzes_wrist) else uiString(R.string.l10n_data_sources_screen_off_e3de5ab0),
                 style = NoopType.footnote,
                 color = if (enabled) Palette.accent else Palette.textTertiary,
             )

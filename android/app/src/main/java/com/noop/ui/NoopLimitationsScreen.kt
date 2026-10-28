@@ -82,15 +82,15 @@ private fun LimitTableCard() {
             Overline("What NOOP reads")
             // Column header.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Feature", style = NoopType.caption, color = Palette.textTertiary, modifier = Modifier.weight(1f))
+                Text(uiString(R.string.l10n_whoop_model_comparison_screen_feature_ad565d9d), style = NoopType.caption, color = Palette.textTertiary, modifier = Modifier.weight(1f))
                 Text("4.0", style = NoopType.caption, color = Palette.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.width(48.dp))
-                Text("5.0/MG", style = NoopType.caption, color = Palette.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.width(48.dp))
+                Text(uiString(R.string.noop_limitations_screen_5_0_mg), style = NoopType.caption, color = Palette.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.width(48.dp))
             }
             LIMIT_ROWS.forEachIndexed { idx, row ->
                 if (idx > 0) Hairline()
                 Row(
                     modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = "${row.feature}: WHOOP 4.0 ${row.whoop4.spoken}, 5.0/MG ${row.whoop5.spoken}"
+                        contentDescription = uiString(R.string.noop_limitations_screen_whoop_4_0_5_0_mg, row.feature, row.whoop4.spoken, row.whoop5.spoken)
                     },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

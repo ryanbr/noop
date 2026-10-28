@@ -277,7 +277,7 @@ class UpdateStore private constructor(private val prefs: SharedPreferences) {
         post(
             UpdateItem(
                 kind = UpdateKind.WHATS_NEW,
-                title = if (title.isEmpty()) "What's new in NOOP $version" else title,
+                title = if (title.isEmpty()) uiString(R.string.update_store_what_s_new_noop, version) else title,
                 message = "NOOP $version is here — tap to read what's new.",
                 // #984: this row promised "tap to read what's new" while carrying NO deep link, so the
                 // tap resolved to nothing and only marked it read. Every release since the inbox shipped

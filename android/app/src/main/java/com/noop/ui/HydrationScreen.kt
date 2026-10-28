@@ -237,7 +237,7 @@ fun HydrationScreen(viewModel: AppViewModel) {
                                 color = Color.White,
                             )
                             Text(
-                                String.format(Locale.US, "of %.1f L", goalMl / 1000.0),
+                                uiString(R.string.hydration_screen_l, goalMl / 1000.0),
                                 style = NoopType.subhead,
                                 color = Color.White.copy(alpha = 0.72f),
                             )

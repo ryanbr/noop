@@ -873,10 +873,10 @@ private fun DeviceCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     lastSeenLine(device, isLiveConnected, bondRefused) +
-                        (liveFirmware?.let { " · FW $it" } ?: "") +
+                        (liveFirmware?.let { uiString(R.string.devices_screen_fw, it) } ?: "") +
                         voltsSuffix +
                         packSuffix +
-                        (historyLayoutLine(liveHistoryLayout)?.let { " · $it" } ?: ""),
+                        (historyLayoutLine(liveHistoryLayout)?.let { uiString(R.string.devices_screen_format, it) } ?: ""),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                     modifier = Modifier.weight(1f),

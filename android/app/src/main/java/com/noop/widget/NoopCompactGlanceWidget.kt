@@ -136,7 +136,7 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             ?: hrLabel
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = snap.heartRate?.let { "♥ $it" } ?: "♥ - ",
+                text = snap.heartRate?.let { uiString(R.string.noop_compact_glance_widget_format, it) } ?: "♥ - ",
                 // Dim a carried-over reading so a stale HR can't masquerade as a live one.
                 style = TextStyle(color = if (snap.heartRateStale) textSecondary else textPrimary, fontSize = 13.sp),
                 modifier = GlanceModifier.semantics { contentDescription = hrDescription },
@@ -150,20 +150,20 @@ private fun CompactWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             )
             Spacer(modifier = GlanceModifier.width(3.dp))
             Text(
-                text = snap.batteryPct?.let { "$it%" } ?: "-",
+                text = snap.batteryPct?.let { uiString(R.string.l10n_devices_screen_clamped_1f39cebb, it) } ?: "-",
                 style = TextStyle(color = textPrimary, fontSize = 13.sp),
             )
         }
         Spacer(modifier = GlanceModifier.height(1.dp))
         Text(
             text = when {
-                snap.connected -> "Connected"
+                snap.connected -> uiString(R.string.recording_chip_title_connected)
                 snap.updatedAtMs > 0L ->
                     java.text.SimpleDateFormat(   // #1821: the reader's chosen clock
                         ClockFormat.hourMinutePattern(ClockPrefs.uses24Hour(androidx.glance.LocalContext.current)),
                         java.util.Locale.getDefault(),
                     ).format(Date(snap.updatedAtMs))
-                else -> "Open NOOP to connect"
+                else -> uiString(R.string.noop_compact_glance_widget_open_noop_connect)
             },
             style = TextStyle(color = textSecondary, fontSize = 11.sp),
         )
@@ -189,7 +189,7 @@ private fun CompactScoreCell(
             colorFilter = ColorFilter.tint(color),
         )
         Text(
-            text = pct?.let { "$it%" } ?: "—",
+            text = pct?.let { uiString(R.string.l10n_devices_screen_clamped_1f39cebb, it) } ?: "—",
             style = TextStyle(color = color, fontSize = 21.sp, fontWeight = FontWeight.Bold),
         )
     }

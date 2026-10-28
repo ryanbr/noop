@@ -856,7 +856,7 @@ private fun EffectCard(e: BehaviorEffect, outcome: Outcome) {
             ) {
                 Overline("Effect size", modifier = Modifier.weight(1f))
                 Text(
-                    String.format(Locale.US, "d = %.2f", e.cohensD),
+                    uiString(R.string.insights_hub_screen_d, e.cohensD),
                     style = NoopType.captionNumber,
                     color = tintColor,
                 )
@@ -1501,7 +1501,7 @@ private fun RelationshipRow(rel: Relationship) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                String.format(Locale.US, "r = %+.2f", rel.r),
+                uiString(R.string.insights_screen_r, rel.r),
                 style = NoopType.number(16f),
                 color = strength,
             )

@@ -215,8 +215,8 @@ private fun LiveSessionBody(
         // The one line of copy. STALE says so honestly (coaching paused, nothing accrues); otherwise the
         // guarding promise — the whole design is that this screen has nothing to watch.
         Text(
-            if (stale) "Signal lost — coaching paused."
-            else "Guarding your session. Silence means you're on track.",
+            if (stale) uiString(R.string.live_session_screen_signal_lost_coaching_paused)
+            else uiString(R.string.live_session_screen_guarding_session_silence_means_re_track),
             style = NoopType.subhead,
             color = if (stale) Palette.textTertiary else Palette.textSecondary,
             textAlign = TextAlign.Center,

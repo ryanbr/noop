@@ -1053,7 +1053,7 @@ private fun MoreGroupHeader(title: String, expanded: Boolean, onToggle: () -> Un
             .clickable(onClick = onToggle)
             .semantics {
                 contentDescription = title
-                stateDescription = if (expanded) "Expanded" else "Collapsed"
+                stateDescription = if (expanded) uiString(R.string.settings_disclosure_expanded) else uiString(R.string.settings_disclosure_collapsed)
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {

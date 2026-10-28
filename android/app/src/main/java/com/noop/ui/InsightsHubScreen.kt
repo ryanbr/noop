@@ -246,7 +246,7 @@ private fun MoverCard(r: RankedEffect, outcome: InsightsOutcome) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Overline("Effect size", modifier = Modifier.weight(1f))
                 Text(
-                    String.format(Locale.US, "d = %.2f", e.cohensD),
+                    uiString(R.string.insights_hub_screen_d, e.cohensD),
                     style = NoopType.captionNumber,
                     color = tintColor,
                 )

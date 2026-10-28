@@ -204,7 +204,7 @@ fun PipBarRow(
         modifier = modifier
             .fillMaxWidth()
             .clearAndSetSemantics {
-                contentDescription = if (unit != null) "$label: $valueText $unit" else "$label: $valueText"
+                contentDescription = if (unit != null) uiString(R.string.pip_bar_format, label, valueText, unit) else uiString(R.string.l10n_fused_record_screen_other_source_displayname_fusionformat_value_other_207f7548, label, valueText)
             },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
