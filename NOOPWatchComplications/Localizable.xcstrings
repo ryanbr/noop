@@ -740,7 +740,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Frais non disponibles"
+            "value": "Charge non disponible"
           }
         },
         "it": {
@@ -786,7 +786,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cobrar · %@"
+            "value": "Carga · %@"
           }
         },
         "ru": {
@@ -914,7 +914,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cobrar -"
+            "value": "Carga -"
           }
         },
         "ru": {
@@ -932,7 +932,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Frais –"
+            "value": "Charge –"
           }
         },
         "it": {

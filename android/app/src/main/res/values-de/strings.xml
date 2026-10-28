@@ -710,12 +710,12 @@
     <string name="l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9">Nicht genug überlappende Geschichte, um die Stimmung mit deiner body metrics yet.</string>
     <string name="l10n_mind_section_one_check_in_per_day_picking_b103f22e">Ein Check-in pro Tag; die Auswahl eines anderen Gesichts überschreibt das heutige.</string>
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Lese deine Check-ins...</string>
-    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">GEBÜHR</string>
+    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">LADUNG</string>
     <string name="l10n_noop_compact_glance_widget_effort_660752e7">ANSTRENGUNG</string>
     <string name="l10n_noop_compact_glance_widget_heart_rate_410aa15c">Herzfrequenz</string>
     <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">RUHE</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Strap-Akku</string>
-    <string name="l10n_noop_glance_widget_charge_49a8cb83">GEBÜHR</string>
+    <string name="l10n_noop_glance_widget_charge_49a8cb83">LADUNG</string>
     <string name="l10n_noop_glance_widget_effort_660752e7">ANSTRENGUNG</string>
     <string name="l10n_noop_glance_widget_heart_rate_410aa15c">Herzfrequenz</string>
     <string name="l10n_noop_glance_widget_rest_cbaaa181">RUHE</string>
