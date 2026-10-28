@@ -1189,7 +1189,7 @@ fun TodayScreen(
             // screen uses (`selectedDay.toString()`), NOT the 04:00 logical-day remap: these compare
             // against row keys, and remapping them would shift the boundary by a few hours.
             fun dayKey(ts: Long?) =
-                ts?.let { LocalDate.ofInstant(Instant.ofEpochSecond(it), ZoneId.systemDefault()).toString() }
+                ts?.let { Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault()).toLocalDate().toString() }
             whoop5StrictRr = viewModel.repo.isWhoop5RrSource(owner)
             firstRecordedRrDay = dayKey(viewModel.repo.firstRecordedRrTs(owner))
             firstScorableRrDay = dayKey(viewModel.repo.firstScorableWhoop5RrTs(owner))

@@ -1142,7 +1142,7 @@ object HealthConnectImporter {
      *
      * What this does NOT fix, because it was never broken: DST. [zone] is a REGION id
      * (`ZoneId.systemDefault()` returns e.g. `Europe/London`, not a fixed `+01:00`), and
-     * `LocalDate.ofInstant` applies that region's rules AT THE GIVEN INSTANT — so a January instant
+     * `Instant.atZone` applies that region's rules AT THE GIVEN INSTANT — so a January instant
      * is already keyed with the January offset even when the import runs in July. Pinning a fixed
      * current offset is what would break DST, and the importer never did that.
      *
@@ -1156,9 +1156,12 @@ object HealthConnectImporter {
      * plenty of writers leave them null; the phone's zone stays the fallback, so behaviour is
      * unchanged for every record that carries no offset. `ZoneOffset` is a `ZoneId`, so the two cases
      * differ only in which rules resolve the instant.
+     *
+     * #2789: `atZone(..).toLocalDate()` rather than `LocalDate.ofInstant`, which is the same
+     * conversion but only exists from API 34 and threw `NoSuchMethodError` on older phones.
      */
     internal fun localDayKey(instant: Instant, offset: ZoneOffset?, zone: ZoneId): String =
-        LocalDate.ofInstant(instant, offset ?: zone).toString()
+        instant.atZone(offset ?: zone).toLocalDate().toString()
 
     /**
      * #589 de-overlap for a per-source step map: SUM is already folded WITHIN each source by the read
