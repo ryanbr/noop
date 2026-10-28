@@ -219,21 +219,24 @@ import WhoopStore
             if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }) {
                 load = hit
             } else {
-                var hrByTimestamp: [Int: HRSample] = [:]
-                if hrEndInclusive >= window.onset {
-                    for owner in owners {
-                        let rows = (try? await store.hrSamples(
-                            deviceId: owner, from: window.onset, to: hrEndInclusive, limit: 200_000)) ?? []
-                        for row in rows where hrByTimestamp[row.ts] == nil { hrByTimestamp[row.ts] = row }
+                // A day of HR merging and scoring must not block scrolling during a foreground rescore.
+                let scored = await Task.detached(priority: .utility) {
+                    var hrByTimestamp: [Int: HRSample] = [:]
+                    if hrEndInclusive >= window.onset {
+                        for owner in owners {
+                            let rows = (try? await store.hrSamples(
+                                deviceId: owner, from: window.onset, to: hrEndInclusive, limit: 200_000)) ?? []
+                            for row in rows where hrByTimestamp[row.ts] == nil { hrByTimestamp[row.ts] = row }
+                        }
                     }
-                }
-                let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
-                load = CachedLoad(
-                    key: loadKey,
-                    strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
-                                                method: effortMethod, sex: profile.sex),
-                    calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
-                        cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
+                    let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
+                    return (
+                        strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
+                                                    method: effortMethod, sex: profile.sex),
+                        calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
+                            cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
+                }.value
+                load = CachedLoad(key: loadKey, strain: scored.strain, calories: scored.calories)
                 cache.loads[window.sleepId] = load
             }
             if let strain = load.strain { strains[day] = strain }

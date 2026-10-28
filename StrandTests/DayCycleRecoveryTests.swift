@@ -1,5 +1,6 @@
 import XCTest
 import StrandAnalytics
+import WhoopProtocol
 import WhoopStore
 @testable import Strand
 
@@ -134,6 +135,58 @@ final class DayCycleRecoveryTests: XCTestCase {
                     hrv: hrv, skinTemp: recoveryBaseline(34.5, spread: 0.4)))
             XCTAssertNil(result.recovery)
             XCTAssertEqual(result.skinTempDevC, 0.3)
+        }
+    }
+
+    func testCycleLoadPreservesOwnerPriorityBoundariesAndCachedResults() async throws {
+        let store = try await WhoopStore.inMemory()
+        let onset = 1_788_904_800
+        let now = onset + 85_000
+        let daily = recoveryDailyFixture()
+        let sleep = CachedSleepSession(startTs: onset, endTs: onset + 28_800,
+                                      efficiency: 0.9, restingHr: 58, avgHrv: 48, stagesJSON: nil)
+        let samples = (0..<80_000).map { HRSample(ts: onset + $0, bpm: 70 + $0 % 80) }
+        _ = try await store.insert(Streams(hr: samples), deviceId: "strap")
+        let duplicates = stride(from: 0, through: 80_000, by: 2).map { HRSample(ts: onset + $0, bpm: 190) }
+        _ = try await store.insert(Streams(hr: duplicates + [HRSample(ts: onset - 1, bpm: 200),
+                                                           HRSample(ts: now, bpm: 200)]), deviceId: "canonical")
+        // Pre-scheduling bit patterns; female Banister independently recomputed for upstream #2835.
+        let expected: [String: (strain: UInt64, calories: UInt64)] = [
+            "male-edwards": (4_634_812_706_201_377_178, 4_663_630_262_385_791_330),
+            "male-banister": (4_635_039_997_245_071_032, 4_663_630_262_385_791_330),
+            "female-edwards": (4_634_812_706_201_377_178, 4_662_157_254_104_897_468),
+            "female-banister": (4_635_137_809_799_477_985, 4_662_157_254_104_897_468)
+        ]
+        for sex in ["male", "female"] {
+            for method in [StrainScorer.Method.edwards, .banister] {
+                let cache = DayCycleIntelligenceIntegration.Cache()
+                let profile = UserProfile(weightKg: 75, heightCm: 180, age: 35, sex: sex)
+                func compute() async -> DayCycleIntelligenceIntegration.Result {
+                    await DayCycleIntelligenceIntegration.compute(
+                        nights: [.init(daily: daily, sleeps: [sleep], workouts: [], owner: "strap")],
+                        editedRows: [], store: store, candidates: [("strap", 0)],
+                        physiologyOwners: ["canonical", "strap"], workouts: [], windowStart: onset,
+                        now: now, offsetSec: 0, habitualMidsleepSec: nil, ticksPerStep: 1,
+                        mode: .sleepOnset, cache: cache, profile: profile, maxHROverride: 190,
+                        effortMethod: method)
+                }
+                let result = await compute()
+                let strain = try XCTUnwrap(result.strainByWakeDay[daily.day])
+                let calories = try XCTUnwrap(result.caloriesByWakeDay[daily.day])
+                let oracle = try XCTUnwrap(expected["\(sex)-\(method)"])
+                XCTAssertEqual(strain.bitPattern, oracle.strain)
+                XCTAssertEqual(calories.bitPattern, oracle.calories)
+                XCTAssertEqual(result.onsetByWakeDay[daily.day], onset)
+                let cached = await compute()
+                XCTAssertEqual(cached.strainByWakeDay, result.strainByWakeDay)
+                XCTAssertEqual(cached.caloriesByWakeDay, result.caloriesByWakeDay)
+                if sex == "female", method == .banister {
+                    _ = try await store.insert(Streams(hr: [HRSample(ts: onset + 80_001, bpm: 180)]),
+                                               deviceId: "canonical")
+                    let updated = await compute()
+                    XCTAssertGreaterThan(try XCTUnwrap(updated.caloriesByWakeDay[daily.day]), calories)
+                }
+            }
         }
     }
 
