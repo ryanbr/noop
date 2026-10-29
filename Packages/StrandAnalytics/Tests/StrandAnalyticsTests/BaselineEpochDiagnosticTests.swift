@@ -1,50 +1,62 @@
 import XCTest
 @testable import StrandAnalytics
 
-/// #731: the epoch-drop diagnostic must report exactly what the epoch-aware fold drops, so a "Charge is
-/// stuck" strap log explains itself. Pinned against `foldHistory`'s own behaviour, not just in isolation.
-final class BaselineEpochDiagnosticTests: XCTestCase {
+/// Recalibration must discard earlier history before it can affect the production baseline state.
+final class BaselineEpochTests: XCTestCase {
+    private let epoch: Double = 1_784_419_200 // 2026-07-19 00:00:00 UTC
+    private let days = ["2026-07-16", "2026-07-17", "2026-07-18",
+                        "2026-07-19", "2026-07-20", "2026-07-21"]
+    private let values: [Double?] = [40, 41, 42, 43, 44, 45]
+    private let cfg = Baselines.metricCfg["hrv"]!
 
-    /// 2026-07-19 00:00:00 UTC — the recalibration instant used throughout.
-    private let epoch: Double = 1_784_419_200
-
-    private let days = ["2026-07-16", "2026-07-17", "2026-07-18",   // before the epoch → dropped
-                        "2026-07-19", "2026-07-20", "2026-07-21"]   // on/after → kept
-
-    func testNoEpochDropsNothing() {
-        let d = Baselines.epochDropDiagnostic(dayKeys: days, baselineEpoch: 0)
-        XCTAssertEqual(d.dropped, 0)
-        XCTAssertNil(d.epochDay, "no recalibration → no epoch day to report")
+    func testNonPositiveEpochPreservesTheEntireFoldState() {
+        let expected = Baselines.foldHistory(values, cfg: cfg)
+        for anchor in [0.0, -1.0] {
+            XCTAssertEqual(Baselines.foldHistory(values, dayKeys: days, cfg: cfg,
+                                                 baselineEpoch: anchor), expected)
+        }
     }
 
-    func testDropsOnlyNightsStrictlyBeforeTheEpoch() {
-        let d = Baselines.epochDropDiagnostic(dayKeys: days, baselineEpoch: epoch)
-        XCTAssertEqual(d.dropped, 3, "16/17/18 precede the epoch; the epoch day itself is KEPT")
-        XCTAssertEqual(d.epochDay, "2026-07-19")
+    func testMidnightEpochKeepsTheEpochDayAndReseedsFromItsValue() {
+        let actual = Baselines.foldHistory(values, dayKeys: days, cfg: cfg, baselineEpoch: epoch)
+        XCTAssertEqual(actual, Baselines.foldHistory(Array(values.suffix(3)), cfg: cfg))
+        XCTAssertEqual(actual.nValid, 3)
     }
 
-    /// The diagnostic is only useful if it agrees with the fold it describes: dropped + used == total.
-    func testAgreesWithFoldHistory() {
-        let cfg = Baselines.metricCfg["hrv"]!
-        let values: [Double?] = [40, 41, 42, 43, 44, 45]   // all in-range, so every KEPT night is valid
-        let state = Baselines.foldHistory(values, dayKeys: days, cfg: cfg, baselineEpoch: epoch)
-        let d = Baselines.epochDropDiagnostic(dayKeys: days, baselineEpoch: epoch)
-        XCTAssertEqual(d.dropped + state.nValid, days.count,
-                       "every night is either dropped by the epoch or counted by the fold")
-        XCTAssertEqual(state.nValid, 3, "the reporter's exact signature: 6 nights on file, 3 usable")
+    func testEpochAfterMidnightDropsThatDaysNightToo() {
+        let actual = Baselines.foldHistory(values, dayKeys: days, cfg: cfg, baselineEpoch: epoch + 1)
+        XCTAssertEqual(actual, Baselines.foldHistory(Array(values.suffix(2)), cfg: cfg))
+        XCTAssertEqual(actual.nValid, 2, "night membership uses UTC day start, not its date label alone")
     }
 
-    /// The reporter's case (#731): plenty of valid history, but a recent recalibration leaves the
-    /// baseline one night short of `minNightsSeed` — which read as "stuck" with no explanation.
-    func testReproducesTheStuckAtThreeSignature() {
-        let cfg = Baselines.metricCfg["hrv"]!
-        // 15 nights of good HRV, recalibrated so only the last 3 survive.
+    func testDroppedMissingAndOutlyingValuesCannotAgeOrAnchorTheNewBaseline() {
+        let kept: [Double?] = [43, 44, 45]
+        let history: [Double?] = [nil, 250, 1] + kept
+        let actual = Baselines.foldHistory(history, dayKeys: days, cfg: cfg, baselineEpoch: epoch)
+        XCTAssertEqual(actual, Baselines.foldHistory(kept, cfg: cfg),
+                       "discarded nights must never reach update, including skip-and-hold bookkeeping")
+    }
+
+    func testEpochAfterAllHistoryReturnsAnEmptyCalibratingBaseline() {
+        let actual = Baselines.foldHistory(values, dayKeys: days, cfg: cfg,
+                                           baselineEpoch: epoch + 3 * 86400)
+        XCTAssertEqual(actual, Baselines.foldHistory([], cfg: cfg))
+        XCTAssertEqual(actual.nValid, 0)
+        XCTAssertFalse(actual.usable)
+    }
+
+    func testThreeSurvivingNightsStayUnusableUntilTheFourthNightArrives() {
+        // #731: fifteen good nights, with recalibration retaining only July 20–22.
         let allDays = (8...22).map { String(format: "2026-07-%02d", $0) }
-        let values: [Double?] = Array(repeating: 45.0, count: allDays.count)
-        let state = Baselines.foldHistory(values, dayKeys: allDays, cfg: cfg, baselineEpoch: 1_784_505_600) // 07-20
-        let d = Baselines.epochDropDiagnostic(dayKeys: allDays, baselineEpoch: 1_784_505_600)
-        XCTAssertEqual(d.dropped, 12)
-        XCTAssertEqual(state.nValid, 3)
-        XCTAssertFalse(state.usable, "3 < minNightsSeed(4) → Charge stays nil, exactly as reported")
+        let history: [Double?] = Array(repeating: 45, count: allDays.count)
+        let anchor = epoch + 86400
+        let three = Baselines.foldHistory(history, dayKeys: allDays, cfg: cfg, baselineEpoch: anchor)
+        XCTAssertEqual(three, Baselines.foldHistory(Array(history.suffix(3)), cfg: cfg))
+        XCTAssertEqual(three.nValid, 3)
+        XCTAssertFalse(three.usable, "three is below minNightsSeed")
+        let four = Baselines.foldHistory(history + [45], dayKeys: allDays + ["2026-07-23"],
+                                          cfg: cfg, baselineEpoch: anchor)
+        XCTAssertEqual(four.nValid, 4)
+        XCTAssertTrue(four.usable)
     }
 }

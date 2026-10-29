@@ -475,30 +475,6 @@ public enum Baselines {
     /// When `baselineEpoch <= 0` (the default / no recalibration) this is byte-identical to the plain
     /// `foldHistory(_:cfg:)`. When `baselineEpoch` is nil it is read from UserDefaults via
     /// `hrvBaselineEpoch()` so callers that already use the HRV config get recalibration for free.
-    /// Diagnostic companion to the epoch-aware `foldHistory` (#731): how many nights that fold DROPS
-    /// because they predate the recalibration epoch, plus the epoch itself as a `yyyy-MM-dd` day key
-    /// (nil when no recalibration is set).
-    ///
-    /// Exists because a "Charge is stuck" report is otherwise unexplainable from a strap log. A user who
-    /// taps "Recalibrate baseline" discards every earlier night and must re-earn `minNightsSeed` nights;
-    /// tapping it again resets that progress to zero. A reporter did exactly that for two weeks — 15 valid
-    /// HRV nights on file, but `nValid=3` and no Charge — and nothing in the log said the epoch was why.
-    /// Mirrors the fold's drop rule EXACTLY (same UTC day-start parse, same strict `<` comparison), so the
-    /// number reported is the number actually dropped.
-    public static func epochDropDiagnostic(dayKeys: [String],
-                                           baselineEpoch: Double? = nil) -> (dropped: Int, epochDay: String?) {
-        let epoch = baselineEpoch ?? hrvBaselineEpoch()
-        guard epoch > 0 else { return (0, nil) }
-        let fmt = DateFormatter()
-        fmt.calendar = Calendar(identifier: .gregorian)
-        fmt.timeZone = TimeZone(secondsFromGMT: 0)
-        fmt.dateFormat = "yyyy-MM-dd"
-        let dropped = dayKeys.reduce(into: 0) { acc, key in
-            if let d = fmt.date(from: key), d.timeIntervalSince1970 < epoch { acc += 1 }
-        }
-        return (dropped, fmt.string(from: Date(timeIntervalSince1970: epoch)))
-    }
-
     public static func foldHistory(_ values: [Double?], dayKeys: [String], cfg: MetricCfg,
                                    baselineEpoch: Double? = nil) -> BaselineState {
         let epoch = baselineEpoch ?? hrvBaselineEpoch()
