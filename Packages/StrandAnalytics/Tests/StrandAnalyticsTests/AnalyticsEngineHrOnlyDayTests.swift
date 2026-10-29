@@ -56,6 +56,10 @@ final class AnalyticsEngineHrOnlyDayTests: XCTestCase {
         XCTAssertFalse(res.sleepSessions.isEmpty, "the staged night must reach the day's sessions")
         XCTAssertTrue(res.sleepSessions.allSatisfy { $0.hrOnly },
                       "every session must be HR-only — this day has no gravity at all")
+        XCTAssertTrue(res.stagingSparse,
+                      "an HR-only estimate must carry the incomplete-staging quality flag")
+        XCTAssertTrue(res.cachedSleep.allSatisfy { $0.stagingSparse == true },
+                      "the incomplete-staging flag must reach every cached sleep session")
 
         // #1884: measured, not discarded. Before the change both of these were nil by construction, which
         // is what left Charge with `nilScore reason=missingInput`.

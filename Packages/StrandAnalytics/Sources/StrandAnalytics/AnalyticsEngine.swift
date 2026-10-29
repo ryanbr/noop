@@ -73,6 +73,12 @@ public enum AnalyticsEngine {
         public let sleepSessions: [SleepSession]
         /// CachedSleepSession cache rows (one per detected session).
         public let cachedSleep: [CachedSleepSession]
+        /// Whether the Sleep tab should treat this day's staged sessions as incomplete. Missing motion
+        /// data produces HR-only estimates even though the detector has no samples to measure sparsity
+        /// against, so keep this presentation-quality signal separate from its motion-coverage/scoring one.
+        public var stagingSparse: Bool {
+            cachedSleep.contains { $0.stagingSparse == true }
+        }
         /// Detected workout/exercise sessions.
         public let workouts: [ExerciseSession]
         /// #1545: where the detector lost every candidate workout on this day. nil only when detection did
@@ -681,6 +687,10 @@ public enum AnalyticsEngine {
         // #345: gravity-sparse computed ONCE — reused by the sleep-motion trace below AND the Rest
         // confidence guard, so the two can never diverge and isGravitySparse runs only once per day.
         let gravitySparse = SleepStager.isGravitySparse(gravity, hr: hr)
+        // A missing motion stream cannot be measured as sparse, but HR-only sessions still need the
+        // Sleep tab's incomplete-staging caveat. Keep this as the day-level display flag, separate from
+        // `gravitySparse`, which continues to drive detection and Rest confidence.
+        let stagingSparse = gravitySparse || matched.contains(where: \.hrOnly)
         // Sleep & Rest test mode (E5): emit the Rest sub-score breakdown for this night, reusing the
         // IDENTICAL inputs `restScore` consumed above so the trace can never disagree with the score.
         // `subScoreLine` itself reuses `Rest.composite` for the final value. Side-effect-only; emitted
@@ -1108,10 +1118,11 @@ public enum AnalyticsEngine {
                 restingHr: s.restingHR,
                 avgHrv: s.avgHRV,
                 stagesJSON: encodeStages(s.stages),
-                // #345 follow-up: stamp the DAY's motion-coverage verdict on every session so the Sleep
-                // tab can caption a sparse (likely under-detected) night. A NOOP-computed night is always
-                // true/false here; imported nights never reach this path and keep nil (unknown).
-                stagingSparse: gravitySparse)
+                // #345 follow-up: stamp the day's incomplete-staging verdict on every session. This
+                // includes HR-only estimates: with no gravity samples, `gravitySparse` is false because
+                // there is no span to measure, but the short-night caveat still applies. Imported nights
+                // never reach this path and keep nil (unknown).
+                stagingSparse: stagingSparse)
         }
 
         // ── Per-session per-epoch motion (H8) ─────────────────────────────────

@@ -1996,7 +1996,7 @@
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Les widgets n\'inventent plus de chiffres, les siestes comptent pour la dette de sommeil, et les indicateurs Android parlent votre langue</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Peut être incomplet</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Peu de mouvement a été enregistré cette nuit ; cette nuit peut donc être sous-détectée et le total de sommeil peut sembler court. Assurez-vous que le bracelet est entièrement synchronisé.</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Les données de mouvement de cette nuit sont absentes ou incomplètes ; la période de sommeil détectée peut donc être trop courte. Synchronise l’historique du bracelet s’il est disponible.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Enregistrement partiel</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">Seuls %1$d%% de la fenêtre de cette nuit comportent des données de phases. Les totaux de phases ne couvrent que cette partie de la nuit.</string>
     <string name="haptics_section_title">Retour haptique</string>

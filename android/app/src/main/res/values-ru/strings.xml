@@ -1968,7 +1968,7 @@
     <string name="score_state_detail_carried_stale">Это ваш последний оценённый сеанс. Наденьте браслет на ночь, чтобы получить новую оценку.</string>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Виджеты перестали выдумывать числа, дневной сон учитывается в недосыпе, а статусы на Android говорят на вашем языке</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Возможно, неполно</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">За ночь записано мало движения, поэтому эта ночь может быть определена не полностью, а общее время сна — заниженным. Убедитесь, что браслет полностью синхронизировался.</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Данные о движении за эту ночь отсутствуют или неполны, поэтому определённый период сна может быть коротким. Синхронизируй историю браслета, если она доступна.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Записано частично</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">Только %1$d%% окна этой ночи имеет данные о стадиях. Итоги по стадиям охватывают лишь эту часть ночи.</string>
     <string name="haptics_section_title">Вибрация</string>
