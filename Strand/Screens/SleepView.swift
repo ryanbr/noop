@@ -1122,7 +1122,7 @@ struct SleepView: View {
     private var stageIncompleteNote: some View {
         HStack(alignment: .top, spacing: 8) {
             SourceBadge("May be incomplete", tint: StrandPalette.statusWarning)
-            Text("Your strap recorded little movement overnight (common on WHOOP 4.0), so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced; the numbers are kept as-is.")
+            Text("Motion data is missing or incomplete for this night, so the detected sleep window may be short. Sync the strap history if available.")
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)

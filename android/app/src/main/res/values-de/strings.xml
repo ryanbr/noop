@@ -2010,7 +2010,7 @@
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widgets erfinden keine Zahlen mehr, Nickerchen zählen für die Schlafschuld, und die Android-Statusanzeigen sprechen deine Sprache</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Möglicherweise unvollständig</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Über Nacht wurde wenig Bewegung aufgezeichnet, daher wurde diese Nacht möglicherweise nicht vollständig erfasst und die Schlafdauer kann zu kurz erscheinen. Stelle sicher, dass das Band vollständig synchronisiert wurde.</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Für diese Nacht fehlen Bewegungsdaten oder sie sind unvollständig. Das erkannte Schlaffenster kann daher zu kurz sein. Synchronisiere den Verlauf des Bands, falls verfügbar.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Teilweise aufgezeichnet</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">Nur %1$d%% des Zeitfensters dieser Nacht enthält Schlafphasendaten. Die Phasenwerte decken nur diesen Teil der Nacht ab.</string>
     <string name="haptics_section_title">Haptik</string>

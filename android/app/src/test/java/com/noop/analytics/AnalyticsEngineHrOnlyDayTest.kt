@@ -66,6 +66,8 @@ class AnalyticsEngineHrOnlyDayTest {
         assertTrue("the staged night must reach the day's sessions", res.sleepSessions.isNotEmpty())
         assertTrue("every session must be HR-only — this day has no gravity at all",
             res.sleepSessions.all { it.hrOnly })
+        assertTrue("an HR-only estimate must carry the incomplete-staging quality flag",
+            res.stagingSparse)
 
         // #1884: measured, not discarded. Before the change both of these were null by construction, which
         // is what left Charge with `nilScore reason=missingInput`.

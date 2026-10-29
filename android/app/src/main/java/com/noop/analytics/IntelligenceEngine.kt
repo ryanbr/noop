@@ -1811,9 +1811,10 @@ object IntelligenceEngine {
                         restingHr = s.restingHR,
                         avgHrv = s.avgHRV,
                         stagesJSON = AnalyticsEngine.encodeStages(s.stages),
-                        // #345 follow-up: stamp the day's motion-coverage verdict so the Sleep tab can
-                        // caption a sparse (likely under-detected) night. Twin of Swift analyzeDay.
-                        stagingSparse = res.gravitySparse,
+                        // #345 follow-up: stamp the day's incomplete-staging verdict. With no gravity
+                        // samples, gravitySparse is false because there is no span to measure; HR-only
+                        // sessions still need the short-night caveat. Twin of Swift analyzeDay.
+                        stagingSparse = res.stagingSparse,
                     ),
                 )
             }

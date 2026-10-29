@@ -1971,7 +1971,7 @@
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widżety przestają wymyślać liczby, drzemki wliczają się do długów snu, a chipy stanu Android mówią w Twoim języku</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Może być niekompletny</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">W nocy zarejestrowano niewielki ruch, więc ta noc może zostać niedostatecznie wykryta, a całkowity sen może być krótki. Upewnij się, że pasek jest w pełni zsynchronizowany.</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Brakuje danych o ruchu z tej nocy lub są niekompletne, więc wykryty okres snu może być krótki. Zsynchronizuj historię opaski, jeśli jest dostępna.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Częściowo zarejestrowane</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">Tylko %1$d%% okna tej nocy ma dane o fazach. Sumy faz obejmują tylko tę część nocy.</string>
     <string name="haptics_section_title">Haptyka</string>

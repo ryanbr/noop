@@ -1899,7 +1899,7 @@
     </plurals>
     <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">小组件不再编造数字、小睡计入睡眠债，Android 状态提示也终于会说你的语言</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">可能不完整</string>
-    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">夜间记录到的动作很少，因此这一夜可能未被完整检测，睡眠总时长可能偏短。请确保表带已完全同步。</string>
+    <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">本夜的运动数据缺失或不完整，因此检测到的睡眠时段可能偏短。如有可用数据，请同步手环历史记录。</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">部分记录</string>
     <string name="l10n_sleep_screen_only_of_this_night_s_window_9660332a">这一夜的时间窗口中只有 %1$d%% 有睡眠阶段数据。阶段合计仅涵盖该部分时间。</string>
     <string name="haptics_section_title">触觉反馈</string>

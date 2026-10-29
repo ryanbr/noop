@@ -335,4 +335,8 @@ data class DayResult(
      * defaulted so every existing construction site is unchanged. Mirrors Swift `DayResult.mainNightBlocks`.
      */
     val mainNightBlocks: List<SleepStageTotals.NightBlock> = emptyList(),
-)
+) {
+    /** Whether the Sleep tab should mark this day's staging as incomplete. No gravity samples make
+     * `gravitySparse` false (there is no span to measure), while HR-only sessions still need the caveat. */
+    val stagingSparse: Boolean get() = gravitySparse || sleepSessions.any { it.hrOnly }
+}
