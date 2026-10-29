@@ -32,7 +32,11 @@ internal data class TestCentreLiveSnapshot(
     val domainLogLines: List<String>? = null,
     val nowUnix: Long = System.currentTimeMillis() / 1_000,
     val connected: Boolean = false,
+    val strapNewestUnix: Long? = null,
+    val lastFrameUnix: Long? = null,
+    val allTimeDrainedRows: Long = 0,
     val batteryPct: Double? = null,
+    val currentLinkBatteryPct: Double? = null,
     val batteryEstimate: BatteryEstimator.Estimate? = null,
     val hrSamples: List<HrSample> = emptyList(),
     val gravitySamples: List<GravitySample> = emptyList(),
@@ -65,7 +69,8 @@ internal object TestCentreLiveRefreshPolicy {
 internal object TestCentreLiveReadouts {
     val mappedIds: Set<String> = setOf(
         "hrDensityNow", "gravityCoverageNow", "lastNightGateFired",
-        "connectionUptime", "reconnectCount", "lastOffloadResult",
+        "connectionUptime", "reconnectCount", "lastOffloadResult", "sessionRows",
+        "allTimeDrainedRows", "clockStatus", "lastFrame", "clockWarning",
         "lastSessionSummary", "deviceMetricsNow", "lastImportSummary",
         "stepsToday", "calibrationState",
         "currentSoc", "estimateDaysLeft", "slopeSource",
@@ -104,6 +109,28 @@ internal object TestCentreLiveReadouts {
                 )
                 "lastOffloadResult" -> LiveReadoutRow(
                     id, "Last offload result", ConnectionReadout.lastOffloadResult(tail) ?: "no offload yet",
+                )
+                "sessionRows" -> LiveReadoutRow(
+                    id, "Rows drained (session)", ConnectionReadout.sessionRows(tail)?.toString() ?: "no offload yet",
+                )
+                "allTimeDrainedRows" -> LiveReadoutRow(
+                    id, "Rows drained (all time)", snapshot.allTimeDrainedRows.toString(),
+                )
+                "clockStatus" -> LiveReadoutRow(
+                    id, "Clock", ConnectionReadout.clockStatusLabel(
+                        ConnectionReadout.clockCorrelatedDevice(snapshot.logLines),
+                        snapshot.strapNewestUnix, snapshot.nowUnix,
+                    ),
+                )
+                "lastFrame" -> LiveReadoutRow(
+                    id, "Last frame", ConnectionReadout.lastFrameLabel(snapshot.lastFrameUnix, snapshot.nowUnix),
+                )
+                "clockWarning" -> LiveReadoutRow(
+                    id, "Clock warning", ConnectionReadout.rtcWarning(
+                        ConnectionReadout.clockCorrelatedDevice(snapshot.logLines),
+                        snapshot.strapNewestUnix,
+                        snapshot.currentLinkBatteryPct.takeIf { snapshot.connected },
+                    ) ?: "none",
                 )
                 "lastSessionSummary" -> LiveReadoutRow(
                     id, "Last session", WorkoutsReadout.lastSessionSummary(tail) ?: "no session yet",

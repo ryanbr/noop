@@ -43,7 +43,7 @@ class TestCentreLiveReadoutsTest {
 
     @Test fun everyRegistryDeclaredIdHasExactlyOnePresentationMapping() {
         val declared = TestModeRegistry.all.flatMap { it.liveReadout }.toSet()
-        assertEquals(16, declared.size)
+        assertEquals(21, declared.size)
         assertEquals(declared, TestCentreLiveReadouts.mappedIds)
 
         TestModeRegistry.all.forEach { mode ->
@@ -56,6 +56,27 @@ class TestCentreLiveReadoutsTest {
                 ).map { it.id },
             )
         }
+    }
+
+    @Test fun connectionShowsSessionRowsAndFutureDatedClockInsteadOfHealthyLatch() {
+        val mode = requireNotNull(TestModeRegistry.mode(TestDomain.CONNECTION))
+        val rows = TestCentreLiveReadouts.rows(
+            mode = mode,
+            active = true,
+            snapshot = TestCentreLiveSnapshot(
+                logLines = listOf("[connection] offload progress sessionRows=12"),
+                nowUnix = 1_800_000_000L,
+                connected = true,
+                strapNewestUnix = 1_800_003_600L,
+                lastFrameUnix = 1_799_999_990L,
+                allTimeDrainedRows = 402L,
+            ),
+        ).associateBy { it.id }
+
+        assertEquals("12", rows.getValue("sessionRows").value)
+        assertEquals("402", rows.getValue("allTimeDrainedRows").value)
+        assertEquals("future-dated", rows.getValue("clockStatus").value)
+        assertEquals("10s ago", rows.getValue("lastFrame").value)
     }
 
     @Test fun inactiveRowIsCompactAndDoesNotResolveEvenAnUnknownReadout() {

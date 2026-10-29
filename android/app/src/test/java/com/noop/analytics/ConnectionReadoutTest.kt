@@ -203,30 +203,22 @@ class ConnectionReadoutTest {
         assertNull(ConnectionReadout.clockCorrelatedDevice(listOf("connect up")))
     }
 
-    @Test fun clockLatchedLabel() {
-        assertEquals("yes", ConnectionReadout.clockLatchedLabel(1_782_475_600L))
-        assertEquals("no (RTC reads 1970/71)", ConnectionReadout.clockLatchedLabel(40_000_000L))
-        assertEquals("no (waiting for the strap clock)", ConnectionReadout.clockLatchedLabel(null))
-    }
-
-    // #261: a WHOOP 5/MG never populates deviceClockUnix (its GET_CLOCK reply rides the puffin channel,
-    // never the WHOOP4 correlation path) — the data-range fallback is what keeps the row from reading
-    // "waiting" forever on a strap that's actually fine.
-    @Test fun clockLatchedLabelFallsBackToStrapNewestForFiveMG() {
-        assertEquals("yes", ConnectionReadout.clockLatchedLabel(null, 1_782_475_600L))
-        // #1823: no clock was READ on this path - the wording must not claim one.
-        assertEquals("no (records dated 1970/71)", ConnectionReadout.clockLatchedLabel(null, 40_000_000L))
-        assertEquals("no (waiting for the strap clock)", ConnectionReadout.clockLatchedLabel(null, null))
-        // deviceClockUnix wins when BOTH signals are present (the WHOOP4 correlation is the more direct one).
-        assertEquals("yes", ConnectionReadout.clockLatchedLabel(1_782_475_600L, 40_000_000L))
-    }
-
     @Test fun rtcWarningFiresOnEpochEraClockOrNewest() {
         assertTrue(ConnectionReadout.rtcWarning(40_000_000L, null) != null)
         assertTrue(ConnectionReadout.rtcWarning(null, 30_000_000L) != null)
         assertNull(ConnectionReadout.rtcWarning(1_782_475_600L, 1_782_475_000L))
         // No signal seen yet must not fabricate a fault.
         assertNull(ConnectionReadout.rtcWarning(null, null))
+    }
+
+    @Test fun clockStatusClassifiesBothCurrentLinkSignals() {
+        val now = 1_800_000_000L
+        assertEquals("waiting for clock evidence", ConnectionReadout.clockStatusLabel(null, null, now))
+        assertEquals("clock OK", ConnectionReadout.clockStatusLabel(now - 10, null, now))
+        assertEquals("future-dated", ConnectionReadout.clockStatusLabel(null, now + 3_600, now))
+        assertEquals("records dated 1970/71", ConnectionReadout.clockStatusLabel(null, 40_000_000L, now))
+        assertEquals("RTC reads 1970/71", ConnectionReadout.clockStatusLabel(40_000_000L, now - 10, now))
+        assertEquals("records dated normally", ConnectionReadout.clockStatusLabel(null, now - 10, now))
     }
 
     /** #1818: the remedy must track the battery. A charged strap told to "charge to 100%" is the bug

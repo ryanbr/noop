@@ -238,20 +238,33 @@ object ConnectionReadout {
         return null
     }
 
-    /** #987/#261: the "clock latched" readout value: "yes" once EITHER signal lands with a plausible
-     *  (post-1972) timestamp — a GET_CLOCK correlation (deviceClockUnix, the WHOOP4 path) or a
-     *  GET_DATA_RANGE reply's newest banked record (strapNewestUnix, the fallback a WHOOP 5/MG needs
-     *  since its GET_CLOCK reply never populates deviceClockUnix — see the Swift twin's doc comment for
-     *  why). "no (RTC reads 1970/71)" on an epoch-era signal; "no (waiting for the strap clock)" before
-     *  either replies. Twin of the Swift labeller. */
-    fun clockLatchedLabel(deviceClockUnix: Long?, strapNewestUnix: Long? = null): String {
-        val ceiling = ConnectionTrace.RTC_EPOCH_CEILING_UNIX
-        if (deviceClockUnix != null) return if (deviceClockUnix < ceiling) "no (RTC reads 1970/71)" else "yes"
-        // #1823: this branch has NOT read a clock - it is reached when no correlation exists, which is
-        // every 5/MG. The only evidence is how the strap DATED its records, so say that rather than
-        // claiming a clock reading we never took. Twin of the Swift wording.
-        if (strapNewestUnix != null) return if (strapNewestUnix < ceiling) "no (records dated 1970/71)" else "yes"
-        return "no (waiting for the strap clock)"
+    /** The current link's clock evidence, including future-dated and stale records. A post-1972
+     * timestamp alone is not proof that the clock is right (#2091).
+     * Swift twin: `ConnectionReadout.clockStatusLabel`. */
+    fun clockStatusLabel(deviceClockUnix: Long?, strapNewestUnix: Long?, nowUnix: Long): String {
+        if (deviceClockUnix == null && strapNewestUnix == null) return "waiting for clock evidence"
+        val clock = deviceClockUnix?.let { unix ->
+            ConnectionTrace.clockVerdict(
+                aheadSeconds = unix - nowUnix, newestUnix = unix,
+                futureToleranceSeconds = 120L,
+                behindToleranceSeconds = ConnectionTrace.BEHIND_TOLERANCE_DEFAULT,
+            )
+        }
+        val record = strapNewestUnix?.let { unix ->
+            ConnectionTrace.clockVerdict(
+                aheadSeconds = unix - nowUnix, newestUnix = unix,
+                futureToleranceSeconds = 120L,
+                behindToleranceSeconds = ConnectionTrace.BEHIND_TOLERANCE_DEFAULT,
+            )
+        }
+        return when {
+            clock?.contains("FUTURE-DATED") == true || record?.contains("FUTURE-DATED") == true -> "future-dated"
+            clock?.contains("RTC-EPOCH") == true -> "RTC reads 1970/71"
+            record?.contains("RTC-EPOCH") == true -> "records dated 1970/71"
+            record?.contains("CLOCK-WARNING") == true -> "record is over 48h old"
+            strapNewestUnix != null -> "records dated normally"
+            else -> "clock OK"
+        }
     }
 
     /** #1818: at or above this charge the "charge it" remedy is already satisfied, so repeating it is
