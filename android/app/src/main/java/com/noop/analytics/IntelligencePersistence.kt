@@ -33,16 +33,24 @@ internal object IntelligencePersistence {
         val metricRows: List<MetricSeriesRow>,
         val provenance: List<ScoreInputProvenanceRow>,
         val markerSourceIds: List<String>,
+        val retainedLegacyDays: Set<String> = emptySet(),
     )
 
     /** Keep the per-day repair loop outside the instrumented scoring coroutine's bytecode budget. */
-    suspend fun persistComputedWindow(repo: WhoopRepository, window: ComputedWindow, preserveUnscoredHistory: Boolean) {
+    suspend fun persistComputedWindow(repo: WhoopRepository, window: ComputedWindow, preserveUnscoredHistory: Boolean,
+                                     sleepSessions: List<SleepSession>? = null,
+        dependentRecoveryUpdates: List<com.noop.data.SleepRecoveryUpdate> = emptyList(),
+        sleepMotion: Map<Long, List<Double>> = emptyMap(), sleepStates: Map<Long, List<Int>> = emptyMap(),
+        selectedSleepBounds: LongRange? = null) {
         val windows = if (preserveUnscoredHistory) byScoredDay(window) else listOf(window)
-        for (part in windows) part.persistInto(repo)
+        for (part in windows) part.persistInto(repo, sleepSessions, dependentRecoveryUpdates, sleepMotion, sleepStates, selectedSleepBounds)
     }
 
-    private suspend fun ComputedWindow.persistInto(repo: WhoopRepository) =
-        repo.replaceComputedScoreWindow(this)
+    private suspend fun ComputedWindow.persistInto(repo: WhoopRepository, sleepSessions: List<SleepSession>? = null,
+                                                updates: List<com.noop.data.SleepRecoveryUpdate> = emptyList(),
+        sleepMotion: Map<Long, List<Double>> = emptyMap(), sleepStates: Map<Long, List<Int>> = emptyMap(),
+        selectedSleepBounds: LongRange? = null) =
+        repo.replaceComputedScoreWindow(this, sleepSessions, updates, sleepMotion, sleepStates, selectedSleepBounds)
 
     /** Per-day repair writes leave older, unscorable cached days and their provenance intact. */
     fun byScoredDay(window: ComputedWindow): List<ComputedWindow> {
@@ -86,6 +94,7 @@ internal object IntelligencePersistence {
             metricRows = (metricRows + cycle.recoveredOwnerMarkerRows)
                 .distinctBy { Triple(it.deviceId, it.day, it.key) },
             provenance = provenance,
+            retainedLegacyDays = snapshots.keys,
             markerSourceIds = DayCycleIntelligenceIntegration.markerRewriteSourceIds(
                 repo.computedSourceIds(importedDeviceId),
                 candidatePriorities.map { (owner, _) -> repo.computedDeviceId(owner) },
@@ -185,9 +194,11 @@ internal object IntelligencePersistence {
         computedId: String,
         kept: List<SleepSession>,
         scoredNights: List<DayResult>,
+        alreadyPersisted: Boolean = false,
     ) {
         // Only kept (not edited/dismissed) sessions receive their per-epoch motion and band-state arrays.
         // Missing streams remain absent rather than being materialised as synthetic zero arrays.
+        if (alreadyPersisted) return
         if (kept.isNotEmpty()) repo.upsertSleepSessions(kept)
         val keptStarts = kept.map { it.startTs }.toHashSet()
         val motionByStart = HashMap<Long, List<Double>>()
@@ -208,6 +219,10 @@ internal object IntelligencePersistence {
 /** Keep the oversized scoring orchestrator at a single, auditable transactional call site. */
 internal suspend fun WhoopRepository.replaceComputedScoreWindow(
     window: IntelligencePersistence.ComputedWindow,
+    sleepSessions: List<SleepSession>? = null,
+    updates: List<com.noop.data.SleepRecoveryUpdate> = emptyList(),
+    sleepMotion: Map<Long, List<Double>> = emptyMap(), sleepStates: Map<Long, List<Int>> = emptyMap(),
+    selectedSleepBounds: LongRange? = null,
 ) = replaceComputedScoreWindow(
     deviceId = window.deviceId,
     from = window.from,
@@ -217,4 +232,7 @@ internal suspend fun WhoopRepository.replaceComputedScoreWindow(
     provenance = window.provenance,
     replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY),
     replaceMetricSourceIds = window.markerSourceIds,
+    sleepSessions = sleepSessions,
+    dependentRecoveryUpdates = updates,
+    sleepMotion = sleepMotion, sleepStates = sleepStates, selectedSleepBounds = selectedSleepBounds,
 )

@@ -487,6 +487,11 @@ interface WhoopDao : DeviceRegistryDao {
     @Upsert
     suspend fun upsertScoreInputProvenance(rows: List<ScoreInputProvenanceRow>)
 
+    // Swift selected dependent-recovery writer performs this exact cell deletion inline.
+    @Query("DELETE FROM scoreInputProvenance WHERE deviceId = :deviceId AND day = :day AND key = 'recovery'")
+    suspend fun deleteRecoveryProvenance(deviceId: String, day: String)
+
+
     @Query(
         "SELECT sourceId FROM scoreInputProvenance " +
             "WHERE deviceId = :deviceId AND day = :day AND key = :key"
@@ -516,6 +521,9 @@ interface WhoopDao : DeviceRegistryDao {
             "AND `key` = :key"
     )
     suspend fun deleteMetricSeriesKeyInRange(deviceId: String, from: String, to: String, key: String)
+
+    @Query("UPDATE dailyMetric SET recovery = :recovery, skinTempDevC = :skinTempDevC WHERE deviceId = :deviceId AND day = :day")
+    suspend fun updateSleepDependentRecovery(deviceId: String, day: String, recovery: Double?, skinTempDevC: Double?)
 
     /**
      * Replace a computed scoring window atomically. If any score or provenance write fails, Room rolls

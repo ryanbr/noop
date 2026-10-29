@@ -2828,4 +2828,14 @@
     <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
     <string name="today_customize_live_session_availability">Compare oggi se le sessioni in diretta sono attivate nelle Impostazioni o una sessione è attiva.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Oggi a modo tuo, frequenza cardiaca leggibile da ogni app e l\'italiano</string>
+    <string name="sleep_recalculate_title">Ricalcola il sonno</string>
+    <string name="sleep_recalculate_description">Seleziona la data in cui ti sei svegliato. Usa solo dati già presenti su questo dispositivo. Importazioni, modifiche manuali e intervalli eliminati vengono mantenuti.</string>
+    <string name="sleep_recalculate_wake_date">Data del risveglio: %1$s</string>
+    <string name="sleep_recalculate_completed">Il sonno del giorno selezionato è stato ricalcolato dai dati disponibili.</string>
+    <string name="sleep_recalculate_no_sleep">Nessun sonno rilevato nei dati disponibili. Le modifiche salvate e gli intervalli eliminati sono stati mantenuti.</string>
+    <string name="sleep_recalculate_no_data">Dati utilizzabili insufficienti per questo giorno. Sincronizza il cinturino e riprova. Il ricalcolo non recupera nuovi dati.</string>
+    <string name="sleep_recalculate_invalid_date">Scegli una data di risveglio di un giorno passato già concluso.</string>
+    <string name="sleep_recalculate_busy">È in corso un altro ricalcolo. Riprova quando sarà terminato.</string>
+    <string name="sleep_recalculate_failed">Impossibile ricalcolare questo giorno. Riprova.</string>
+    <string name="sleep_recalculate_deleted">Questo giorno include sonno eliminato. L’eliminazione è stata mantenuta; non è stato eseguito alcun ricalcolo.</string>
 </resources>

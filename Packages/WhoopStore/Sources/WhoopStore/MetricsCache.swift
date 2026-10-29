@@ -233,42 +233,53 @@ extension WhoopStore {
     @discardableResult
     public func upsertSleepSessions(_ sessions: [CachedSleepSession], deviceId: String) async throws -> Int {
         try syncWrite { db in
-            var n = 0
-            for s in sessions {
-                if !s.userEdited, let existing = try Self.storedSleepSession(db, deviceId: deviceId, startTs: s.startTs),
-                   !existing.userEdited {
-                    let candidate = CachedSleepSession(startTs: s.startTs, endTs: s.endTs, efficiency: nil,
-                                                       restingHr: nil, avgHrv: nil, stagesJSON: s.stagesJSON)
-                    if SleepMerge.richness(candidate) < SleepMerge.richness(existing) {
-                        continue   // a less-complete re-serve of this night must never clobber the stored one
-                    }
-                }
-                try db.execute(sql: """
-                    INSERT INTO sleepSession
-                        (deviceId, startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON,
-                         userEdited, startTsAdjusted, stagingSparse)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(deviceId, startTs) DO UPDATE SET
-                        -- A user-corrected night keeps its hand-set bed/wake times and stage breakdown;
-                        -- a recompute/import refresh (this path) updates only the derived vitals. The
-                        -- `userEdited` flag is preserved, never cleared here, so a later strap re-sync
-                        -- can't revert a correction (the dedicated edit path is `applySleepEdit`).
-                        endTs = CASE WHEN sleepSession.userEdited THEN sleepSession.endTs ELSE excluded.endTs END,
-                        efficiency = excluded.efficiency,
-                        restingHr = excluded.restingHr,
-                        avgHrv = excluded.avgHrv,
-                        stagesJSON = CASE WHEN sleepSession.userEdited THEN sleepSession.stagesJSON ELSE excluded.stagesJSON END,
-                        startTsAdjusted = CASE WHEN sleepSession.userEdited THEN sleepSession.startTsAdjusted ELSE excluded.startTsAdjusted END,
-                        userEdited = sleepSession.userEdited,
-                        -- Derived from the day's motion coverage, so a recompute always refreshes it.
-                        stagingSparse = excluded.stagingSparse
-                    """, arguments: [deviceId, s.startTs, s.endTs, s.efficiency,
-                                     s.restingHr, s.avgHrv, s.stagesJSON, s.userEdited, s.startTsAdjusted,
-                                     s.stagingSparse])
-                n += db.changesCount
-            }
-            return n
+            try Self.writeSleepSessions(sessions, deviceId: deviceId, in: db)
         }
+    }
+
+    /// Shared SQL for ordinary upserts and the atomic selected-day scoring transaction.
+    /// Kotlin twin: `WhoopRepository.writeSleepSessions`.
+    static func writeSleepSessions(_ sessions: [CachedSleepSession], deviceId: String, in db: Database,
+                                   rejectIncompleteReplacement: Bool = false) throws -> Int {
+        var n = 0
+        for s in sessions {
+            if !s.userEdited, let existing = try Self.storedSleepSession(db, deviceId: deviceId, startTs: s.startTs),
+               !existing.userEdited {
+                let candidate = CachedSleepSession(startTs: s.startTs, endTs: s.endTs, efficiency: nil,
+                                                   restingHr: nil, avgHrv: nil, stagesJSON: s.stagesJSON)
+                if SleepMerge.richness(candidate) < SleepMerge.richness(existing) {
+                    if rejectIncompleteReplacement {
+                        throw NSError(domain: "SleepRecalculation", code: 2,
+                                      userInfo: [NSLocalizedDescriptionKey: "Available inputs produced a less complete night."])
+                    }
+                    continue   // a less-complete re-serve of this night must never clobber the stored one
+                }
+            }
+            try db.execute(sql: """
+                INSERT INTO sleepSession
+                    (deviceId, startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON,
+                     userEdited, startTsAdjusted, stagingSparse)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(deviceId, startTs) DO UPDATE SET
+                    -- A user-corrected night keeps its hand-set bed/wake times and stage breakdown;
+                    -- a recompute/import refresh (this path) updates only the derived vitals. The
+                    -- `userEdited` flag is preserved, never cleared here, so a later strap re-sync
+                    -- can't revert a correction (the dedicated edit path is `applySleepEdit`).
+                    endTs = CASE WHEN sleepSession.userEdited THEN sleepSession.endTs ELSE excluded.endTs END,
+                    efficiency = excluded.efficiency,
+                    restingHr = excluded.restingHr,
+                    avgHrv = excluded.avgHrv,
+                    stagesJSON = CASE WHEN sleepSession.userEdited THEN sleepSession.stagesJSON ELSE excluded.stagesJSON END,
+                    startTsAdjusted = CASE WHEN sleepSession.userEdited THEN sleepSession.startTsAdjusted ELSE excluded.startTsAdjusted END,
+                    userEdited = sleepSession.userEdited,
+                    -- Derived from the day's motion coverage, so a recompute always refreshes it.
+                    stagingSparse = excluded.stagingSparse
+                """, arguments: [deviceId, s.startTs, s.endTs, s.efficiency,
+                                 s.restingHr, s.avgHrv, s.stagesJSON, s.userEdited, s.startTsAdjusted,
+                                 s.stagingSparse])
+            n += db.changesCount
+        }
+        return n
     }
 
     /// The stored row at (deviceId, startTs), or nil when there is none yet — the completeness check
@@ -618,24 +629,28 @@ extension WhoopStore {
     /// Cached sleep sessions overlapping [from, to] (by startTs), oldest first.
     public func sleepSessions(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [CachedSleepSession] {
         try syncRead { db in
-            try Row.fetchAll(db, sql: """
-                SELECT startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON, userEdited,
-                       startTsAdjusted, stagingSparse FROM sleepSession
-                WHERE deviceId = ? AND startTs >= ? AND startTs <= ?
-                ORDER BY startTs ASC LIMIT ?
-                """, arguments: [deviceId, from, to, limit])
-                .map {
-                    CachedSleepSession(startTs: $0["startTs"], endTs: $0["endTs"],
-                                       efficiency: $0["efficiency"], restingHr: $0["restingHr"],
-                                       avgHrv: $0["avgHrv"], stagesJSON: $0["stagesJSON"],
-                                       userEdited: $0["userEdited"], startTsAdjusted: $0["startTsAdjusted"],
-                                       stagingSparse: $0["stagingSparse"],
-                                       // The read knows the device it queried, so every block it hands
-                                       // back carries it and no caller has to ask the store again.
-                                       deviceId: deviceId)
-                }
+            try Self.readSleepSessions(deviceId: deviceId, from: from, to: to, limit: limit, in: db)
         }
     }
+
+    /// Shared selected-transaction read; Kotlin twin: `WhoopDao.sleepSessions`.
+    static func readSleepSessions(deviceId: String, from: Int, to: Int, limit: Int, in db: Database) throws -> [CachedSleepSession] {
+        try Row.fetchAll(db, sql: """
+            SELECT startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON, userEdited,
+                   startTsAdjusted, stagingSparse FROM sleepSession
+            WHERE deviceId = ? AND startTs >= ? AND startTs <= ?
+            ORDER BY startTs ASC LIMIT ?
+            """, arguments: [deviceId, from, to, limit])
+            .map {
+                CachedSleepSession(startTs: $0["startTs"], endTs: $0["endTs"],
+                                   efficiency: $0["efficiency"], restingHr: $0["restingHr"],
+                                   avgHrv: $0["avgHrv"], stagesJSON: $0["stagesJSON"],
+                                   userEdited: $0["userEdited"], startTsAdjusted: $0["startTsAdjusted"],
+                                   stagingSparse: $0["stagingSparse"],
+                                   // The read knows the device it queried, so every block it hands
+                                   // back carries it and no caller has to ask the store again.
+                                   deviceId: deviceId)
+            }    }
 
     /// Cached daily metrics for days in [from, to] (lexicographic YYYY-MM-DD compare), oldest first.
     public func dailyMetrics(deviceId: String, from: String, to: String) async throws -> [DailyMetric] {

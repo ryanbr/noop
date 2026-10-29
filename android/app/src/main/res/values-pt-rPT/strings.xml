@@ -2852,4 +2852,14 @@
     <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoje quando as sessões em direto estão ativadas nas Definições ou existe uma sessão ativa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoje à sua maneira, frequência cardíaca para qualquer aplicação e italiano</string>
+    <string name="sleep_recalculate_title">Recalcular o sono</string>
+    <string name="sleep_recalculate_description">Selecione a data em que acordou. Usa apenas dados já existentes neste dispositivo. As importações, edições manuais e períodos eliminados são preservados.</string>
+    <string name="sleep_recalculate_wake_date">Data de despertar: %1$s</string>
+    <string name="sleep_recalculate_completed">O sono do dia selecionado foi recalculado a partir dos dados disponíveis.</string>
+    <string name="sleep_recalculate_no_sleep">Não foi detetado sono nos dados disponíveis. As edições guardadas e os períodos eliminados foram preservados.</string>
+    <string name="sleep_recalculate_no_data">Não há dados utilizáveis suficientes para este dia. Sincronize a pulseira e tente novamente. O recálculo não obtém novos dados.</string>
+    <string name="sleep_recalculate_invalid_date">Escolha uma data de despertar de um dia passado já terminado.</string>
+    <string name="sleep_recalculate_busy">Está em curso outro recálculo. Tente novamente quando terminar.</string>
+    <string name="sleep_recalculate_failed">Não foi possível recalcular este dia. Tente novamente.</string>
+    <string name="sleep_recalculate_deleted">Este dia inclui sono eliminado. A eliminação foi preservada; não foi efetuado nenhum recálculo.</string>
 </resources>

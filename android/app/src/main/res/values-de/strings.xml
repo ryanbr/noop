@@ -2873,4 +2873,14 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="sleep_recalculate_title">Schlaf neu berechnen</string>
+    <string name="sleep_recalculate_description">Wähle das Datum, an dem du aufgewacht bist. Nutzt nur bereits auf diesem Gerät vorhandene Daten. Importe, manuelle Änderungen und gelöschte Zeiträume bleiben erhalten.</string>
+    <string name="sleep_recalculate_wake_date">Aufwachdatum: %1$s</string>
+    <string name="sleep_recalculate_completed">Der Schlaf des gewählten Tages wurde aus den verfügbaren Daten neu berechnet.</string>
+    <string name="sleep_recalculate_no_sleep">In den verfügbaren Daten wurde kein Schlaf erkannt. Gespeicherte Änderungen und gelöschte Zeiträume blieben erhalten.</string>
+    <string name="sleep_recalculate_no_data">Für diesen Tag fehlen nutzbare Daten. Synchronisiere das Band und versuche es erneut. Die Neuberechnung ruft keine Daten ab.</string>
+    <string name="sleep_recalculate_invalid_date">Wähle ein Aufwachdatum eines abgeschlossenen vergangenen Tages.</string>
+    <string name="sleep_recalculate_busy">Eine andere Neuberechnung läuft. Versuche es danach erneut.</string>
+    <string name="sleep_recalculate_failed">Dieser Tag konnte nicht neu berechnet werden. Versuche es erneut.</string>
+    <string name="sleep_recalculate_deleted">Dieser Tag enthält gelöschten Schlaf. Die Löschung blieb erhalten; es wurde keine Neuberechnung ausgeführt.</string>
 </resources>

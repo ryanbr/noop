@@ -2859,4 +2859,14 @@
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
     <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Aujourd\'hui à votre façon, fréquence cardiaque lisible par toute application, et l\'italien</string>
+    <string name="sleep_recalculate_title">Recalculer le sommeil</string>
+    <string name="sleep_recalculate_description">Sélectionnez la date de votre réveil. Utilise uniquement les données déjà présentes sur cet appareil. Les importations, modifications manuelles et périodes supprimées sont conservées.</string>
+    <string name="sleep_recalculate_wake_date">Date du réveil: %1$s</string>
+    <string name="sleep_recalculate_completed">Le sommeil du jour sélectionné a été recalculé à partir des données disponibles.</string>
+    <string name="sleep_recalculate_no_sleep">Aucun sommeil détecté dans les données disponibles. Les modifications enregistrées et périodes supprimées ont été conservées.</string>
+    <string name="sleep_recalculate_no_data">Les données exploitables sont insuffisantes pour ce jour. Synchronisez le bracelet, puis réessayez. Le recalcul ne récupère aucune donnée.</string>
+    <string name="sleep_recalculate_invalid_date">Choisissez une date de réveil d’un jour passé terminé.</string>
+    <string name="sleep_recalculate_busy">Un autre recalcul est en cours. Réessayez lorsqu’il sera terminé.</string>
+    <string name="sleep_recalculate_failed">Impossible de recalculer ce jour. Réessayez.</string>
+    <string name="sleep_recalculate_deleted">Ce jour comprend du sommeil supprimé. La suppression a été conservée ; aucun recalcul n’a été effectué.</string>
 </resources>

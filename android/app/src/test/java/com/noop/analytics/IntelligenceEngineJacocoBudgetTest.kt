@@ -69,10 +69,21 @@ class IntelligenceEngineJacocoBudgetTest {
         val calls = nameUses.filter { it != nameOffsetInDeclaration }
         assertEquals("Expected exactly one call to $helperName", 1, calls.size)
 
-        val replace = requireExactlyOne(code, Regex("""\bIntelligencePersistence\s*\.\s*persistComputedWindow\s*\("""))
-        val dismissed = requireExactlyOne(code, Regex("""\bDismissedSleepGuard\s*\.\s*keeping\s*\("""))
-        assertTrue("$helperName must run after replaceComputedScoreWindow", calls.single() > replace)
-        assertTrue("$helperName must run before DismissedSleepGuard.keeping", calls.single() < dismissed)
+        val cpuStart = code.indexOf("private suspend fun analyzeRecentOnCpu")
+        val signatureStart = code.indexOf('(', cpuStart)
+        var signatureEnd = signatureStart + 1
+        var parentheses = 1
+        while (parentheses > 0) {
+            when (code[signatureEnd++]) { '(' -> parentheses++; ')' -> parentheses-- }
+        }
+        val cpuOpen = code.indexOf('{', signatureEnd)
+        val cpu = code.substring(cpuOpen, matchingBrace(code, cpuOpen) + 1)
+        // Selected filtering precedes its atomic commit; normal filtering stays after weekly work.
+        val replace = cpuOpen + requireExactlyOne(cpu, Regex("""\bpersistSelectedOrRecentWindow\s*\("""))
+        val dismissed = cpuOpen + requireExactlyOne(cpu, Regex("""\bDismissedSleepGuard\s*\.\s*keeping\s*\("""))
+        requireExactlyOne(code, Regex("""\bIntelligencePersistence\s*\.\s*persistComputedWindow\s*\("""))
+        assertTrue("$helperName must run after the transaction funnel", calls.single() > replace)
+        assertTrue("$helperName must run before normal DismissedSleepGuard.keeping", calls.single() < dismissed)
 
         val bodyOpen = code.indexOf('{', declaration.single().range.last + 1)
         assertTrue("Missing body for $helperName", bodyOpen >= 0)

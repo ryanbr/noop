@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.withTransaction
 import com.noop.protocol.DroppedRtcEvent
 import com.noop.protocol.RrSourceChannel
+import kotlinx.coroutines.ensureActive
 import com.noop.protocol.Whoop5Ecg
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -845,16 +846,20 @@ class WhoopRepository(
      */
     suspend fun upsertSleepSessions(sessions: List<SleepSession>) {
         if (sessions.isEmpty()) return
-        transactor.run {
-            for (candidate in sessions) {
-                val existing = dao.sleepSession(candidate.deviceId, candidate.startTs)
-                if (existing == null) {
-                    dao.insertSleepSession(candidate)
-                } else {
-                    SleepSessionUpsertPolicy.merge(existing, candidate)?.let {
-                        dao.updateSleepSession(it)
-                    }
+        transactor.run { writeSleepSessions(sessions) }
+    }
+
+    private suspend fun writeSleepSessions(sessions: List<SleepSession>, rejectIncompleteReplacement: Boolean = false) {
+        for (candidate in sessions) {
+            val existing = dao.sleepSession(candidate.deviceId, candidate.startTs)
+            if (existing == null) {
+                dao.insertSleepSession(candidate)
+            } else {
+                val merged = SleepSessionUpsertPolicy.merge(existing, candidate)
+                check(!rejectIncompleteReplacement || merged != null) {
+                    "Available inputs produced a less complete night."
                 }
+                if (merged != null) dao.updateSleepSession(merged)
             }
         }
     }
@@ -865,6 +870,7 @@ class WhoopRepository(
     suspend fun deleteComputedDailyInRange(deviceId: String, from: String, to: String) =
         dao.deleteDailyMetricsInRange(deviceId, from, to)
 
+    /** Swift twin: `WhoopStore.persistComputedScores`. */
     suspend fun replaceComputedScoreWindow(
         deviceId: String,
         from: String,
@@ -874,10 +880,46 @@ class WhoopRepository(
         provenance: List<ScoreInputProvenanceRow>,
         replaceMetricKeys: List<String> = emptyList(),
         replaceMetricSourceIds: List<String> = listOf(deviceId),
-    ) = dao.replaceComputedScoreWindow(
-        deviceId, from, to, dailyMetrics, metricPoints, provenance,
-        replaceMetricKeys, replaceMetricSourceIds,
-    )
+        sleepSessions: List<SleepSession>? = null,
+        dependentRecoveryUpdates: List<SleepRecoveryUpdate> = emptyList(),
+        sleepMotion: Map<Long, List<Double>> = emptyMap(), sleepStates: Map<Long, List<Int>> = emptyMap(),
+        selectedSleepBounds: LongRange? = null,
+    ) {
+        if (dailyMetrics.isEmpty()) return
+        if (sleepSessions == null) {
+            dao.replaceComputedScoreWindow(deviceId, from, to, dailyMetrics, metricPoints, provenance,
+                replaceMetricKeys, replaceMetricSourceIds)
+            return
+        }
+        if (selectedSleepBounds != null) require(dailyMetrics.all { it.day in from..to })
+        val scopedPoints = if (selectedSleepBounds == null) metricPoints else metricPoints.filter { it.day in from..to }
+        val scopedProvenance = if (selectedSleepBounds == null) provenance else provenance.filter { it.day in from..to }
+        transactor.run {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            writeSleepSessions(sleepSessions, rejectIncompleteReplacement = true)
+            dao.replaceComputedScoreWindow(deviceId, from, to, dailyMetrics, scopedPoints, scopedProvenance,
+                replaceMetricKeys, replaceMetricSourceIds)
+            for (update in dependentRecoveryUpdates) {
+                dao.updateSleepDependentRecovery(deviceId, update.day, update.recovery, update.skinTempDevC)
+                if (update.recovery == null) dao.deleteRecoveryProvenance(deviceId, update.day)
+                else update.sourceId?.let { source ->
+                    dao.upsertScoreInputProvenance(listOf(ScoreInputProvenanceRow(deviceId, update.day, "recovery", source)))
+                }
+            }
+            val freshStarts = sleepSessions.map { it.startTs }.toSet()
+            for ((start, values) in sleepMotion) if (start in freshStarts) persistSessionMotion(deviceId, start, values)
+            for ((start, values) in sleepStates) if (start in freshStarts) persistSessionSleepState(deviceId, start, values)
+            if (selectedSleepBounds != null && sleepSessions.isNotEmpty()) {
+                require(deviceId.endsWith("-noop"))
+                val stored = dao.sleepSessions(deviceId, selectedSleepBounds.first - 30 * 3600,
+                    selectedSleepBounds.last, 4000).filter { it.endTs in selectedSleepBounds }
+                for (stale in com.noop.analytics.SleepSessionDedup.dedupe(stored, freshStarts).dropped) {
+                    dao.deleteSleepSession(deviceId, stale.startTs)
+                }
+            }
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        }
+    }
 
     /** Computed-only daily rows; unlike daysMerged this can never substitute imported/calendar steps. */
     suspend fun computedDailyUnion(activeStrapId: String, from: String, to: String): List<DailyMetric> =

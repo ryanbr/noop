@@ -101,6 +101,12 @@ struct SleepView: View {
     /// which marks the session `userEdited` so a later strap sync can't revert the correction. (#318)
     @State private var wakeEdit: WakeEdit?
 
+    @State private var recalculationDate = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+    @State private var recalculatingNight = false
+    @State private var recalculationNotice: String?
+    @State private var recalculationTask: Task<Void, Never>?
+    @State private var requestedSleepDay: String?
+
     /// Non-nil while the "Add nap" picker sheet is open (#508). Carries a seed bed/wake for the picker;
     /// saving routes through `repo.addManualNap`, which stages the chosen window from raw and writes it as
     /// its OWN separate session row (`userEdited = 1`) — never folded into the night's main sleep.
@@ -165,6 +171,7 @@ struct SleepView: View {
                        lazy: true,
                        topBackground: resolved == nil ? nil : AnyView(sleepNightTopBackground)) {
             Group {
+                selectedNightRecalculationCard
                 if let resolved {
                     // Each top-level section fades + rises in sequence on first appear (Reduce-Motion safe).
                     VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
@@ -223,7 +230,7 @@ struct SleepView: View {
                 }
             }
             .onChangeCompat(of: intelligence.computing) { _ in observeResultChange() }
-            .onDisappear { resetResultNotice() }
+            .onDisappear { resetResultNotice(); recalculationTask?.cancel() }
             .task(id: resultNoticeRevision) {
                 guard resultNoticeVisible else { return }
                 do { try await Task.sleep(nanoseconds: 8_000_000_000) }
@@ -254,6 +261,16 @@ struct SleepView: View {
                 navDaysCache = SleepModel.navDays(navSessions: navSessions)
                 model = buildModel()
                 loadedSleepRefresh = refresh
+                if let selected = requestedSleepDay {
+                    if let index = navDays.firstIndex(where: { group in
+                        group.contains { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) == selected }
+                    }) {
+                        nightOffset = index
+                        navNight = index == 0 ? nil : decodedNight(at: index)
+                        model = buildModel()
+                    }
+                    requestedSleepDay = nil
+                }
                 observeResultChange()
             }
             .sheet(item: $wakeEdit) { edit in
@@ -2070,6 +2087,62 @@ struct SleepView: View {
 
 
     // MARK: - Empty / sparse states
+
+    @ViewBuilder
+    private var selectedNightRecalculationCard: some View {
+        NoopCard(tint: StrandPalette.restColor) {
+            VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
+                Text("Recalculate sleep").font(StrandFont.headline)
+                Text("Select the date you woke up. Uses only data already on this device. Imports, manual edits and deleted windows are preserved.")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                DatePicker("Wake date", selection: $recalculationDate,
+                           in: ...(Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()),
+                           displayedComponents: .date)
+                    .disabled(recalculatingNight)
+                    .onChangeCompat(of: recalculationDate) { _ in recalculationNotice = nil }
+                Button("Recalculate sleep") {
+                    guard !recalculatingNight else { return }
+                    let date = recalculationDate
+                    let day = AnalyticsEngine.dayString(Int(date.timeIntervalSince1970),
+                        offsetSec: TimeZone.current.secondsFromGMT(for: date))
+                    requestedSleepDay = day
+                    recalculatingNight = true
+                    recalculationNotice = nil
+                    recalculationTask = Task { @MainActor in
+                        defer { recalculatingNight = false }
+                        do {
+                            let result = try await intelligence.recalculateSleepNight(day: day)
+                            switch result {
+                            case .completed:
+                                recalculationNotice = String(localized: "Selected day's sleep recalculated from available data.")
+                            case .noSleepDetected:
+                                recalculationNotice = String(localized: "No sleep detected from available data. Saved edits and deleted windows were preserved.")
+                            case .insufficientData:
+                                recalculationNotice = String(localized: "Not enough usable data for this day. Sync the strap, then try again. Recalculation does not fetch data.")
+                            case .busy:
+                                recalculationNotice = String(localized: "Another recalculation is running. Try again when it finishes.")
+                            case .invalidDate:
+                                recalculationNotice = String(localized: "Choose a completed past wake date.")
+                            case .deletionSuppressed:
+                                recalculationNotice = String(localized: "This day includes deleted sleep. Its deletion was preserved; no recalculation was run.")
+                            case .failed:
+                                recalculationNotice = String(localized: "Couldn't recalculate this day. Try again.")
+                            }
+                        } catch is CancellationError {
+                            return
+                        } catch {
+                            recalculationNotice = String(localized: "Couldn't recalculate this day. Try again.")
+                        }
+                    }
+                }
+                .disabled(recalculatingNight || intelligence.computing)
+                if recalculatingNight { ProgressView() }
+                if let recalculationNotice {
+                    Text(recalculationNotice).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                }
+            }
+        }
+    }
 
     @ViewBuilder
     private var emptyState: some View {

@@ -2889,4 +2889,14 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="sleep_recalculate_title">Recalculate sleep</string>
+    <string name="sleep_recalculate_description">Select the date you woke up. Uses only data already on this device. Imports, manual edits and deleted windows are preserved.</string>
+    <string name="sleep_recalculate_wake_date">Wake date: %1$s</string>
+    <string name="sleep_recalculate_completed">Selected day\'s sleep recalculated from available data.</string>
+    <string name="sleep_recalculate_no_sleep">No sleep detected from available data. Saved edits and deleted windows were preserved.</string>
+    <string name="sleep_recalculate_no_data">Not enough usable data for this day. Sync the strap, then try again. Recalculation does not fetch data.</string>
+    <string name="sleep_recalculate_invalid_date">Choose a completed past wake date.</string>
+    <string name="sleep_recalculate_busy">Another recalculation is running. Try again when it finishes.</string>
+    <string name="sleep_recalculate_failed">Couldn\'t recalculate this day. Try again.</string>
+    <string name="sleep_recalculate_deleted">This day includes deleted sleep. Its deletion was preserved; no recalculation was run.</string>
 </resources>
