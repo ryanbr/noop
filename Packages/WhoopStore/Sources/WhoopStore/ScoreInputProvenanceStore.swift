@@ -32,15 +32,42 @@ public enum Vo2MaxEstimator: String, Codable, Sendable {
     public static func forWaistCm(_ waistCm: Double) -> Self { waistCm > 0 ? .nes : .uth }
 }
 
+/// Which persistence transaction owns a computation stamp. The daily window replaces only its own rows,
+/// so independently-written weekly/standalone metric-series provenance survives an ordinary re-score.
+public enum ScoreComputationScope: String, Codable, Sendable {
+    case scoreWindow = "score-window"
+    case metricSeries = "metric-series"
+}
+
+/// Exact app identity and wall-clock instant captured for one computation pass. `computedBy` deliberately
+/// includes platform, marketing version, and build number because a cross-platform backup may contain rows
+/// produced by either app, and two staging builds may share a marketing version.
+public struct ScoreComputationStamp: Equatable, Codable, Sendable {
+    public let computedBy: String
+    public let computedAt: Int64 // unix milliseconds
+
+    public init(computedBy: String, computedAt: Int64) {
+        self.computedBy = computedBy
+        self.computedAt = computedAt
+    }
+
+    // Kotlin twin: `ScoreComputationStamp.buildIdentity`.
+    public static func buildIdentity(platform: String, appVersion: String, appBuild: String) -> String {
+        "\(platform):\(appVersion)+\(appBuild)"
+    }
+}
+
 extension WhoopStore {
     /// Persist computed daily/series scores and their input provenance in one SQLite transaction.
     /// Replacing daily-score provenance in the scoring window prevents stale attribution when a metric
     /// disappears or changes provider; independently-owned weekly VO₂max method tags survive. Any write
     /// failure rolls back both scores and metadata.
+    // Kotlin twin: `WhoopDao.replaceComputedScoreWindow`.
     public func persistComputedScores(
         dailyMetrics: [DailyMetric],
         metricPoints: [MetricPoint],
         provenance: [ScoreInputProvenanceRow],
+        computation: ScoreComputationStamp,
         deviceId: String,
         from: String,
         to: String,
@@ -74,6 +101,10 @@ extension WhoopStore {
                 DELETE FROM scoreInputProvenance
                 WHERE deviceId = ? AND day >= ? AND day <= ? AND key != 'vo2max_est'
                 """, arguments: [deviceId, from, to])
+            try db.execute(sql: """
+                DELETE FROM scoreComputationProvenance
+                WHERE deviceId = ? AND day >= ? AND day <= ? AND scope = ?
+                """, arguments: [deviceId, from, to, ScoreComputationScope.scoreWindow.rawValue])
             for row in provenance {
                 try db.execute(sql: """
                     INSERT INTO scoreInputProvenance (deviceId, day, key, sourceId)
@@ -81,14 +112,25 @@ extension WhoopStore {
                     ON CONFLICT(deviceId, day,key) DO UPDATE SET sourceId = excluded.sourceId
                     """, arguments: [deviceId, row.day, row.key, row.sourceId])
             }
+            let cells = Set(provenance.map { "\($0.day)\u{1F}\($0.key)" })
+                .union(metricPoints.map { "\($0.day)\u{1F}\($0.key)" })
+            for cell in cells.sorted() {
+                let parts = cell.split(separator: "\u{1F}", maxSplits: 1).map(String.init)
+                guard parts.count == 2 else { continue }
+                try Self.upsertComputationProvenance(
+                    day: parts[0], key: parts[1], stamp: computation, scope: .scoreWindow,
+                    deviceId: deviceId, in: db)
+            }
         }
     }
 
     /// Persist a metric-series batch and its specialized provenance in one SQLite transaction. Used by
     /// weekly VO₂max so a method label can never describe an older/newer value after a partial write.
+    // Kotlin twin: `WhoopDao.upsertMetricSeriesWithProvenance`.
     public func persistMetricSeriesWithProvenance(
         points: [MetricPoint],
         provenance: [ScoreInputProvenanceRow],
+        computation: ScoreComputationStamp,
         deviceId: String
     ) async throws {
         try syncWrite { db in
@@ -100,7 +142,28 @@ extension WhoopStore {
                     ON CONFLICT(deviceId, day,key) DO UPDATE SET sourceId = excluded.sourceId
                     """, arguments: [deviceId, row.day, row.key, row.sourceId])
             }
+            for point in points {
+                try Self.upsertComputationProvenance(
+                    day: point.day, key: point.key, stamp: computation, scope: .metricSeries,
+                    deviceId: deviceId, in: db)
+            }
         }
+    }
+
+    // Kotlin twin: `WhoopDao.upsertScoreComputationProvenance`.
+    private static func upsertComputationProvenance(
+        day: String, key: String, stamp: ScoreComputationStamp, scope: ScoreComputationScope,
+        deviceId: String, in db: Database
+    ) throws {
+        try db.execute(sql: """
+            INSERT INTO scoreComputationProvenance
+                (deviceId, day, key, computedBy, computedAt, scope)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(deviceId, day, key) DO UPDATE SET
+                computedBy = excluded.computedBy,
+                computedAt = excluded.computedAt,
+                scope = excluded.scope
+            """, arguments: [deviceId, day, key, stamp.computedBy, stamp.computedAt, scope.rawValue])
     }
 
     /// Input source for one computed score. Missing means the score predates provenance storage or its

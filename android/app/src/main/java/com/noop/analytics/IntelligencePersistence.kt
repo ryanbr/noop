@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import com.noop.data.DailyMetric
 import com.noop.data.MetricSeriesRow
+import com.noop.data.ScoreComputationStamp
 import com.noop.data.ScoreInputProvenanceRow
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -32,6 +33,7 @@ internal object IntelligencePersistence {
         val dailies: List<DailyMetric>,
         val metricRows: List<MetricSeriesRow>,
         val provenance: List<ScoreInputProvenanceRow>,
+        val computation: ScoreComputationStamp,
         val markerSourceIds: List<String>,
     )
 
@@ -68,6 +70,7 @@ internal object IntelligencePersistence {
         cycle: PhysiologicalStepCycleEngine.Result,
         candidatePriorities: List<Pair<String, Int>>,
         ownerByDay: Map<String, String>,
+        computation: ScoreComputationStamp,
         legacyClock: LegacyScoreClock,
         computed: MutableList<IntelligenceEngine.Computed>,
     ): ComputedWindow {
@@ -86,6 +89,7 @@ internal object IntelligencePersistence {
             metricRows = (metricRows + cycle.recoveredOwnerMarkerRows)
                 .distinctBy { Triple(it.deviceId, it.day, it.key) },
             provenance = provenance,
+            computation = computation,
             markerSourceIds = DayCycleIntelligenceIntegration.markerRewriteSourceIds(
                 repo.computedSourceIds(importedDeviceId),
                 candidatePriorities.map { (owner, _) -> repo.computedDeviceId(owner) },
@@ -215,6 +219,7 @@ internal suspend fun WhoopRepository.replaceComputedScoreWindow(
     dailyMetrics = window.dailies,
     metricPoints = window.metricRows,
     provenance = window.provenance,
+    computation = window.computation,
     replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY),
     replaceMetricSourceIds = window.markerSourceIds,
 )

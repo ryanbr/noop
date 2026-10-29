@@ -104,6 +104,7 @@ final class IntelligenceRRSourceTests: XCTestCase {
             try await store.persistComputedScores(
                 dailyMetrics: [legacySnapshot], metricPoints: [],
                 provenance: [ScoreInputProvenanceRow(day: input.day, key: "recovery", sourceId: "legacy-owner")],
+                computation: .init(computedBy: "test:1+1", computedAt: 1),
                 deviceId: canonical + "-noop", from: input.day, to: input.day)
             _ = try await store.insert(Streams(rr: input.rr), deviceId: active)
             let legacy = try await score()
@@ -155,6 +156,7 @@ final class IntelligenceRRSourceTests: XCTestCase {
             try await store.persistComputedScores(
                 dailyMetrics: [legacySnapshot], metricPoints: [],
                 provenance: [ScoreInputProvenanceRow(day: input.day, key: "recovery", sourceId: "legacy-owner")],
+                computation: .init(computedBy: "test:1+1", computedAt: 1),
                 deviceId: canonical + "-noop", from: input.day, to: input.day)
             let tagged = input.rr.map { RRInterval(ts: $0.ts, rrMs: $0.rrMs, srcChannel: .whoop5Historical) }
             let inserted = try await store.insert(Streams(rr: tagged), deviceId: active)
