@@ -436,6 +436,15 @@
       "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
       "platform": "swift",
       "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DataBackup.kt::writeBackupZip/4#1",
+      "identity_sha256": "c6f74cc3acf36fb9f2695fb06f73513dbd9465c66543c5da266fbc7d6178fd94",
+      "platform": "kotlin",
+      "rationale": "Refs #2708: the Swift DataBackup.writeBackupZip(dbURL:to:settingsJSON:manifestJSON:) archive writer is in the excluded app layer. This records the container-writing role twin for the Android production stream extraction without asserting byte-identical ZIP compression.",
+      "twin_path": "Strand/Data/DataBackup.swift"
     }
   ]
 }
