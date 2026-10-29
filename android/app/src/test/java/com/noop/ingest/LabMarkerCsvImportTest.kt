@@ -358,4 +358,40 @@ class LabMarkerCsvImportTest {
         )
         assertEquals(expected, names.map { LabMarkerCsvImport.customKey(it) })
     }
+    @Test fun legacyKeyMatchesAndroidHistory() {
+        val names = listOf("eGFR mL/min/1.73m²", "Ⅻ Marker", "²%", "𐄇 Marker", "!!!", "²", "Apo B", "Café Marker", "q̇ Marker", "🧪αⅫ²%", "A___B")
+        val actual = names.mapIndexed { index, name -> "$index:${LabMarkerCsvImport.legacyCustomKey(name)}" }.joinToString("\n")
+        assertEquals("""
+            0:custom_egfr_ml_min_1_73m
+            1:custom_marker
+            2:custom_pct
+            3:custom_marker
+            4:
+            5:
+            6:custom_apo_b
+            7:custom_café_marker
+            8:custom_q_marker
+            9:custom_α_pct
+            10:custom_a__b
+        """.trimIndent(), actual)
+    }
+
+    @Test fun importCarriesOnlyUnambiguousNonemptyLegacyAliases() {
+        val single = LabMarkerCsvImport.parse("date,marker,value\n2026-01-01,eGFR mL/min/1.73m²,90")
+        assertEquals("custom_egfr_ml_min_1_73m", single.rows.first().legacyMarkerKey)
+        assertEquals(mapOf("custom_egfr_ml_min_1_73m" to "custom_egfr_ml_min_1_73m²"), single.legacyKeyChanges)
+        for (names in listOf(listOf("Ⅻ Marker", "𐄇 Marker"), listOf("𐄇 Marker", "Marker"))) {
+            val csv = "date,marker,value\n" + names.joinToString("\n") { "2026-01-01,$it,90" }
+            val parsed = LabMarkerCsvImport.parse(csv)
+            assertEquals(names.size, parsed.rows.size)
+            assertTrue(parsed.legacyKeyChanges.isEmpty())
+        }
+        val empty = LabMarkerCsvImport.parse("date,marker,value\n2026-01-01,²,90")
+        assertTrue(empty.legacyKeyChanges.isEmpty())
+        assertEquals(1, empty.skippedRows)
+        val vendor = WhoopBiomarkerExportParser.parse(
+            "Biomarker Name,Value,Status,Recorded On Date\neGFR mL/min/1.73m²,90 unit,Original status,1/1/26")
+        assertEquals(single.legacyKeyChanges, vendor.legacyKeyChanges)
+    }
+
 }

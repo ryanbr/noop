@@ -45,9 +45,12 @@ public struct LabMarkerCsvRow: Sendable, Equatable {
     /// column, source-attributed). nil for the generic (date,marker,value,unit) importer, which
     /// never annotates. Maps to `LabMarker.note`.
     public var note: String?
+    /// Historical Android key derived from this input name; import-time repair metadata only.
+    // Kotlin twin: `LabMarkerCsvRow.legacyMarkerKey`.
+    public var legacyMarkerKey: String?
 
     public init(markerKey: String, category: LabMarkerCategory, day: String,
-                value: Double, unit: String, isCustomMarker: Bool, note: String? = nil) {
+                value: Double, unit: String, isCustomMarker: Bool, note: String? = nil, legacyMarkerKey: String? = nil) {
         self.markerKey = markerKey
         self.category = category
         self.day = day
@@ -55,6 +58,7 @@ public struct LabMarkerCsvRow: Sendable, Equatable {
         self.unit = unit
         self.isCustomMarker = isCustomMarker
         self.note = note
+        self.legacyMarkerKey = legacyMarkerKey
     }
 }
 
@@ -92,6 +96,23 @@ public struct LabMarkerCsvResult: Sendable, Equatable {
         self.truncated = truncated
         self.fileTooLarge = fileTooLarge
         self.notMeasured = notMeasured
+    }
+
+    /// Only unambiguous aliases from names in this file may repair a stored legacy key.
+    // Kotlin twin: `LabMarkerCsvResult.legacyKeyChanges`.
+    public var legacyKeyChanges: [String: String] {
+        let currentKeys = Set(rows.map(\.markerKey))
+        let candidates = rows.compactMap { row -> (String, String)? in
+            guard row.isCustomMarker, let old = row.legacyMarkerKey, !old.isEmpty,
+                  old != row.markerKey, !currentKeys.contains(old) else { return nil }
+            return (old, row.markerKey)
+        }
+        var changes: [String: String] = [:]
+        for (old, aliases) in Dictionary(grouping: candidates, by: { $0.0 }) {
+            let targets = Set(aliases.map { $0.1 })
+            if targets.count == 1 { changes[old] = targets.first }
+        }
+        return changes
     }
 
     /// Number of readings imported.
@@ -203,9 +224,11 @@ public enum LabMarkerCsvImport {
                 unit = rawUnit ?? ""
                 customKeys.insert(key)
             }
+            let legacy = legacyCustomKey(rawName)
             store(&byCell, LabMarkerCsvRow(markerKey: key, category: category, day: day,
                                            value: value, unit: unit,
-                                           isCustomMarker: MarkerCatalog.definition(for: key) == nil))
+                                           isCustomMarker: MarkerCatalog.definition(for: key) == nil,
+                                           legacyMarkerKey: MarkerCatalog.definition(for: key) == nil && !legacy.isEmpty && legacy != key ? legacy : nil))
         }
 
         let rows = byCell.values.sorted {
@@ -372,6 +395,38 @@ public enum LabMarkerCsvImport {
         let trimmed = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "_"))
         guard !trimmed.isEmpty else { return "" }
         return "custom_" + trimmed
+    }
+
+    /// Historical Android UTF-16 letter/decimal-digit key, used only while a reimport still has the marker name.
+    /// An empty result cannot identify any legacy history and must never be re-keyed.
+    // Kotlin twin: `LabMarkerCsvImport.legacyCustomKey`.
+    static func legacyCustomKey(_ name: String) -> String {
+        let lowered = Array(name.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased().utf16)
+        // Kotlin twin: `LabMarkerCsvImport.isLegacyWordUnit`.
+        func isLegacyWordUnit(_ unit: UInt16) -> Bool {
+            guard let scalar = UnicodeScalar(UInt32(unit)) else { return false }
+            switch scalar.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter,
+                 .otherLetter, .decimalNumber: return true
+            default: return false
+            }
+        }
+        var mapped = ""
+        for (index, unit) in lowered.enumerated() {
+            if unit == 37 {
+                if index > 0, isLegacyWordUnit(lowered[index - 1]) { mapped += "_" }
+                mapped += "pct"
+                if index + 1 < lowered.count, isLegacyWordUnit(lowered[index + 1]) { mapped += "_" }
+            } else if isLegacyWordUnit(unit), let scalar = UnicodeScalar(UInt32(unit)) {
+                mapped.unicodeScalars.append(scalar)
+            } else {
+                mapped += "_"
+            }
+        }
+        let trimmed = mapped.replacingOccurrences(of: "__", with: "_")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        return trimmed.isEmpty ? "" : "custom_" + trimmed
     }
 
     // MARK: - Value parsing (decimal commas welcome, nothing guessed)

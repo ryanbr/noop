@@ -1148,18 +1148,52 @@ interface WhoopDao : DeviceRegistryDao {
      * under [LAB_BOOK_SOURCE_ID]. Idempotent by natural key; LATEST-numeric-per-day wins in the
      * projection (qualitative valueText-only readings never project a REAL cell). Atomic — the
      * marker write and the projection can't diverge. Byte-identical to Swift
-     * WhoopStore.upsertLabMarkers.
+     * WhoopStore.upsertLabMarkers. Import-time legacy aliases may move a device's history only into
+     * an absent target; that move, incoming writes and both projections share this transaction.
      */
+    // Swift twin: `WhoopStore.upsertLabMarkers`.
     @Transaction
-    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>) {
+    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>, legacyKeys: Map<String, String> = emptyMap()) {
         if (rows.isEmpty()) return
-        insertLabMarkersRaw(rows)
+        val cells = rows.map { Triple(it.deviceId, it.markerKey, it.day) }.toMutableSet()
+        for ((deviceId, imported) in if (legacyKeys.isEmpty()) emptyMap() else rows.groupBy { it.deviceId }) {
+            val currentKeys = imported.map { it.markerKey }.toSet()
+            val presentKeys = markerKeysPresent(deviceId).toMutableSet()
+            for ((old, new) in legacyKeys.toSortedMap()) {
+                if (old == new || !old.startsWith("custom_") || old.length <= 7 ||
+                    !new.startsWith("custom_") || new.length <= 7 ||
+                    old in currentKeys || new !in currentKeys || old !in presentKeys || new in presentKeys) continue
+                val days = labMarkersByKey(deviceId, old).map { it.day }.toSet()
+                if (rekeyLegacyLabMarkers(deviceId, old, new) > 0) {
+                    presentKeys.remove(old)
+                    presentKeys.add(new)
+                    for (day in days) {
+                        cells += Triple(deviceId, old, day)
+                        cells += Triple(deviceId, new, day)
+                    }
+                }
+            }
+        }
+        // Swift's natural-key upsert retains the old stable id on an overlapping reimport.
+        // Preserve it for these repair imports too; REPLACE alone would mint a different id.
+        val importedRows = if (legacyKeys.isEmpty()) rows else {
+            val ids = rows.map { it.deviceId to it.markerKey }.distinct().flatMap { (deviceId, key) ->
+                labMarkersByKey(deviceId, key)
+            }.associateBy { Triple(it.deviceId, it.markerKey, it.takenAt to it.source) }
+            rows.map { row ->
+                ids[Triple(row.deviceId, row.markerKey, row.takenAt to row.source)]?.let { row.copy(id = it.id) } ?: row
+            }
+        }
+        insertLabMarkersRaw(importedRows)
         // Distinct touched cells, in a deterministic order.
-        val cells = rows.map { Triple(it.deviceId, it.markerKey, it.day) }.toSet()
         for ((deviceId, markerKey, day) in cells) {
             reprojectCell(deviceId, markerKey, day)
         }
     }
+
+    // Swift twin: `WhoopStore.rekeyLegacyLabMarkers`.
+    @Query("UPDATE labMarker SET markerKey = :to WHERE deviceId = :deviceId AND markerKey = :from")
+    suspend fun rekeyLegacyLabMarkers(deviceId: String, from: String, to: String): Int
 
     /**
      * Delete one reading by id; if it was the last numeric reading for its (markerKey, day) cell the

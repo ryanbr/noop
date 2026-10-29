@@ -1232,7 +1232,8 @@ class WhoopRepository(
 
     // MARK: - Lab Book markers (Swift labMarker, v17). Writing also projects the daily series into
     // metricSeries under WhoopDao.LAB_BOOK_SOURCE_ID, so Compare/Explore/Coach see markers unchanged.
-    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>) = dao.upsertLabMarkers(rows)
+    suspend fun upsertLabMarkers(rows: List<LabMarkerRow>, legacyKeys: Map<String, String> = emptyMap()) =
+        dao.upsertLabMarkers(rows, legacyKeys)
     suspend fun deleteLabMarker(id: String): Boolean = dao.deleteLabMarker(id)
     suspend fun labMarkersByKey(deviceId: String, markerKey: String) = dao.labMarkersByKey(deviceId, markerKey)
     suspend fun labMarkersByCategory(deviceId: String, category: String) = dao.labMarkersByCategory(deviceId, category)

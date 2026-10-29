@@ -57,6 +57,71 @@ final class LabMarkerStoreTests: XCTestCase {
                      unit: unit, source: source, note: nil, referenceText: nil)
     }
 
+    func testImportRekeysHistoryAndBothProjectionsWithoutLosingFields() async throws {
+        let store = try await WhoopStore.inMemory()
+        let old = "custom_egfr_ml_min_1_73m", new = old + "²"
+        var history = [
+            mk(id: "one", key: old, day: "2026-01-01", takenAt: 100, value: 90, source: "lab-csv"),
+            mk(id: "two", key: old, day: "2026-01-02", takenAt: 200, value: 92, source: "manual"),
+            mk(id: "text", key: old, day: "2026-01-03", takenAt: 300, value: nil, valueText: "original text")
+        ]
+        history[0].note = "original note"
+        history[0].referenceText = "user range"
+        var foreign = history[0]
+        foreign.id = "foreign"; foreign.deviceId = "other-device"; foreign.day = "2025-01-01"
+        try await store.upsertLabMarkers(history + [foreign])
+        let imported = mk(id: "new", key: new, day: "2026-01-04", takenAt: 400, value: 95, source: "lab-csv")
+        try await store.upsertLabMarkers([imported], legacyKeys: [old: new])
+        let migrated = try await store.labMarkers(deviceId: "my-whoop", markerKey: new)
+        XCTAssertEqual(migrated, history.map { row in var moved = row; moved.markerKey = new; return moved } + [imported])
+        let remaining = try await store.labMarkers(deviceId: "my-whoop", markerKey: old)
+        let other = try await store.labMarkers(deviceId: "other-device", markerKey: old)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertEqual(other, [foreign])
+        let oldProjection = try await store.metricSeries(deviceId: "lab-book", key: old, from: "2026-01-01", to: "2026-01-04")
+        let newProjection = try await store.metricSeries(deviceId: "lab-book", key: new, from: "2026-01-01", to: "2026-01-04")
+        XCTAssertTrue(oldProjection.isEmpty)
+        XCTAssertEqual(newProjection.map(\.value), [90, 92, 95])
+        var repeated = imported; repeated.id = "reimport"
+        try await store.upsertLabMarkers([repeated], legacyKeys: [old: new])
+        let afterRepeat = try await store.labMarkers(deviceId: "my-whoop", markerKey: new)
+        XCTAssertEqual(afterRepeat, migrated)
+    }
+
+    func testImportKeepsLegacyHistoryWhenTargetExistsOrLegacyKeyIsInvalid() async throws {
+        for alias in ["custom_old", "", "custom_"] {
+            let store = try await WhoopStore.inMemory()
+            let old = mk(id: "old", key: alias, day: "2026-01-01", takenAt: 100, value: 10)
+            let target = mk(id: "existing", key: "custom_new", day: "2026-02-01", takenAt: 200, value: 20, source: "other-source")
+            let existing = alias == "custom_old" ? [target] : []
+            try await store.upsertLabMarkers([old] + existing)
+            let imported = mk(id: "import", key: "custom_new", day: "2026-03-01", takenAt: 300, value: 30)
+            try await store.upsertLabMarkers([imported], legacyKeys: [alias: "custom_new"])
+            let legacy = try await store.labMarkers(deviceId: "my-whoop", markerKey: alias)
+            let current = try await store.labMarkers(deviceId: "my-whoop", markerKey: "custom_new")
+            XCTAssertEqual(legacy, [old])
+            XCTAssertEqual(current, existing + [imported])
+        }
+    }
+
+    func testImportRekeyRollsBackWhenIncomingWriteFails() async throws {
+        let store = try await WhoopStore.inMemory()
+        let old = mk(id: "old", key: "custom_old", day: "2026-01-01", takenAt: 100, value: 10)
+        try await store.upsertLabMarkers([old])
+        try await store.syncWrite { db in
+            try db.execute(sql: "CREATE TRIGGER reject_lab_import BEFORE INSERT ON labMarker BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+        }
+        do {
+            try await store.upsertLabMarkers([mk(id: "new", key: "custom_new", day: "2026-02-01", takenAt: 200, value: 20)],
+                                             legacyKeys: ["custom_old": "custom_new"])
+            XCTFail("import must fail")
+        } catch { }
+        let legacy = try await store.labMarkers(deviceId: "my-whoop", markerKey: "custom_old")
+        let current = try await store.labMarkers(deviceId: "my-whoop", markerKey: "custom_new")
+        XCTAssertEqual(legacy, [old])
+        XCTAssertTrue(current.isEmpty)
+    }
+
     // MARK: - upsert + read by marker / category / keys present
 
     func testUpsertReadByMarkerAndCategory() async throws {
