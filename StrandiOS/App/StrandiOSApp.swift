@@ -24,6 +24,8 @@ struct StrandiOSApp: App {
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
     @StateObject private var router: NavRouter
+    /// Navigation-only widget request, retained across the first-run overlays.
+    @State private var widgetQuickLog = QuickLogRequest()
     /// NOOP's live heart rate banner. Built in `init` and fed from there (`LiveActivityController.follow`), not from
     /// a view: a process iOS starts in the background need not build one.
     @State private var liveActivity: LiveActivityController
@@ -218,7 +220,7 @@ struct StrandiOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            iOSRootView()
+            iOSRootView(widgetQuickLog: $widgetQuickLog)
                 .environmentObject(model)
                 .environmentObject(model.ble)   // #334: Today pull-to-sync reads BLEManager (no HR churn)
                 .environmentObject(model.live)
@@ -321,6 +323,8 @@ struct StrandiOSApp: App {
                 .onOpenURL { url in
                     if url.host == "import-health" {
                         model.handleHealthImportURL(url)
+                    } else {
+                        widgetQuickLog.receive(url)
                     }
                 }
                 .alert("Import Apple Health data?", isPresented: healthImportAlertPresented) {
@@ -452,6 +456,7 @@ struct StrandiOSApp: App {
 /// excluded `RootView()` sidebar for `RootTabView()`. The shared `OnboardingWizard`, `TermsGateView`,
 /// `WhatsNewView`, `AppChangelog`, and `Terms` symbols all compile into the iOS target unchanged.
 private struct iOSRootView: View {
+    @Binding var widgetQuickLog: QuickLogRequest
     @AppStorage("noop.onboarded") private var onboarded = false
     @AppStorage("noop.lastSeenChangelogVersion") private var lastSeenChangelog = ""
     @AppStorage("noop.acceptedTermsVersion") private var acceptedTerms = ""
@@ -484,7 +489,7 @@ private struct iOSRootView: View {
         ZStack {
             RootTabView(homeScreenQuickActionsEnabled:
                 demoBypass || (onboarded && acceptedTerms == Terms.currentVersion
-                    && automaticLaunchSheetResolved))
+                    && automaticLaunchSheetResolved), widgetQuickLog: $widgetQuickLog)
             if !onboarded && !demoBypass {
                 OnboardingWizard(onFinished: {
                     onboarded = true

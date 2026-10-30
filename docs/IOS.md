@@ -373,6 +373,13 @@ zone-tinted HR dot + a compact recovery/HR/battery popover), wired in
 - A **Live Activity** (ActivityKit) during an active workout or live HR session.
 - The popover's content (`RecoveryRing`, `StatePill`, the stats row) is already
   built from `StrandDesign` components and can be reused inside the widget views.
+- **Quick Log** opens the existing hydration, caffeine, journal, and workout logging screens.
+  Add it from the NOOP widget gallery. The medium Home Screen size shows all four shortcuts;
+  edit a small Home Screen or Lock Screen widget to choose its log type (hydration by default).
+  Taps open NOOP, where the entry is reviewed and saved with the existing logging controls.
+  Hydration still requires its default-off tracking switch to be enabled. First-run onboarding,
+  terms, and automatic What's New screens finish before the requested logger appears.
+  This is iOS widget navigation only; Android storage and analytics are unchanged.
 
 ### 2. Screen lock — macOS-only API
 

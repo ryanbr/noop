@@ -38,6 +38,7 @@ struct RootTabView: View {
 
     /// Which quick-action screen the centre FAB is presenting (nil = sheet closed).
     @State private var quickAction: QuickAction?
+    @Binding var widgetQuickLog: QuickLogRequest
     /// Presents the Devices manager (pair / switch bands) when a screen asks the shell to open it.
     @State private var showDevices = false
     /// A routed v5 pillar screen (Insights hub / Lab Book / fused record / Rhythm) presented as a sheet
@@ -260,12 +261,17 @@ struct RootTabView: View {
         // through the change callback. Both route through the same screens as the centre FAB.
         .onAppear {
             presentPendingHomeScreenQuickActionIfPossible()
+            presentPendingWidgetQuickLogIfPossible()
         }
         .onChange(of: homeScreenQuickActions.pendingAction) { _, _ in
             presentPendingHomeScreenQuickActionIfPossible()
         }
         .onChange(of: homeScreenQuickActionsEnabled) { _, _ in
             presentPendingHomeScreenQuickActionIfPossible()
+            presentPendingWidgetQuickLogIfPossible()
+        }
+        .onChange(of: widgetQuickLog.pending) { _, _ in
+            presentPendingWidgetQuickLogIfPossible()
         }
         // The running gym session, reachable from ANY tab. It sits above the tab bar rather than
         // inside the Lift Log screen, because a workout outlives whichever screen you wandered to —
@@ -307,6 +313,23 @@ struct RootTabView: View {
             showDevices = false
             routedPillar = nil
             quickAction = destination
+        }
+    }
+
+    /// Widget links use the same launch gates and sheet host as icon quick actions. No entry is
+    /// written here: the destination's existing controls own validation and persistence.
+    private func presentPendingWidgetQuickLogIfPossible() {
+        guard let destination = widgetQuickLog.take(ifAllowed: homeScreenQuickActionsEnabled) else { return }
+        let action: QuickAction = switch destination {
+        case .hydration: .hydration
+        case .caffeine: .caffeine
+        case .journal: .journal
+        case .workout: .workout
+        }
+        withAnimation(Self.sheetEase) {
+            showDevices = false
+            routedPillar = nil
+            quickAction = action
         }
     }
 
@@ -387,6 +410,10 @@ struct RootTabView: View {
             quickScreen(InsightsView())
         case .breathe:
             quickScreen(BreathingView())
+        case .hydration:
+            quickScreen(WidgetHydrationLogView())
+        case .caffeine:
+            quickScreen(ScreenScaffold(title: "Caffeine") { CaffeineLogCard() })
         }
     }
 
@@ -690,7 +717,7 @@ private struct MoreRow: View {
 /// The destinations the centre FAB can present. `.menu` is the action sheet itself; the rest
 /// route to existing screens. `Identifiable` so it drives `.sheet(item:)`.
 private enum QuickAction: Int, Identifiable {
-    case menu, live, workout, journal, breathe
+    case menu, live, workout, journal, breathe, hydration, caffeine
     var id: Int { rawValue }
 }
 
