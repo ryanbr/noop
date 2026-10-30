@@ -28,6 +28,12 @@ struct CoachSettingsView: View {
     @State private var promptExpanded: Bool = false
     @State private var promptDraft: String = ""
 
+    /// The model picker sheet, and the catalogue snapshot it was opened with. Frozen on purpose: a
+    /// background catalogue refresh must never rewrite the rows under a finger mid-scroll (the bug a
+    /// native menu Picker showed with OpenRouter's 300+ ids).
+    @State private var showModelPicker = false
+    @State private var modelSnapshot: [String] = []
+
     var body: some View {
         // Literals, not String(localized:): `title`/`subtitle` are LocalizedStringKey, which converts
         // from a string LITERAL only, so a String value does not type-check here. The catalog keys are
@@ -92,15 +98,42 @@ struct CoachSettingsView: View {
                     .disabled(!coach.hasKey)
                     .accessibilityLabel("Refresh models from provider")
                 }
-                Picker("Model", selection: $coach.model) {
-                    ForEach(coach.availableModels, id: \.self) { m in
-                        Text(m).tag(m)
+                // A native `.menu` Picker is a UIMenu: it is rebuilt from its content on every parent
+                // re-render, and a long catalogue (OpenRouter returns 300+ ids) loses its scroll offset
+                // when the list is replaced underneath it — the picker jumps back to the top mid-scroll.
+                // A sheet with a frozen snapshot avoids that entirely: the list cannot change while the
+                // user is browsing it, and search makes a 300-model catalogue usable in the first place.
+                Button {
+                    modelSnapshot = coach.availableModels
+                    showModelPicker = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(coach.model)
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(StrandPalette.surfaceInset,
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                    .contentShape(Rectangle())
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                .buttonStyle(.plain)
                 .accessibilityLabel("Model")
-            }
+                .accessibilityValue(coach.model)
+                .sheet(isPresented: $showModelPicker) {
+                    CoachModelPickerSheet(models: modelSnapshot, selected: coach.model) { picked in
+                        if let picked { coach.model = picked }
+                    }
+                }            }
         }
     }
 
@@ -337,5 +370,123 @@ struct CoachSettingsView: View {
                 briefStatus = "Couldn't generate a brief right now — check your key and data access."
             }
         }
+    }
+}
+
+/// The model chooser. A sheet rather than a native `.menu` Picker: a menu is rebuilt from its
+/// contents on every re-render, and OpenRouter's catalogue (300+ `vendor/model` ids) made the open
+/// menu snap back mid-scroll whenever the list was replaced. Two things keep the offset stable here:
+/// the caller passes a FROZEN snapshot (nothing can be inserted or reordered under the finger), and
+/// the rows are a `LazyVStack` in a `ScrollView`, not a `List` — no selection machinery, no
+/// scroll-to-selected, no UIKit list rebuild to reset the position. Search makes a catalogue this
+/// size navigable, which is the other reason this is a sheet.
+private struct CoachModelPickerSheet: View {
+    let models: [String]
+    let selected: String
+    let onChoose: (String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var filtered: [String] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return models }
+        return models.filter { $0.localizedCaseInsensitiveContains(q) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                searchField
+                Divider()
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filtered, id: \.self) { model in
+                            row(model)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .navigationTitle("Model")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onChoose(nil)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        #if os(iOS)
+        .presentationDetents([.large])
+        #else
+        // A macOS sheet sizes to its content's ideal height, and a ScrollView reports no useful
+        // intrinsic height there — same explicit frame as RestorePickerSheet (#1093).
+        .frame(width: 460, height: 420)
+        #endif
+    }
+
+    /// A plain TextField rather than `.searchable`: the searchable modifier brings its own list
+    /// scroll management, and that is exactly what must not touch the offset while the user browses.
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .accessibilityHidden(true)
+            TextField("Search models", text: $query)
+                .textFieldStyle(.plain)
+                .font(StrandFont.body)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .disableAutocorrection(true)
+                .accessibilityLabel("Search models")
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(StrandPalette.surfaceInset,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private func row(_ model: String) -> some View {
+        Button {
+            onChoose(model)
+            dismiss()
+        } label: {
+            HStack(spacing: 8) {
+                Text(model)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
+                if model == selected {
+                    Image(systemName: "checkmark")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.accent)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(model)
+        .accessibilityAddTraits(model == selected ? .isSelected : [])
     }
 }
