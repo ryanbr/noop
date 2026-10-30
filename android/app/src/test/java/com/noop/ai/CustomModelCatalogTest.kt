@@ -40,4 +40,25 @@ class CustomModelCatalogTest {
             AiCoach.parseOpenAiCompatibleModels(AiProvider.OPENAI, body),
         )
     }
+
+    @Test
+    fun `openrouter keeps namespaced ids unfiltered`() {
+        // `vendor/model` ids (and `:free` variants) must all survive: an OpenAI-style filter would
+        // hide nearly OpenRouter's whole catalogue.
+        val body = """
+            {
+              "data": [
+                {"id": "openrouter/auto"},
+                {"id": "anthropic/claude-sonnet-4.5"},
+                {"id": "deepseek/deepseek-chat-v3.1:free"},
+                {"id": ""}
+              ]
+            }
+        """.trimIndent()
+
+        assertEquals(
+            listOf("openrouter/auto", "anthropic/claude-sonnet-4.5", "deepseek/deepseek-chat-v3.1:free"),
+            AiCoach.parseOpenAiCompatibleModels(AiProvider.OPENROUTER, body),
+        )
+    }
 }

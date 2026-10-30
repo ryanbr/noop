@@ -151,7 +151,7 @@ class AiCoach(
         val groundedWithSummary = injectDroppedSummary(grounded, groundedFull)
 
         when (provider) {
-            AiProvider.OPENAI ->
+            AiProvider.OPENAI, AiProvider.OPENROUTER ->
                 callOpenAiCompatible(provider, provider.endpoint, model, key, groundedWithSummary, systemPrompt)
             AiProvider.ANTHROPIC ->
                 callAnthropic(provider, model, key!!, groundedWithSummary, systemPrompt)
@@ -226,7 +226,7 @@ class AiCoach(
         val groundedWithSummary = injectDroppedSummary(grounded, groundedFull)
 
         when (provider) {
-            AiProvider.OPENAI ->
+            AiProvider.OPENAI, AiProvider.OPENROUTER ->
                 callOpenAiCompatibleStream(provider, provider.endpoint, model, key, groundedWithSummary, systemPrompt, onDelta)
             AiProvider.ANTHROPIC ->
                 callAnthropicStream(provider, model, key!!, groundedWithSummary, systemPrompt, onDelta)
@@ -296,6 +296,7 @@ class AiCoach(
                 builder.addHeader("anthropic-version", "2023-06-01")
             }
             AiProvider.GEMINI -> builder.addHeader("x-goog-api-key", key!!)
+            AiProvider.OPENROUTER -> builder.addHeader("Authorization", "Bearer ${key!!}")
             AiProvider.CUSTOM -> applyCustomAuthHeader(builder, key, customAuthHeader)
         }
 
@@ -1275,7 +1276,7 @@ class AiCoach(
                     if (id.isEmpty()) continue
                     val keep = when (provider) {
                         AiProvider.OPENAI -> id.startsWith("gpt") || id.startsWith("o")
-                        AiProvider.ANTHROPIC, AiProvider.CUSTOM -> true
+                        AiProvider.ANTHROPIC, AiProvider.OPENROUTER, AiProvider.CUSTOM -> true
                         AiProvider.GEMINI -> true
                     }
                     if (keep) ids.add(id)

@@ -92,10 +92,12 @@ importers. Neither opens a socket.
 
 The AI Coach sends requests directly to the provider you choose:
 
-- **Unconfigured until you set it up.** Hosted providers (Anthropic, OpenAI and Google Gemini)
-  require your API key. A Custom OpenAI-compatible server requires an explicit Connect action;
-  its key is optional. A server on the same machine receives requests locally; a LAN or remote
-  server receives them over that network. "Self-hosted" does not necessarily mean on-device.
+- **Unconfigured until you set it up.** Hosted providers (Anthropic, OpenAI, Google Gemini and
+  OpenRouter) require your API key. OpenRouter is a gateway: it forwards the same request to the
+  model vendor you select there. A Custom OpenAI-compatible server requires an explicit Connect
+  action; its key is optional. A server on the same machine receives requests locally; a LAN or
+  remote server receives them over that network. "Self-hosted" does not necessarily mean
+  on-device.
 - **What triggers a request.** Sending a question, refreshing the provider's model list, or
   connecting a Custom server (which fetches its models). With data consent, opening an empty
   Coach conversation can generate a brief. A separately enabled morning brief can also request

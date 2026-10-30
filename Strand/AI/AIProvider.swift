@@ -7,25 +7,31 @@ enum AIProvider: String, CaseIterable, Identifiable {
     case openAI
     case anthropic
     case gemini
+    case openRouter
     case custom
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .openAI:    return "OpenAI"
-        case .anthropic: return "Anthropic"
-        case .gemini:    return "Google Gemini"
-        case .custom:    return "Custom (OpenAI-compatible)"
+        case .openAI:     return "OpenAI"
+        case .anthropic:  return "Anthropic"
+        case .gemini:     return "Google Gemini"
+        case .openRouter: return "OpenRouter"
+        case .custom:     return "Custom (OpenAI-compatible)"
         }
     }
 
     var defaultModel: String {
         switch self {
-        case .openAI:    return "gpt-5-mini"
-        case .anthropic: return "claude-sonnet-4-6"
-        case .gemini:    return "gemini-flash-latest"   // stable alias → current Flash, no version churn (#400)
-        case .custom:    return ""   // the user picks the model their server serves
+        case .openAI:     return "gpt-5-mini"
+        case .anthropic:  return "claude-sonnet-4-6"
+        case .gemini:     return "gemini-flash-latest"   // stable alias → current Flash, no version churn (#400)
+        // OpenRouter's own router: it picks a suitable model per request, so a fresh install coaches
+        // without the user first hunting for a vendor id. The live /models refresh replaces it with
+        // concrete `vendor/model` ids the moment a key is saved.
+        case .openRouter: return "openrouter/auto"
+        case .custom:     return ""   // the user picks the model their server serves
         }
     }
 
@@ -74,6 +80,19 @@ enum AIProvider: String, CaseIterable, Identifiable {
                 "gemini-flash-latest",
                 "gemini-flash-lite-latest"
             ]
+        case .openRouter:
+            // OpenRouter ids are `vendor/model` and the catalogue churns weekly, so this is only a
+            // starting point: `refreshModels()` merges the live `/models` list (the authority), and
+            // the "Custom…" entry lets the user type any id — including a `:free` variant — without
+            // a code bump.
+            return [
+                "openrouter/auto",
+                "anthropic/claude-sonnet-4.5",
+                "openai/gpt-5",
+                "google/gemini-2.5-pro",
+                "deepseek/deepseek-chat-v3.1",
+                "meta-llama/llama-3.3-70b-instruct"
+            ]
         case .custom:
             return []   // populated from the server's /models (refreshModels) or typed in
         }
@@ -83,26 +102,29 @@ enum AIProvider: String, CaseIterable, Identifiable {
         switch self {
         case .openAI:    return URL(string: "https://api.openai.com/v1/chat/completions")!
         case .anthropic: return URL(string: "https://api.anthropic.com/v1/messages")!
-        case .gemini:    return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
-        case .custom:    return AIProvider.customURL(path: "/chat/completions")
+        case .gemini:     return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
+        case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+        case .custom:     return AIProvider.customURL(path: "/chat/completions")
         }
     }
 
     var modelsEndpoint: URL {
         switch self {
-        case .openAI:    return URL(string: "https://api.openai.com/v1/models")!
-        case .anthropic: return URL(string: "https://api.anthropic.com/v1/models")!
-        case .gemini:    return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
-        case .custom:    return AIProvider.customURL(path: "/models")
+        case .openAI:     return URL(string: "https://api.openai.com/v1/models")!
+        case .anthropic:  return URL(string: "https://api.anthropic.com/v1/models")!
+        case .gemini:     return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
+        case .openRouter: return URL(string: "https://openrouter.ai/api/v1/models")!
+        case .custom:     return AIProvider.customURL(path: "/models")
         }
     }
 
     var client: any AIProviderClient {
         switch self {
-        case .openAI:    return OpenAIClient()
-        case .anthropic: return AnthropicClient()
-        case .gemini:    return GeminiClient()
-        case .custom:    return CustomClient()
+        case .openAI:     return OpenAIClient()
+        case .anthropic:  return AnthropicClient()
+        case .gemini:     return GeminiClient()
+        case .openRouter: return OpenRouterClient()
+        case .custom:     return CustomClient()
         }
     }
 
