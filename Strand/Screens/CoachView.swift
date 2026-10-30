@@ -47,6 +47,10 @@ struct CoachView: View {
     // `#if os(iOS)` guards — the shared file keeps compiling for both targets.
     #if os(iOS)
     @StateObject private var voiceInput = CoachVoiceInput()
+    /// Provider labels are long ("Custom (OpenAI-compatible)"), and there are five of them now —
+    /// five segmented segments on an iPhone are unreadable. Regular width (iPad/Mac) keeps the
+    /// segmented control; compact width uses a menu. Same tags, same selection.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
@@ -216,14 +220,7 @@ struct CoachView: View {
                 // Provider
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Provider").strandOverline()
-                    Picker("Provider", selection: $coach.provider) {
-                        ForEach(AIProvider.allCases) { p in
-                            Text(p.displayName).tag(p)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel("Provider")
+                    providerPicker
                 }
 
                 // Server URL (Custom / local LLM only)
@@ -309,6 +306,32 @@ struct CoachView: View {
                 privacyFootnote
             }
         }
+    }
+
+    /// The provider choice. Segmented where there is room (Mac, iPad, the setup card on a wide
+    /// window); a menu on a compact iPhone width, where five provider labels — one of them
+    /// "Custom (OpenAI-compatible)" — turn a segmented control into unreadable slivers.
+    @ViewBuilder
+    private var providerPicker: some View {
+        #if os(iOS)
+        if horizontalSizeClass == .compact {
+            providerPickerCore.pickerStyle(.menu)
+        } else {
+            providerPickerCore.pickerStyle(.segmented)
+        }
+        #else
+        providerPickerCore.pickerStyle(.segmented)
+        #endif
+    }
+
+    private var providerPickerCore: some View {
+        Picker("Provider", selection: $coach.provider) {
+            ForEach(AIProvider.allCases) { p in
+                Text(p.displayName).tag(p)
+            }
+        }
+        .labelsHidden()
+        .accessibilityLabel("Provider")
     }
 
     /// Model selector: a Picker over `coach.availableModels` with a free-text "Custom…" path and a

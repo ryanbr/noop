@@ -92,6 +92,33 @@ enum class AiProvider(
     ),
 
     /**
+     * OpenRouter (BYO key) — an OpenAI-compatible gateway in front of many vendors' models. Same
+     * `chat/completions` wire format as [OPENAI] (Bearer auth, `choices[0].message.content`, SSE via
+     * [SseDeltas.openAiDelta]), so only the endpoints and the model-list parser differ. Model ids are
+     * namespaced (`vendor/model`, optionally a `:free` variant), which is why the parser keeps every
+     * non-empty id instead of OpenAI's `gpt*`/`o*` filter. Twin of the Swift `AIProvider.openRouter`.
+     */
+    OPENROUTER(
+        displayName = "OpenRouter",
+        // OpenRouter's own router — picks a suitable model per request, so a fresh install coaches
+        // without the user first hunting for a vendor id. The live /models refresh replaces it with
+        // concrete ids once a key is saved.
+        defaultModel = "openrouter/auto",
+        // Only a starting point: `fetchModels` merges the live `/models` catalogue (the authority) and
+        // the "Custom…" entry accepts any id — including a `:free` variant — without a code bump.
+        models = listOf(
+            "openrouter/auto",
+            "anthropic/claude-sonnet-4.5",
+            "openai/gpt-5",
+            "google/gemini-2.5-pro",
+            "deepseek/deepseek-chat-v3.1",
+            "meta-llama/llama-3.3-70b-instruct",
+        ),
+        endpoint = "https://openrouter.ai/api/v1/chat/completions",
+        modelsEndpoint = "https://openrouter.ai/api/v1/models",
+    ),
+
+    /**
      * A generic OpenAI-compatible server the user points at — typically a LOCAL LLM such as
      * Ollama, LM Studio or llama.cpp (`http://localhost:11434/v1`), or any self-hosted gateway.
      * The endpoints here are placeholders: the real chat/models URLs are built at call time from

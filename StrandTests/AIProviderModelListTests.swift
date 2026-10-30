@@ -108,4 +108,32 @@ final class AIProviderModelListTests: XCTestCase {
         XCTAssertEqual(CustomClient().parseModels(body),
                        ["gpt-5", "gpt-5.5", "claude-sonnet-4-6@default"])
     }
+
+    // MARK: - OpenRouter
+
+    func testOpenRouterKeepsNamespacedIdsUnfiltered() {
+        // OpenRouter returns the OpenAI `data[].id` envelope, but the ids are `vendor/model` (and may
+        // carry a `:free` suffix). A gpt*/o* filter would hide nearly the whole catalogue, so every
+        // non-empty id must survive.
+        let body: [String: Any] = [
+            "data": [
+                ["id": "openrouter/auto"],
+                ["id": "anthropic/claude-sonnet-4.5"],
+                ["id": "deepseek/deepseek-chat-v3.1:free"],
+                ["id": ""] // empty — drop
+            ]
+        ]
+        XCTAssertEqual(OpenRouterClient().parseModels(body), [
+            "openrouter/auto",
+            "anthropic/claude-sonnet-4.5",
+            "deepseek/deepseek-chat-v3.1:free"
+        ])
+    }
+
+    func testOpenRouterWrongEnvelopeKeyYieldsEmpty() {
+        // Same defensive contract as the other OpenAI-shaped parsers: a Gemini-shaped body is not a
+        // model list here.
+        let body: [String: Any] = ["models": [["name": "models/gemini-2.5-flash"]]]
+        XCTAssertTrue(OpenRouterClient().parseModels(body).isEmpty)
+    }
 }
