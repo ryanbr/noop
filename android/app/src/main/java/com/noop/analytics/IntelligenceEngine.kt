@@ -950,8 +950,8 @@ object IntelligenceEngine {
             // WHOOP owner (4.0 or 5/MG) — a WHOOP always streams gravity, so its providedSleep is empty and
             // the reuse is byte-identical, whereas a ring's providedSleep could change a day without an HR
             // move (the un-coalesced family resolver returns null for non-WHOOP, so a ring is never cached).
-            // The per-day key folds the night's HR fingerprint (the SAME witness the whole-pass gate at the
-            // top trusts) and, for a 4.0, the window-wide skin anchor (a 5/MG banks centidegrees directly,
+            // The per-day key folds the night's HR fingerprint (count + newest timestamp over the night)
+            // and, for a 4.0, the window-wide skin anchor (a 5/MG banks centidegrees directly,
             // no anchor). Pass-global inputs (profile/baselines1/toggles) already dropped the whole cache
             // above on change. A miss falls straight through to the identical full path.
             var dayCacheKey: String? = null

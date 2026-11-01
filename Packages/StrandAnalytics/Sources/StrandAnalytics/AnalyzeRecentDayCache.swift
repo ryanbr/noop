@@ -42,9 +42,8 @@ public enum AnalyzeRecentDayCache {
     }
     /// The per-day reuse key. Reuse a cached day iff this string is unchanged since the scan was cached.
     ///
-    /// - `hrCount` / `hrMaxTs`: the night-window HR fingerprint (row count + newest timestamp) — the SAME
-    ///   change witness the whole-pass gate at the top of `analyzeRecent` already trusts, applied here at
-    ///   day granularity. Any new/removed HR row moves one of the two.
+    /// - `hrCount` / `hrMaxTs`: the night-window HR fingerprint (row count + newest timestamp), one range
+    ///   read bounded by the night. Any new/removed HR row in the night moves one of the two.
     /// - `skinAnchorRaw`: the WHOOP 4.0 window-wide skin-temp anchor (nil for a 5/MG, or when unresolved).
     ///   It is window-wide, so a re-anchor caused by *another* night's skin data shifts this night's skin
     ///   conversion without moving this night's HR fingerprint — folding it in makes that invalidate reuse.

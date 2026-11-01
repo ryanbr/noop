@@ -496,6 +496,13 @@ object NoopPrefs {
         of(context).edit().putString(KEY_ANALYZE_WATERMARK, fingerprint).apply()
     }
 
+    /** Forget [analyzeWatermark] so the next tick rescores although no scoring stream grew. A wipe of a device's
+     *  recordings needs it: the fingerprint reads each stream's rowid frontier, which a delete that spares a
+     *  table's newest row does not move. Twin of Swift `IntelligenceEngine.forgetAnalyzeWatermark`. */
+    fun clearAnalyzeWatermark(context: Context) {
+        of(context).edit().remove(KEY_ANALYZE_WATERMARK).apply()
+    }
+
     /** The persisted steps-calibration motion folds (see `StepsMotionCache`). A derived cache, so a missing
      *  or unreadable payload costs one re-fold and nothing else; versioned in the key as well as in the
      *  payload header so a format change cannot even be read. Mirrors the Swift

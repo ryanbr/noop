@@ -293,16 +293,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Permanently delete all of a device's recorded data (its registry row is kept). */
     suspend fun deletePairedDeviceData(id: String) {
-        if (com.noop.testcentre.ImuSessionFileStore(getApplication()).deleteDevice(id))
+        if (com.noop.testcentre.ImuSessionFileStore(getApplication()).deleteDevice(id)) {
             noopApp.deviceRegistry.deleteDeviceData(id)
+            NoopPrefs.clearAnalyzeWatermark(appContext)
+        }
     }
 
     /** Permanently forget a device: wipe all its recorded data AND remove its registry entry, so a
      *  duplicate/stale strap disappears from the list entirely (an archived row could otherwise only be
      *  re-activated or data-wiped, never purged — #1193). Twin of Swift `DeviceRegistry.forget`. */
     suspend fun forgetPairedDevice(id: String) {
-        if (com.noop.testcentre.ImuSessionFileStore(getApplication()).deleteDevice(id))
+        if (com.noop.testcentre.ImuSessionFileStore(getApplication()).deleteDevice(id)) {
             noopApp.deviceRegistry.forget(id)
+            NoopPrefs.clearAnalyzeWatermark(appContext)
+        }
     }
 
     /**
@@ -3233,7 +3237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         /**
          * On-device BACKSTOP scoring cadence — 30 min (#836 battery). This loop's watermark gate can't
          * skip while the strap is connected and streaming live HR, because the HR fingerprint
-         * (count:maxTs) advances every second — so it re-ran a full 21-day analyzeRecent every 15 min over
+         * (its rowid frontier) advances every second — so it re-ran a full 21-day analyzeRecent every 15 min over
          * a large DB even though only TODAY's daytime HR changed (a real-capture CPU drain: ~6-7 full
          * passes/hour). It is purely a BACKSTOP — every real update (sync-with-rows, import, edit,
          * recalibrate, the #547 heal) rescores via its OWN forced path, and an app-resume kick (#386,

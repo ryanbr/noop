@@ -192,18 +192,23 @@ extension WhoopStore {
     /// The original analysis watermark covered `hrSample` only. Historical offloads do not commit their
     /// streams atomically: HR can land first and motion/gravity later. A pass run between those commits sees
     /// no usable sleep, then the post-offload gate used to skip the decisive retry because HR itself had not
-    /// changed. Fingerprint the complete scoring input instead. HR keeps its established count+timestamp
-    /// fingerprint; the other streams use SQLite's monotonic rowid frontier, which catches old backfills
-    /// without full-table COUNT scans over millions of dense motion/R-R rows.
-    /// `v3` also witnesses authoritative WHOOP 5 RR promotions and registry-only source-policy changes.
-    /// The version changes the persisted watermark once so the normal recent window is recomputed.
-    /// Older persisted scores remain until explicitly rescored; raw legacy intervals stay on disk.
+    /// changed. Fingerprint the complete scoring input instead. Every stream, HR included, is read at its
+    /// rowid frontier, one seek per table, which catches old backfills without walking millions of dense
+    /// rows; the R-R source counts beside them read only the `rrInterval_source_suspect` covering index.
+    /// No stream index leads with `ts`, so a `COUNT(*)` or `MAX(ts)` over a stream walks its whole key index:
+    /// for HR that was 1.3 GB of reads per call on a 3.85 GB store. The frontier holds across a duplicate
+    /// offload because every stream inserts with `ON CONFLICT DO NOTHING`
+    /// (`testAnalysisFingerprintHoldsForADuplicateHrOffload`). A delete that spares a table's newest row does
+    /// not move it, so the app forgets its watermark when it wipes a device's recordings.
+    /// `v3` also witnesses authoritative WHOOP 5 RR promotions and registry-only source-policy changes; `v6`
+    /// reads HR at its frontier. The version changes the persisted watermark once so the normal recent
+    /// window is recomputed. Older persisted scores remain until explicitly rescored; raw legacy intervals
+    /// stay on disk.
     public func analysisFingerprint() async throws -> String {
         try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT
-                  (SELECT COUNT(*) FROM hrSample) AS hc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM hrSample) AS hm,
+                  (SELECT COALESCE(MAX(rowid), 0) FROM hrSample) AS h,
                   (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) AS p,
                   (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) AS r,
                   (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 5
@@ -223,15 +228,14 @@ extension WhoopStore {
                   (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) AS t,
                   (SELECT COALESCE(MAX(rowid), 0) FROM stepSample) AS z
                 """) else { return "" }
-            let hc: Int = row["hc"], hm: Int = row["hm"]
-            let keys = ["p", "r", "x", "g", "s", "e", "o", "t", "z"]
+            let keys = ["h", "p", "r", "x", "g", "s", "e", "o", "t", "z"]
             let tails = keys.map { key -> String in
                 let frontier: Int = row[key]
                 return key + String(frontier)
             }
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
-            return "v5|h\(hc):\(hm)|" + tails.joined(separator: "|")
+            return "v6|" + tails.joined(separator: "|")
                 + "|w5\(historyCount)|w7\(row["w7"] as Int)|tagged\(row["w5tagged"] as Int)"
                 + "|w4history\(row["w4history"] as Int)|registry\(registry)"
         }
@@ -266,6 +270,13 @@ extension WhoopStore {
     ///   Its letter is `b` (band), not `s`, which is reserved for the version prefix.
     /// - `respSample`, `spo2Sample`, `gravitySample`, `stepSample`, `skinTempSample`, `event`.
     ///
+    /// Every arm of the statement is bounded by the window. The owner's R-R read policy is the one owner-wide
+    /// input, and `rr5=` records it as `isWhoop5RRSource` decides it, so a first tagged beat that flips an
+    /// unknown owner's policy still moves every cached day. For an owner the registry does not confirm (no
+    /// row, or the legacy bare "WHOOP" model), that decision still probes the owner's R-R history for a tag.
+    /// The key carries no owner-wide "has a tagged beat" flag of its own: one walked the owner's R-R history
+    /// with a table lookup per beat, about 1 GB per call on a 3.85 GB store, once per cached day.
+    ///
     /// Returned as an opaque string: it is only ever compared to itself in memory, so no cross-platform or
     /// cross-launch byte identity is required. The Kotlin twin is `WhoopDao.dayStreamFingerprint`.
     public func dayStreamFingerprint(deviceId: String, from: Int, to: Int) async throws -> String {
@@ -277,7 +288,6 @@ extension WhoopStore {
                   (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pc,
                   (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pm,
                   rr.rc AS rc, rr.rm AS rm, rr.w5 AS w5, rr.w7 AS w7,
-                  EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND srcChannel IN (5, 6, 7)) AS w5owner,
                   rr.w4h AS w4h,
                   COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice
                             WHERE id = :d), 'absent') AS registry,
@@ -314,8 +324,8 @@ extension WhoopStore {
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
             let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
-            return "s4|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
-                + "|w4h\(row["w4h"] as Int)|ownerTagged\(row["w5owner"] as Int)|registry\(registry)|rr5=\(strictRR)"
+            return "s5|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
+                + "|w4h\(row["w4h"] as Int)|registry\(registry)|rr5=\(strictRR)"
         }
     }
 

@@ -98,6 +98,7 @@ final class DeviceRegistry: ObservableObject {
         } catch {
             return
         }
+        IntelligenceEngine.forgetAnalyzeWatermark()
         reload()
     }
 
@@ -115,6 +116,7 @@ final class DeviceRegistry: ObservableObject {
         } catch {
             return
         }
+        IntelligenceEngine.forgetAnalyzeWatermark()
         try? self.store.remove(id)
         reload()
     }
