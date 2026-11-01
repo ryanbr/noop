@@ -28,7 +28,9 @@ struct StrandApp: App {
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
     }
 
-    @StateObject private var model = AppModel()
+    /// Held, not observed (`AppModelOwner`): the views that show the model's state observe it themselves.
+    @StateObject private var owner = AppModelOwner()
+    private var model: AppModel { owner.model }
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The macOS shell (`RootView`)
     /// observes it and drives the sidebar selection.
     @StateObject private var router: NavRouter
@@ -91,12 +93,20 @@ struct StrandApp: App {
                 .environmentObject(model.live)
                 .environment(\.locale, AppLanguage.activeLocale)
         } label: {
-            MenuBarLabel()
-                .environmentObject(model)
-                .environmentObject(model.repo)
-                .environmentObject(model.live)
+            MenuBarLabel(model: model)
                 .environment(\.locale, AppLanguage.activeLocale)
         }
         .menuBarExtraStyle(.window)
     }
+}
+
+/// Keeps the one `AppModel` for the life of the app without the app's scenes observing it.
+///
+/// A scene that observes the model is re-evaluated on each of its published changes, and every re-evaluation renders
+/// the menu-bar label into the status item again, which repaints the item in every menu bar (`MenuBarReading`). The
+/// scene body reads only the model's subsystems, which are `let`s, never its published state, so observing it bought
+/// nothing. An owner that never publishes keeps `@StateObject`'s guarantee that the model is built once.
+@MainActor
+private final class AppModelOwner: ObservableObject {
+    let model = AppModel()
 }
