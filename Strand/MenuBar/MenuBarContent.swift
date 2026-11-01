@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import Foundation
 import StrandDesign
 import WhoopStore
@@ -17,53 +18,50 @@ import WhoopStore
 
 /// The compact menu-bar item: a zone-tinted dot + the live HR number.
 public struct MenuBarLabel: View {
-    @EnvironmentObject private var repo: Repository
-    @EnvironmentObject private var live: LiveState
-    @EnvironmentObject private var model: AppModel
+    /// The one value the label draws, never the app objects it is read from: every render of the label repaints
+    /// the status item in every menu bar (`MenuBarReading`).
+    @StateObject private var source: MenuBarReadingSource
 
-    public init() {}
-
-    /// HR to display: the spike-filtered median (model.bpm, #39) when available, else reported, else R-R.
-    private var displayHR: Int? {
-        if let hr = model.bpm, hr > 0 { return hr }
-        if let hr = live.heartRate, hr > 0 { return hr }
-        if let last = live.rr.last, last > 0 { return Int((60_000.0 / Double(last)).rounded()) }
-        return nil
+    init(model: AppModel) {
+        _source = StateObject(wrappedValue: MenuBarReadingSource(model: model))
     }
 
-    // A glanceable HR-zone estimate using a typical adult max (~190 bpm). The full
-    // profile-aware zoning lives on the main screens; the menu bar only needs a tint.
-    private let assumedHrMax: Double = 190
-
-    /// HR zone 1...5 from %max, or nil when there's no live reading.
-    private var zone: Int? {
-        guard let hr = displayHR else { return nil }
-        let pct = Double(hr) / assumedHrMax
-        switch pct {
-        case ..<0.60: return 1
-        case ..<0.70: return 2
-        case ..<0.80: return 3
-        case ..<0.90: return 4
-        default:      return 5
-        }
-    }
-
-    private var dotColor: Color {
-        guard live.connected else { return StrandPalette.textTertiary }
-        if let zone { return StrandPalette.hrZoneColor(zone) }
+    private func dotColor(_ reading: MenuBarReading) -> Color {
+        guard reading.connected else { return StrandPalette.textTertiary }
+        if let zone = reading.zone { return StrandPalette.hrZoneColor(zone) }
         return StrandPalette.statusPositive
     }
 
     public var body: some View {
+        let reading = source.reading
         HStack(spacing: 4) {
-            Image(systemName: live.connected ? "heart.fill" : "heart")
+            Image(systemName: reading.connected ? "heart.fill" : "heart")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(dotColor)
-            Text(displayHR.map(String.init) ?? "—")
+                .foregroundStyle(dotColor(reading))
+            Text(reading.displayHR.map(String.init) ?? "—")
                 .font(StrandFont.rounded(12, weight: .semibold))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(displayHR.map { "Heart rate \($0) beats per minute" } ?? "Strap not connected")
+        .accessibilityLabel(reading.displayHR.map { "Heart rate \($0) beats per minute" } ?? "Strap not connected")
+    }
+}
+
+/// Feeds `MenuBarLabel` its `MenuBarReading`, read once the changes behind it have landed (`LiveHRBannerInputs`).
+@MainActor
+final class MenuBarReadingSource: ObservableObject {
+    @Published private(set) var reading: MenuBarReading
+
+    init(model: AppModel) {
+        let live = model.live
+        let read = {
+            MenuBarReading(bpm: model.bpm, heartRate: live.heartRate, lastRR: live.rr.last, connected: live.connected)
+        }
+        reading = read()
+        let changes = LiveHRBannerInputs.settled([model.$bpm.map { _ in () }.eraseToAnyPublisher(),
+                                                  live.$heartRate.map { _ in () }.eraseToAnyPublisher(),
+                                                  live.$rr.map { _ in () }.eraseToAnyPublisher(),
+                                                  live.$connected.map { _ in () }.eraseToAnyPublisher()])
+        MenuBarReading.drawn(changes.map(read).eraseToAnyPublisher()).assign(to: &$reading)
     }
 }
 
@@ -83,10 +81,7 @@ public struct MenuBarContent: View {
     // MARK: Derived values
 
     private var displayHR: Int? {
-        if let hr = model.bpm, hr > 0 { return hr }        // #39: spike-filtered median, not raw
-        if let hr = live.heartRate, hr > 0 { return hr }
-        if let last = live.rr.last, last > 0 { return Int((60_000.0 / Double(last)).rounded()) }
-        return nil
+        MenuBarReading.displayHR(bpm: model.bpm, heartRate: live.heartRate, lastRR: live.rr.last)
     }
 
     private var recovery: Double? { repo.today?.recovery }
@@ -390,19 +385,16 @@ private func previewEnv(
 }
 
 #Preview("Label — zones") {
-    let (repo, live, model) = previewEnv(
+    let (_, _, model) = previewEnv(
         connected: true, bonded: true, hr: 148, battery: 78,
         metric: .sample(recovery: 71, restingHr: 51, hrv: 62)
     )
     return HStack(spacing: 20) {
-        MenuBarLabel()
-        MenuBarLabel()
+        MenuBarLabel(model: model)
+        MenuBarLabel(model: model)
     }
     .padding(24)
     .background(StrandPalette.surfaceBase)
-    .environmentObject(repo)
-    .environmentObject(live)
-    .environmentObject(model)
     .preferredColorScheme(.dark)
 }
 
