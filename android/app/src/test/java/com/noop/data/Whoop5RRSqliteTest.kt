@@ -403,6 +403,21 @@ class Whoop5RRSqliteTest {
         assertFalse(plan.any { it.contains("SCAN rrInterval") })
     }
 
+    // Both witnesses run on every post-offload pass and idle tick, the day key once per cached day, so neither
+    // may walk a whole stream. Narrower than Swift ReadTests.testFingerprintsNeverWalkAWholeStream: this harness
+    // keys only hrSample and rrInterval, so its other stream tables would show a SCAN whatever the SQL.
+    @Test fun fingerprintsNeverWalkAWholeStream() {
+        val global = query("EXPLAIN QUERY PLAN $ANALYSIS_FINGERPRINT_SQL") { it.getString("detail") }
+        assertFalse(global.toString(), global.any { it.startsWith("SCAN hrSample") })
+        assertFalse("an unconstrained HR key walk: $global",
+            global.any { it.startsWith("SEARCH hrSample USING") && !it.contains("(") })
+        val day = query("EXPLAIN QUERY PLAN $DAY_STREAM_FINGERPRINT_SQL",
+            mapOf("deviceId" to id, "from" to 0, "to" to 1000)) { it.getString("detail") }
+        val rr = day.filter { it.contains("rrInterval") }
+        assertTrue(day.toString(), rr.isNotEmpty())
+        assertTrue("every R-R read is bounded by the night: $rr", rr.all { it.contains("ts>") })
+    }
+
     @Test fun legacyWithheldStatusUsesExactScoringWindowAndSourcePolicy() = runBlocking {
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 1000))), id)
         assertTrue(repo.legacyWhoop5RrWithheld(id, 100, 200))
@@ -659,6 +674,16 @@ class Whoop5RRSqliteTest {
         }
     }
 
+    // The known-owner side of the first-tag-outside-day contract: a confirmed WHOOP 5 keeps its read policy
+    // whatever is tagged, so a tagged beat outside the night is not that night's input. Twin of Swift
+    // testFirstTagOutsideDayLeavesAKnownWhoop5OwnersCachedDayAlone.
+    @Test fun firstTagOutsideDayLeavesAKnownWhoop5OwnersCachedDayAlone() = runBlocking {
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 800))), id)
+        val d0 = repo.dayStreamFingerprint(id, 0, 1000)
+        assertEquals(1, repo.insert(StreamBatch(rr = listOf(RrRow(2000, 900, RrSourceChannel.WHOOP5_HISTORICAL))), id).rr)
+        assertEquals(d0, repo.dayStreamFingerprint(id, 0, 1000))
+    }
+
     @Test fun historicalCanonicalOwnerAfterRePairingUsesActiveWhoop5Policy() = runBlocking {
         registry("WHOOP")
         registry("5.0 MG", owner = "new-five")
@@ -741,12 +766,12 @@ class Whoop5RRSqliteTest {
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(2000, 900))), id)
         sql("UPDATE rrInterval SET tsSuspect = 1 WHERE ts = 2000")
         val g0 = dao.analysisFingerprint()
-        val d0 = dao.dayStreamFingerprint(id, 0, 1000)
+        val d0 = repo.dayStreamFingerprint(id, 0, 1000)
         assertEquals(listOf(800), read().map { it.rrMs })
         assertEquals(0, repo.insert(StreamBatch(rr = listOf(RrRow(2000, 900, RrSourceChannel.WHOOP5_HISTORICAL))), id).rr)
         assertTrue(read().isEmpty())
         assertNotEquals(g0, dao.analysisFingerprint())
-        assertNotEquals(d0, dao.dayStreamFingerprint(id, 0, 1000))
+        assertNotEquals(d0, repo.dayStreamFingerprint(id, 0, 1000))
     }
 
     // #2371: the same cases and the same expected rows as the Swift `Whoop5RrFillTests`, run through the
@@ -811,11 +836,12 @@ class Whoop5RRSqliteTest {
             listOf(2L, 760L, 0L), listOf(3L, 500L, 0L), listOf(9L, 500L, 1L)), storedFillMarks())
     }
 
-    // DAY_STREAM_FINGERPRINT_SQL reads its five R-R figures in one walk. The statement it replaced, verbatim, is
-    // the reference: over randomised rows on every channel, suspect or not, on two devices, the two must agree on
-    // every window, or the per-day re-score cache would re-score or re-serve nights it should not.
+    // DAY_STREAM_FINGERPRINT_SQL reads its five R-R figures in one walk. The statement it replaced, verbatim but for
+    // the owner-wide tag flag the key has since dropped, is the reference: over randomised rows on every channel,
+    // suspect or not, on two devices, the two must agree on every window, or the per-day re-score cache would
+    // re-score or re-serve nights it should not.
     private val fiveSubSelectFingerprintSql =
-        "SELECT 's4|' || " +
+        "SELECT 's5|' || " +
             "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
             "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
             "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
@@ -842,7 +868,6 @@ class Whoop5RRSqliteTest {
             "AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
             "'|w4h' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
             "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
-            "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
             "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent')"
 
     @Test fun dayFingerprintOneWalkMatchesTheFiveSubSelects() {

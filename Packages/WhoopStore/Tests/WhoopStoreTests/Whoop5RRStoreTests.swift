@@ -323,4 +323,18 @@ final class Whoop5RRStoreTests: XCTestCase {
             XCTAssertNotEqual(d0, d1, "owner policy applies to cached days outside the tagged interval")
         }
     }
+
+    /// Unlike an unknown owner, an owner the registry names keeps its read policy whatever is tagged, so a
+    /// tagged beat outside the night is not that night's input: the day key's `rr5=` is unchanged.
+    func testFirstTagOutsideDayLeavesAKnownWhoop5OwnersCachedDayAlone() async throws {
+        let s = try await WhoopStore.inMemory()
+        try registry(s, model: "5.0 MG")
+        _ = try await s.insert(Streams(rr: [RRInterval(ts: 100, rrMs: 800)]), deviceId: id)
+        let d0 = try await s.dayStreamFingerprint(deviceId: id, from: 0, to: 1000)
+        let n = try await s.insert(Streams(rr: [RRInterval(ts: 2000, rrMs: 900,
+                                                          srcChannel: .whoop5Historical)]), deviceId: id)
+        XCTAssertEqual(n.rr, 1)
+        let d1 = try await s.dayStreamFingerprint(deviceId: id, from: 0, to: 1000)
+        XCTAssertEqual(d0, d1, "a confirmed WHOOP 5's policy does not depend on tags outside the night")
+    }
 }
