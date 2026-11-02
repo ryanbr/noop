@@ -766,12 +766,12 @@ class Whoop5RRSqliteTest {
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(2000, 900))), id)
         sql("UPDATE rrInterval SET tsSuspect = 1 WHERE ts = 2000")
         val g0 = dao.analysisFingerprint()
-        val d0 = dao.dayStreamFingerprint(id, 0, 1000)
+        val d0 = repo.dayStreamFingerprint(id, 0, 1000)
         assertEquals(listOf(800), read().map { it.rrMs })
         assertEquals(0, repo.insert(StreamBatch(rr = listOf(RrRow(2000, 900, RrSourceChannel.WHOOP5_HISTORICAL))), id).rr)
         assertTrue(read().isEmpty())
         assertNotEquals(g0, dao.analysisFingerprint())
-        assertNotEquals(d0, dao.dayStreamFingerprint(id, 0, 1000))
+        assertNotEquals(d0, repo.dayStreamFingerprint(id, 0, 1000))
     }
 
     // #2371: the same cases and the same expected rows as the Swift `Whoop5RrFillTests`, run through the
