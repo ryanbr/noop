@@ -436,6 +436,94 @@
       "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
       "platform": "swift",
       "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/Reads.swift::hrWindowCount/4#1",
+      "identity_sha256": "0479691303f91251c9955293743e1a15a191aaebceb774a14ef81efd016aa4c1",
+      "platform": "swift",
+      "rationale": "The #2314 witness memo split the HR window COUNT/MAX out of hrFingerprint so the unmemoized hrFingerprint and the memoized dayHrFingerprint run one statement inside their GRDB read closures, where calling the actor's own async hrFingerprint is not possible. Kotlin's dayHrFingerprint passes WhoopRepository.hrFingerprintWindow itself as the count, so there is no helper to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/Reads.swift::dayStreamCounts/4#1",
+      "identity_sha256": "88cfdae450ff66ace94d1dbd7712fce804b5fff1615ecdca4179d6d33f8d097d",
+      "platform": "swift",
+      "rationale": "The #2314 witness memo split dayStreamFingerprint into the per-window stream counts it can memoize and the registry and rr5 reads it cannot. Kotlin keeps the counts inside the single DAY_STREAM_FINGERPRINT_SQL DAO statement and memoizes that whole string keyed by the registry's brand and model, so the split exists only in Swift."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamStore.swift::noteEditedRR/2#1",
+      "identity_sha256": "d0f0efa8bed928dded11423d336c0aaff1802be0babb7e78509936d49636c002",
+      "platform": "swift",
+      "rationale": "Local function inside StreamStore.insert's GRDB write closure that widens the hull of R-R beats the source promotion and fill flag touched, for the #2314 edit journal. Kotlin tracks the same hull with two local variables in insertWithinTransaction and returns it on InsertResult, so there is no function to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StreamWitnessMemo.kt::removing/1#1",
+      "identity_sha256": "18d9feb91b2bd9b88aa2fa6b1e19b7a74fafe006f5d3c0770a29e85ee4177fd3",
+      "platform": "kotlin",
+      "rationale": "Brackets a stream delete or re-key with StreamEditJournal.noteRemoval before and after it (#2314). Swift writes the same bracket at each call site as noteRemoval() followed by defer { noteRemoval() }; Kotlin has no defer, so the try/finally lives in this inline helper instead."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::streamLandings/10#1",
+      "identity_sha256": "f2085dc78dd05258934982e6ff09fc322dff28e28014e777e3347efa35508679",
+      "platform": "kotlin",
+      "rationale": "Room DAO method that runs STREAM_LANDINGS_SQL, the rowid-frontier read of the #2314 witness memo. Swift runs the identical statement (StreamWitnessMemo.streamLandingsSQL, the constant pair checked by the ledger) with Row.fetchAll inside StreamWitnessMemo.refresh, since GRDB needs no DAO declaration."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/Reads.swift::dayStreamKeys",
+      "identity_sha256": "2159c68139843324e52279b70e4c8bba3fc36fcec11fe3ee84f579a36170291e",
+      "platform": "swift",
+      "rationale": "The letters of the nine count pairs that dayStreamFingerprint formats into the s5 day key, now that the #2314 witness memo counts them apart from the registry and rr5 parts. Kotlin builds the same key inside DAY_STREAM_FINGERPRINT_SQL with each letter as a SQL literal, so there is no Kotlin constant to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamWitnessMemo.swift::lock",
+      "identity_sha256": "f29187f51324ab3ace64480f1e5c44fa8b1bcdbb33ad99aea8e07b64a07da4d8",
+      "platform": "swift",
+      "rationale": "The NSLock that guards the process-wide StreamEditJournal of the #2314 witness memo. Kotlin's StreamEditJournal is an object whose members are @Synchronized, so it holds no lock field to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamWitnessMemo.swift::shared",
+      "identity_sha256": "08eb60af8acb5932effeac44f44889ee3dc24bc36eed5d58272d547fdc59eb68",
+      "platform": "swift",
+      "rationale": "The single process-wide StreamEditJournal instance of the #2314 witness memo. Kotlin declares StreamEditJournal as an object, which is its own single instance, so there is no separate field to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamWitnessMemo.swift::trackedTables",
+      "identity_sha256": "0991d7b82ee99c85984139817f84134efb022d01751238c2f31d550a6653cfb6",
+      "platform": "swift",
+      "rationale": "The ten raw streams and their letters in the order the #2314 landings statement binds them. Kotlin's StreamWitnessMemo.TRACKED holds the same list, but a List cannot be a Kotlin const val, and const val is all the ledger's Kotlin constant rule inventories."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamWitnessMemo.swift::tables@property#1",
+      "identity_sha256": "8f246cf6faecf7a921a6bd5704827a3d3ec5486f6cb949e7bdf49e50f52cc74c",
+      "platform": "swift",
+      "rationale": "StreamWitnessMemo.Kind.tables, the streams each #2314 witness counts and so the changes that can stale it. Kotlin declares the same lists as the enum's constructor property, enum class Kind(val tables: List<String>), a stored field that the ledger's property rule, which inventories computed getters only, does not see."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::STREAM_LANDINGS_SQL",
+      "identity_sha256": "324308fd6095b35a3f5bac299cd9404b0a0f3ec993ce0dbc7162f95199f0dc3d",
+      "platform": "kotlin",
+      "rationale": "SQL text for the Room @Query of the #2314 witness memo's landings read, which must be a compile-time constant string. The Swift store runs the same statement inline in StreamWitnessMemo.refresh, so there is no Swift constant to pair with, as for ANALYSIS_FINGERPRINT_SQL and DAY_STREAM_FINGERPRINT_SQL, whose Swift statements also live in their functions."
     }
   ]
 }

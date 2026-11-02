@@ -75,6 +75,9 @@ public actor WhoopStore {
     /// so a shared counter would let one strap spend another's budget. See `StreamStore`.
     var v18AuxRowsSincePrune: [String: Int] = [:]
     var stepDataRevision = StepDataRevisionIndex()
+    /// The per-window witnesses of the `analyzeRecent` pass, reused while their windows stand still. See
+    /// `StreamWitnessMemo`.
+    var witnessMemo = StreamWitnessMemo()
     let revisionInstanceToken = UUID().uuidString
     let dbWriter: any DatabaseWriter
 

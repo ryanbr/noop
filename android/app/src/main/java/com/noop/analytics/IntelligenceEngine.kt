@@ -3004,12 +3004,13 @@ object IntelligenceEngine {
     ): Boolean = repo.isWhoop5RrSource(candidates.firstOrNull { it.second == 0 }?.first ?: fallback)
 
     /** Keep both stream witnesses and the R-R alias policy in the nightly cache key (#29).
-     * The two database awaits live here to preserve the scoring method's instrumentation budget. */
+     * The two database awaits live here to preserve the scoring method's instrumentation budget. Both are
+     * answered from the repository's witness memo while the night stands still (#2314). */
     private suspend fun rrAwareDayCacheKey(
         repo: com.noop.data.WhoopRepository, owner: String, from: Long, to: Long,
         skinAnchor: Double?, unlabelledAliasOfWhoop5: Boolean, hrvWindowDetail: Boolean,
     ): String {
-        val (count, maxTs) = repo.hrFingerprintWindow(owner, from, to)
+        val (count, maxTs) = repo.dayHrFingerprint(owner, from, to)
         val streams = repo.dayStreamFingerprint(owner, from, to)
         return AnalyzeRecentDayCache.cacheKey(owner, count, maxTs, skinAnchor,
             streams = streams + "|rrAlias5=$unlabelledAliasOfWhoop5", hrvWindowDetail = hrvWindowDetail)

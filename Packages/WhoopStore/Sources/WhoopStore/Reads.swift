@@ -102,17 +102,46 @@ extension WhoopStore {
     /// any insert (including a backfilled OLD night whose `maxTs` wouldn't change), and `maxTs` distinguishes
     /// fresh appends. COALESCE so an empty window is `(0, 0)`, never nil.
     public func hrFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
-        try syncRead { db in
-            // COUNT(*) and COALESCE(MAX(ts),0) are both NON-NULL, and the aggregate query always returns
-            // exactly one row, so fetchOne is non-nil and the columns read straight into Int. The guard is
-            // belt-and-suspenders.
-            guard let row = try Row.fetchOne(db, sql: """
-                SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM hrSample
-                WHERE deviceId = ? AND ts >= ? AND ts <= ?
-                """, arguments: [deviceId, from, to]) else { return (0, 0) }
-            let c: Int = row["c"]
-            let m: Int = row["m"]
-            return (c, m)
+        try syncRead { db in try Self.hrWindowCount(db, deviceId: deviceId, from: from, to: to) }
+    }
+
+    /// `hrFingerprint(deviceId:from:to:)` for the `analyzeRecent` per-day key, answered from
+    /// `witnessMemo` while no HR row reached the window since it was last counted. The value is the same
+    /// `(count, maxTs)`. Kotlin twin: `WhoopRepository.dayHrFingerprint`.
+    public func dayHrFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
+        let n = try memoizedWitness(.hr, deviceId: deviceId, from: from, to: to) { db in
+            let fp = try Self.hrWindowCount(db, deviceId: deviceId, from: from, to: to)
+            return [fp.count, fp.maxTs]
+        }
+        return (n[0], n[1])
+    }
+
+    private static func hrWindowCount(_ db: Database, deviceId: String, from: Int, to: Int) throws
+        -> (count: Int, maxTs: Int) {
+        // COUNT(*) and COALESCE(MAX(ts),0) are both NON-NULL, and the aggregate query always returns
+        // exactly one row, so fetchOne is non-nil and the columns read straight into Int. The guard is
+        // belt-and-suspenders.
+        guard let row = try Row.fetchOne(db, sql: """
+            SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM hrSample
+            WHERE deviceId = ? AND ts >= ? AND ts <= ?
+            """, arguments: [deviceId, from, to]) else { return (0, 0) }
+        let c: Int = row["c"]
+        let m: Int = row["m"]
+        return (c, m)
+    }
+
+    /// One witness through `witnessMemo`. The journal mark is taken here, before the read transaction, so
+    /// an edit committed after the snapshot carries a later stamp than the memo it stales. The memo is
+    /// moved out for the read rather than copied, so updating it does not duplicate its tables. Kotlin twin:
+    /// `WhoopRepository.memoizedWitness`.
+    private func memoizedWitness(_ kind: StreamWitnessMemo.Kind, deviceId: String, from: Int, to: Int,
+                                 count: (Database) throws -> [Int]) throws -> [Int] {
+        let mark = StreamEditJournal.shared.mark()
+        var memo = witnessMemo
+        witnessMemo = StreamWitnessMemo()
+        defer { witnessMemo = memo }
+        return try syncRead { db in
+            try memo.witness(kind, deviceId: deviceId, from: from, to: to, mark: mark, db: db, count: count)
         }
     }
 
@@ -153,19 +182,22 @@ extension WhoopStore {
     /// pure fold over one day's gravity stream and nothing else, so its cache key must move when that
     /// stream moves and at no other time. Same COUNT/COALESCE(MAX) shape and the same `(deviceId, ts)`
     /// index as `hrFingerprint(deviceId:from:to:)` above, and never a row fetch.
+    ///
+    /// Answered from `witnessMemo` while no gravity row reached the window since it was counted (#2314):
+    /// the steps loop asks for sixty days every pass, and the pair is persisted with the motion fold, so
+    /// the value itself stays the content-derived `(count, maxTs)`.
     public func gravityFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
         // Counted for the same reason as `hasHrInWindow` above; see `StoreProbeTally`.
         let probeStarted = DispatchTime.now().uptimeNanoseconds
         defer { StoreProbeRecorder.record(.gravityFp, nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
-        return try syncRead { db in
+        let n = try memoizedWitness(.gravity, deviceId: deviceId, from: from, to: to) { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
-                """, arguments: [deviceId, from, to]) else { return (0, 0) }
-            let c: Int = row["c"]
-            let m: Int = row["m"]
-            return (c, m)
+                """, arguments: [deviceId, from, to]) else { return [0, 0] }
+            return [row["c"], row["m"]]
         }
+        return (n[0], n[1])
     }
 
     /// Cross-device raw-HR fingerprint: `(count, maxTs)` over EVERY `hrSample` row, no `deviceId` filter.
@@ -277,56 +309,68 @@ extension WhoopStore {
     /// The key carries no owner-wide "has a tagged beat" flag of its own: one walked the owner's R-R history
     /// with a table lookup per beat, about 1 GB per call on a 3.85 GB store, once per cached day.
     ///
+    /// The counts come from `witnessMemo` while no row of the nine streams reached the window since they
+    /// were counted (#2314); the registry and `rr5=` are read on every call, so the value is the one a
+    /// fresh count would give.
+    ///
     /// Returned as an opaque string: it is only ever compared to itself in memory, so no cross-platform or
     /// cross-launch byte identity is required. The Kotlin twin is `WhoopDao.dayStreamFingerprint`.
     public func dayStreamFingerprint(deviceId: String, from: Int, to: Int) async throws -> String {
-        try syncRead { db in
-            // Every sub-select is COUNT/COALESCE(MAX(...), 0), so each column is non-null and the aggregate
-            // query always returns exactly one row — same idiom as `analysisFingerprint` above.
-            guard let row = try Row.fetchOne(db, sql: """
-                SELECT
-                  (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pm,
-                  rr.rc AS rc, rr.rm AS rm, rr.w5 AS w5, rr.w7 AS w7,
-                  rr.w4h AS w4h,
-                  COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice
-                            WHERE id = :d), 'absent') AS registry,
-                  (SELECT COUNT(*) FROM respSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS xc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS xm,
-                  (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS oc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM spo2Sample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS om,
-                  (SELECT COUNT(*) FROM gravitySample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS gc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS gm,
-                  (SELECT COUNT(*) FROM stepSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS zc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS zm,
-                  (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tm,
-                  (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bc,
-                  (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bm,
-                  (SELECT COUNT(*) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS ec,
-                  (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS em
-                FROM (SELECT
-                        COUNT(CASE WHEN srcChannel IS NULL OR srcChannel <> :rrx THEN 1 END) AS rc,
-                        COALESCE(MAX(CASE WHEN srcChannel IS NULL OR srcChannel <> :rrx THEN ts END), 0) AS rm,
-                        COUNT(CASE WHEN srcChannel = 5 THEN 1 END) AS w5,
-                        COUNT(CASE WHEN srcChannel = 7 THEN 1 END) AS w7,
-                        COUNT(CASE WHEN srcChannel = :whoop4Historical THEN 1 END) AS w4h
-                      FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
-                        AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS rr
-                """, arguments: ["d": deviceId, "f": from, "t": to,
-                                 "rrx": RRSourceChannel.spo2Ibi.rawValue,
-                                 "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue]) else { return "" }
-            let keys = ["p", "r", "x", "o", "g", "z", "t", "b", "e"]
-            let parts = keys.map { key -> String in
-                let count: Int = row[key + "c"], maxTs: Int = row[key + "m"]
-                return "\(key)\(count):\(maxTs)"
-            }
-            let historyCount: Int = row["w5"]
-            let registry: String = row["registry"]
-            let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
-            return "s5|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
-                + "|w4h\(row["w4h"] as Int)|registry\(registry)|rr5=\(strictRR)"
+        let n = try memoizedWitness(.dayStreams, deviceId: deviceId, from: from, to: to) { db in
+            try Self.dayStreamCounts(db, deviceId: deviceId, from: from, to: to)
         }
+        return try syncRead { db in
+            let registry = try String.fetchOne(db, sql: """
+                SELECT COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = ?), 'absent')
+                """, arguments: [deviceId]) ?? "absent"
+            let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
+            let parts = Self.dayStreamKeys.indices.map { "\(Self.dayStreamKeys[$0])\(n[2 * $0]):\(n[2 * $0 + 1])" }
+            return "s5|" + parts.joined(separator: "|") + "|w5\(n[18])|w7\(n[19])"
+                + "|w4h\(n[20])|registry\(registry)|rr5=\(strictRR)"
+        }
+    }
+
+    /// The figures of `dayStreamFingerprint` for one window: a `count:maxTs` pair per key in order, then
+    /// the WHOOP 5 history, standard and WHOOP 4 history beat counts.
+    private static let dayStreamKeys = ["p", "r", "x", "o", "g", "z", "t", "b", "e"]
+
+    private static func dayStreamCounts(_ db: Database, deviceId: String, from: Int, to: Int) throws -> [Int] {
+        // Every sub-select is COUNT/COALESCE(MAX(...), 0), so each column is non-null and the aggregate
+        // query always returns exactly one row — same idiom as `analysisFingerprint` above.
+        guard let row = try Row.fetchOne(db, sql: """
+            SELECT
+              (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pc,
+              (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS pm,
+              rr.rc AS rc, rr.rm AS rm, rr.w5 AS w5, rr.w7 AS w7,
+              rr.w4h AS w4h,
+              (SELECT COUNT(*) FROM respSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS xc,
+              (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS xm,
+              (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS oc,
+              (SELECT COALESCE(MAX(ts), 0) FROM spo2Sample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS om,
+              (SELECT COUNT(*) FROM gravitySample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS gc,
+              (SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS gm,
+              (SELECT COUNT(*) FROM stepSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS zc,
+              (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS zm,
+              (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tc,
+              (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS tm,
+              (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bc,
+              (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS bm,
+              (SELECT COUNT(*) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS ec,
+              (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS em
+            FROM (SELECT
+                    COUNT(CASE WHEN srcChannel IS NULL OR srcChannel <> :rrx THEN 1 END) AS rc,
+                    COALESCE(MAX(CASE WHEN srcChannel IS NULL OR srcChannel <> :rrx THEN ts END), 0) AS rm,
+                    COUNT(CASE WHEN srcChannel = 5 THEN 1 END) AS w5,
+                    COUNT(CASE WHEN srcChannel = 7 THEN 1 END) AS w7,
+                    COUNT(CASE WHEN srcChannel = :whoop4Historical THEN 1 END) AS w4h
+                  FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                    AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS rr
+            """, arguments: ["d": deviceId, "f": from, "t": to,
+                             "rrx": RRSourceChannel.spo2Ibi.rawValue,
+                             "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue])
+        else { return Array(repeating: 0, count: 21) }
+        return dayStreamKeys.flatMap { key -> [Int] in [row[key + "c"], row[key + "m"]] }
+            + [row["w5"], row["w7"], row["w4h"]]
     }
 
     /// Aggregate HR over a window: `(n, avg, max)` computed in SQLite over the same measured-∪-PPG rows

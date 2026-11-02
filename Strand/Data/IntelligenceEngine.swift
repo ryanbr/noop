@@ -1252,7 +1252,7 @@ final class IntelligenceEngine: ObservableObject {
                         }
                         skinAnchorResolvedOwners.insert(owner)
                     }
-                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to),
+                    if let fp = try? await store.dayHrFingerprint(deviceId: owner, from: from, to: to),
                        let streamFp = try? await store.dayStreamFingerprint(deviceId: owner, from: from, to: to) {
                         let key = AnalyzeRecentDayCache.cacheKey(
                             owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
@@ -1262,8 +1262,9 @@ final class IntelligenceEngine: ObservableObject {
                             // was scored from, and the HRV-less result is re-served for the rest of the
                             // session — force refresh included, since `force` only bypasses the whole-pass
                             // watermark gate above, never this one. Both reads are index-only aggregates
-                            // over the same `(deviceId, ts)` keys; a miss costs the 7 full stream reads
-                            // this gate exists to skip.
+                            // over the same `(deviceId, ts)` keys, answered from the store's memo while the
+                            // night stands still (#2314); a miss costs the 7 full stream reads this gate
+                            // exists to skip.
                             streams: streamFp + "|rrAlias5=\(activeWhoop5RR && owner == Repository.whoopSource)",
                             // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
                             // line is ever produced, so the flag describes nothing — but it would still

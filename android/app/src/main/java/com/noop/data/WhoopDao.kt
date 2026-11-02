@@ -103,6 +103,34 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
         "AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS rr"
 
+/** What landed in the raw streams since [StreamWitnessMemo] last looked: each table's rowid frontier (`deviceId`
+ * NULL), then the rows above `:<letter>` grouped by device and hour. Every delta arm is a rowid range seek, so a
+ * table with nothing new reads one page. `NOT INDEXED` keeps it one: left to itself the planner answers the
+ * `GROUP BY deviceId` by walking the narrower `(deviceId, ts)` key index end to end, a whole-stream read on every
+ * pass. The letters are [ANALYSIS_FINGERPRINT_SQL]'s. Swift runs the same statement inline in
+ * StreamWitnessMemo.refresh(); `Whoop5RRSqliteTest` runs it against the plain-JVM fixture. */
+internal const val STREAM_LANDINGS_SQL =
+    "SELECT 'h' AS tbl, NULL AS deviceId, NULL AS lo, NULL AS hi, (SELECT COALESCE(MAX(rowid), 0) FROM hrSample) AS top " +
+        "UNION ALL SELECT 'h', deviceId, MIN(ts), MAX(ts), NULL FROM hrSample NOT INDEXED WHERE rowid > :h GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'p', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) " +
+        "UNION ALL SELECT 'p', deviceId, MIN(ts), MAX(ts), NULL FROM ppgHrSample NOT INDEXED WHERE rowid > :p GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'r', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) " +
+        "UNION ALL SELECT 'r', deviceId, MIN(ts), MAX(ts), NULL FROM rrInterval NOT INDEXED WHERE rowid > :r GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'x', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM respSample) " +
+        "UNION ALL SELECT 'x', deviceId, MIN(ts), MAX(ts), NULL FROM respSample NOT INDEXED WHERE rowid > :x GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'g', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) " +
+        "UNION ALL SELECT 'g', deviceId, MIN(ts), MAX(ts), NULL FROM gravitySample NOT INDEXED WHERE rowid > :g GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 's', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) " +
+        "UNION ALL SELECT 's', deviceId, MIN(ts), MAX(ts), NULL FROM sleepStateSample NOT INDEXED WHERE rowid > :s GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'e', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM event) " +
+        "UNION ALL SELECT 'e', deviceId, MIN(ts), MAX(ts), NULL FROM event NOT INDEXED WHERE rowid > :e GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'o', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) " +
+        "UNION ALL SELECT 'o', deviceId, MIN(ts), MAX(ts), NULL FROM spo2Sample NOT INDEXED WHERE rowid > :o GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 't', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) " +
+        "UNION ALL SELECT 't', deviceId, MIN(ts), MAX(ts), NULL FROM skinTempSample NOT INDEXED WHERE rowid > :t GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'z', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM stepSample) " +
+        "UNION ALL SELECT 'z', deviceId, MIN(ts), MAX(ts), NULL FROM stepSample NOT INDEXED WHERE rowid > :z GROUP BY deviceId, ts / 3600"
+
 /** The Oura beat channels [RR_INTERVALS_SQL] chooses between, as a SQL list: GREEN_QUALITY (0x80) on
  *  one side, and the amplitude family on the other, IBI_AMPLITUDE (0x60) + IBI_BARE (0x44). Those two
  *  share one decoder and were split for labelling only, so they are scored together, never against each
@@ -1423,6 +1451,11 @@ interface WhoopDao : DeviceRegistryDao {
     // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.
     @Query(DAY_STREAM_FINGERPRINT_SQL)
     suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String
+    // #2314: each raw stream's rowid frontier and what landed above the one last read, for the witness memo
+    // in WhoopRepository. Every argument is a frontier; Long.MAX_VALUE asks for the frontiers alone.
+    @Query(STREAM_LANDINGS_SQL)
+    suspend fun streamLandings(h: Long, p: Long, r: Long, x: Long, g: Long, s: Long, e: Long, o: Long,
+                               t: Long, z: Long): List<StreamLanding>
     @Query("SELECT COUNT(*) FROM rrInterval") suspend fun countRr(): Int
     @Query("SELECT COUNT(*) FROM event") suspend fun countEvents(): Int
     @Query("SELECT COUNT(*) FROM battery") suspend fun countBattery(): Int

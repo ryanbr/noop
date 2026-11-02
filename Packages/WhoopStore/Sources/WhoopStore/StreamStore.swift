@@ -232,6 +232,12 @@ extension WhoopStore {
         var v18Written = 0
         var ppgWaveformWritten = 0
         var ecgWaveformWritten = 0
+        // The R-R span this batch changed IN PLACE (a source promotion or a fill flag). Those keep their
+        // rowid, so `StreamWitnessMemo` cannot see them land; it is told once the write has committed.
+        var editedRR: ClosedRange<Int>? = nil
+        func noteEditedRR(_ lo: Int, _ hi: Int) {
+            editedRR = editedRR.map { min($0.lowerBound, lo)...max($0.upperBound, hi) } ?? lo...hi
+        }
         let result: (Int, Int, Int, Int, Int, Int, Int, Int) = try syncWrite { db in
             var hr = 0, rr = 0, ev = 0, bat = 0
             var spo2 = 0, skin = 0, resp = 0, grav = 0
@@ -308,6 +314,7 @@ extension WhoopStore {
                         // Cache fingerprints witness both canonical-source counts independently of inserts.
                         try promote.execute(arguments: ["source": source.rawValue, "ord": ord,
                             "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
+                        if db.changesCount > 0 { noteEditedRR(r.ts, r.ts) }
                     }
                     // The label is the CASE just matched, so name it rather than force-unwrapping the
                     // optional the match already proved non-nil.
@@ -315,6 +322,7 @@ extension WhoopStore {
                         try promoteWhoop4History.execute(arguments: [
                             "source": RRSourceChannel.whoop4Historical.rawValue, "ord": ord,
                             "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
+                        if db.changesCount > 0 { noteEditedRR(r.ts, r.ts) }
                     }
                 }
                 // #2371: mark the strap's 500 ms fill beats in this batch's window. The batch's heart rate
@@ -327,6 +335,7 @@ extension WhoopStore {
                 if let fromTs = fillTs.min(), let toTs = fillTs.max() {
                     try db.execute(sql: WhoopStore.whoop5RrFillFlagSQL,
                                    arguments: ["deviceId": deviceId, "fromTs": fromTs, "toTs": toTs])
+                    if db.changesCount > 0 { noteEditedRR(fromTs, toTs) }
                 }
             }
             if !streams.events.isEmpty {
@@ -499,6 +508,10 @@ extension WhoopStore {
                 }
             }
             return (hr, rr, ev, bat, spo2, skin, resp, grav)
+        }
+        if let span = editedRR {
+            StreamEditJournal.shared.noteEdit(table: "rrInterval", deviceId: deviceId,
+                                              from: span.lowerBound, to: span.upperBound)
         }
 
         // Rolling retention is amortised. The delete finds the Nth-newest row by rank, so it walks up to
@@ -893,6 +906,9 @@ extension WhoopStore {
     /// uses `strftime('%s','now')`; a test needs a fixed instant). Marks every stored R-R beat whose ts is
     /// after `nowSeconds`. Test-only (#1073).
     public func markFutureRrSuspectForTest(nowSeconds: Int) async throws {
+        // An in-place edit of every device's rows at once: bracketed like a removal rather than noted per span.
+        StreamEditJournal.shared.noteRemoval()
+        defer { StreamEditJournal.shared.noteRemoval() }
         try syncWrite { db in
             try db.execute(sql: "UPDATE rrInterval SET tsSuspect = 1 WHERE ts > ?", arguments: [nowSeconds])
         }

@@ -80,27 +80,31 @@ class DeviceRegistry(
      */
     suspend fun adoptSerialIdentity(activeId: String, serialId: String): Boolean {
         if (activeId == serialId) return false
-        return transactor.run {
-            val active = dao.pairedDevice(activeId) ?: return@run false
-            val serial = dao.pairedDevice(serialId)
-            if (serial != null) {
-                dao.upsertPairedDevice(serial.copy(peripheralId = active.peripheralId, model = active.model,
-                                                   status = "active", lastSeenAt = active.lastSeenAt))
-            } else {
-                dao.upsertPairedDevice(active.copy(id = serialId))
+        // The re-key moves stream rows to another device without moving their rowids, and the delete after it
+        // frees rowids: bracketed for the repository's witness memo (StreamWitnessMemo, #2314).
+        return StreamEditJournal.removing {
+            transactor.run {
+                val active = dao.pairedDevice(activeId) ?: return@run false
+                val serial = dao.pairedDevice(serialId)
+                if (serial != null) {
+                    dao.upsertPairedDevice(serial.copy(peripheralId = active.peripheralId, model = active.model,
+                                                       status = "active", lastSeenAt = active.lastSeenAt))
+                } else {
+                    dao.upsertPairedDevice(active.copy(id = serialId))
+                }
+                // BOTH id shapes. Every strap also owns a COMPUTED sibling keyed `<deviceId>-noop` (see
+                // WhoopRepository.computedDeviceId) holding scored days, legacy detected workouts and metric
+                // series. That id never equals activeId, so re-keying only the pairing's
+                // own id left the computed history stranded under an id nothing reads again while the next
+                // scoring pass wrote under `<serialId>-noop` — the orphaned history this adoption exists to
+                // prevent, displaced onto the computed half. A ring has no computed sibling, which is why the
+                // shipped Oura path never surfaced it.
+                reKeyDeviceScopedRows(activeId, serialId)
+                reKeyDeviceScopedRows(activeId + COMPUTED_SUFFIX, serialId + COMPUTED_SUFFIX)
+                dao.deletePairedDeviceRow(activeId)
+                dao.deleteDeviceRow(activeId)
+                true
             }
-            // BOTH id shapes. Every strap also owns a COMPUTED sibling keyed `<deviceId>-noop` (see
-            // WhoopRepository.computedDeviceId) holding scored days, legacy detected workouts and metric
-            // series. That id never equals activeId, so re-keying only the pairing's
-            // own id left the computed history stranded under an id nothing reads again while the next
-            // scoring pass wrote under `<serialId>-noop` — the orphaned history this adoption exists to
-            // prevent, displaced onto the computed half. A ring has no computed sibling, which is why the
-            // shipped Oura path never surfaced it.
-            reKeyDeviceScopedRows(activeId, serialId)
-            reKeyDeviceScopedRows(activeId + COMPUTED_SUFFIX, serialId + COMPUTED_SUFFIX)
-            dao.deletePairedDeviceRow(activeId)
-            dao.deleteDeviceRow(activeId)
-            true
         }
     }
 
@@ -203,39 +207,43 @@ class DeviceRegistry(
      * guards completeness (fails if a delete*For DAO method isn't wired in here).
      */
     suspend fun deleteDeviceData(id: String) {
-        transactor.run {
-            dao.deleteHrFor(id)
-            dao.deleteRrFor(id)
-            dao.deleteSpo2For(id)
-            dao.deleteSkinTempFor(id)
-            dao.deleteRespFor(id)
-            dao.deleteGravityFor(id)
-            dao.deleteStepsFor(id)
-            dao.deletePpgHrFor(id)
-            dao.deletePpgWaveformFor(id)
-            dao.deleteEcgWaveformFor(id)
-            dao.deleteV18AuxFor(id)
-            dao.deleteEventsFor(id)
-            dao.deleteBatteryFor(id)
-            dao.deleteDailyMetricsFor(id)
-            dao.deleteSleepSessionsFor(id)
-            dao.deleteJournalFor(id)
-            dao.deleteWorkoutsFor(id)
-            dao.deleteAppleDailyFor(id)
-            dao.deleteAppleStepHoursFor(id)
-            dao.deleteMetricSeriesFor(id)
-            dao.deleteDayOwnershipFor(id)
-            dao.deleteScoreInputProvenanceFor(id)
-            dao.deleteSleepStatesFor(id)
-            dao.deleteLabMarkersFor(id)
-            dao.deleteLiveSessionsFor(id)
-            dao.deleteDismissedWorkoutsFor(id)
-            dao.deleteDismissedSleepsFor(id)
-            dao.deleteLiftExercisesFor(id)
-            dao.deleteLiftProgramsFor(id)
-            dao.deleteLiftProgramItemsFor(id)
-            dao.deleteLiftSessionsFor(id)
-            dao.deleteLiftSetsFor(id)
+        // A delete leaves the stream frontiers the repository's witness memo tracks in place and can free rowids
+        // below them, so it is bracketed for the memo (StreamWitnessMemo, #2314).
+        StreamEditJournal.removing {
+            transactor.run {
+                dao.deleteHrFor(id)
+                dao.deleteRrFor(id)
+                dao.deleteSpo2For(id)
+                dao.deleteSkinTempFor(id)
+                dao.deleteRespFor(id)
+                dao.deleteGravityFor(id)
+                dao.deleteStepsFor(id)
+                dao.deletePpgHrFor(id)
+                dao.deletePpgWaveformFor(id)
+                dao.deleteEcgWaveformFor(id)
+                dao.deleteV18AuxFor(id)
+                dao.deleteEventsFor(id)
+                dao.deleteBatteryFor(id)
+                dao.deleteDailyMetricsFor(id)
+                dao.deleteSleepSessionsFor(id)
+                dao.deleteJournalFor(id)
+                dao.deleteWorkoutsFor(id)
+                dao.deleteAppleDailyFor(id)
+                dao.deleteAppleStepHoursFor(id)
+                dao.deleteMetricSeriesFor(id)
+                dao.deleteDayOwnershipFor(id)
+                dao.deleteScoreInputProvenanceFor(id)
+                dao.deleteSleepStatesFor(id)
+                dao.deleteLabMarkersFor(id)
+                dao.deleteLiveSessionsFor(id)
+                dao.deleteDismissedWorkoutsFor(id)
+                dao.deleteDismissedSleepsFor(id)
+                dao.deleteLiftExercisesFor(id)
+                dao.deleteLiftProgramsFor(id)
+                dao.deleteLiftProgramItemsFor(id)
+                dao.deleteLiftSessionsFor(id)
+                dao.deleteLiftSetsFor(id)
+            }
         }
     }
 

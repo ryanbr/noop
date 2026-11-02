@@ -174,37 +174,28 @@ final class ReadTests: XCTestCase {
             _ = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
         }
         let dayReads = day.filter { Self.streamTable(in: $0) != nil }
-        XCTAssertTrue(dayReads.contains { $0.contains("rrInterval") }, "no R-R read in the plan: \(day)")
+        XCTAssertTrue(dayReads.contains { $0.contains("rrInterval") && $0.contains("ts>") },
+                      "no R-R window read in the plan: \(day)")
         for line in dayReads {
-            XCTAssertTrue(line.contains("ts>"), "a day witness read is not bounded by the night: \(line)")
+            XCTAssertTrue(line.contains("ts>") || Self.isRowidSeek(line),
+                          "a day witness read is bounded by neither the night nor the rowid frontier: \(line)")
         }
+    }
+
+    /// A read `StreamWitnessMemo` answers from a table's right edge: `MAX(rowid)` (`SEARCH t`, no index) or
+    /// the rows above the last frontier (`SEARCH t USING INTEGER PRIMARY KEY (rowid>?)`).
+    static func isRowidSeek(_ line: String) -> Bool {
+        guard line.hasPrefix("SEARCH ") else { return false }
+        return !line.contains(" USING ") || line.hasSuffix("USING INTEGER PRIMARY KEY (rowid>?)")
     }
 
     private static let streamTables = Set(WhoopStore.rawTableKeys.map { $0.1 })
 
     /// The raw stream a query-plan line reads (`SEARCH rrInterval USING …`, `SCAN hrSample …`), if any.
-    private static func streamTable(in line: String) -> String? {
+    static func streamTable(in line: String) -> String? {
         let words = line.split(separator: " ")
         guard words.count >= 2, words[0] == "SEARCH" || words[0] == "SCAN" else { return nil }
         return streamTables.contains(String(words[1])) ? String(words[1]) : nil
-    }
-
-    /// `EXPLAIN QUERY PLAN` of every statement `body` runs. The in-memory store is one `DatabaseQueue`, so a
-    /// trace installed through `registryWriter` sees the store's own reads, with their arguments inlined.
-    private func queryPlans(_ store: WhoopStore, _ body: () async throws -> Void) async throws -> [String] {
-        let captured = CapturedSQL()
-        try await store.registryWriter.writeWithoutTransaction { db in
-            db.trace(options: .statement) { event in
-                if case let .statement(statement) = event { captured.append(statement.expandedSQL) }
-            }
-        }
-        try await body()
-        return try await store.registryWriter.writeWithoutTransaction { db in
-            db.trace(options: [], nil)
-            return try captured.all.flatMap { sql in
-                try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + sql).map { $0["detail"] as String }
-            }
-        }
     }
 
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
@@ -542,6 +533,26 @@ final class ReadTests: XCTestCase {
         for (k, v) in negative { XCTAssertGreaterThan(v, 0, "\(k) must still estimate") }
     }
 
+}
+
+extension XCTestCase {
+    /// `EXPLAIN QUERY PLAN` of every statement `body` runs. The in-memory store is one `DatabaseQueue`, so a
+    /// trace installed through `registryWriter` sees the store's own reads, with their arguments inlined.
+    func queryPlans(_ store: WhoopStore, _ body: () async throws -> Void) async throws -> [String] {
+        let captured = CapturedSQL()
+        try await store.registryWriter.writeWithoutTransaction { db in
+            db.trace(options: .statement) { event in
+                if case let .statement(statement) = event { captured.append(statement.expandedSQL) }
+            }
+        }
+        try await body()
+        return try await store.registryWriter.writeWithoutTransaction { db in
+            db.trace(options: [], nil)
+            return try captured.all.flatMap { sql in
+                try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + sql).map { $0["detail"] as String }
+            }
+        }
+    }
 }
 
 /// Statements a trace saw. GRDB calls the trace on the store's queue, the test reads it after.

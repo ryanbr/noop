@@ -33,6 +33,7 @@ class Whoop5RRSqliteTest {
     private val provenance = linkedMapOf<Triple<String, String, String>, ScoreInputProvenanceRow>()
     private val gravity = mutableListOf<GravitySample>()
     private val id = "my-whoop"
+    private var dayStreamReads = 0
 
     @Before fun open() {
         db = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -160,8 +161,17 @@ class Whoop5RRSqliteTest {
                     mapOf("deviceId" to args[0]),
                 ) { row -> row.getLong(1).let { if (row.wasNull()) null else it } }.single()
                 "analysisFingerprint" -> query(ANALYSIS_FINGERPRINT_SQL) { it.getString(1) }.single()
-                "dayStreamFingerprint" -> query(DAY_STREAM_FINGERPRINT_SQL,
-                    listOf("deviceId", "from", "to").zip(args.take(3)).toMap()) { it.getString(1) }.single()
+                "dayStreamFingerprint" -> {
+                    dayStreamReads++
+                    query(DAY_STREAM_FINGERPRINT_SQL,
+                        listOf("deviceId", "from", "to").zip(args.take(3)).toMap()) { it.getString(1) }.single()
+                }
+                "streamLandings" -> query(STREAM_LANDINGS_SQL,
+                    StreamWitnessMemo.TRACKED.map { it.first }.zip(args.toList()).toMap()) { r ->
+                    fun optional(column: String) = r.getLong(column).let { if (r.wasNull()) null else it }
+                    StreamLanding(r.getString("tbl"), r.getString("deviceId"), optional("lo"), optional("hi"),
+                        optional("top"))
+                }
                 "stepSamples", "ppgHrSamples", "spo2Samples",
                 "skinTempSamples", "respSamples", "sleepStateSamples", "events" -> emptyList<Any>()
                 else -> error("Unimplemented DAO call: ${method.name}")
@@ -902,5 +912,67 @@ class Whoop5RRSqliteTest {
             it.getString(1)
         }.single()
         for (zero in listOf("|r0:", "|w50|", "|w70|", "|w4h0|")) assertFalse("fixture never moves $zero: $whole", whole.contains(zero))
+    }
+
+    // #2314: the repository answers the day witness from its memo while the night stands still, and every answer
+    // equals a fresh count of the statement: a beat on another device or outside the night is not this night's
+    // input, while a landed beat, a source promotion in place, and a wipe whose freed rowid the next insert
+    // takes all reach it. Twin of Swift StreamWitnessMemoTests.
+    @Test fun dayWitnessIsCountedAgainOnlyWhenSomethingReachesTheNight() = runBlocking {
+        val night = 1_790_000_000L
+        val to = night + 7200
+        repo.insert(StreamBatch(hr = (0L..5L).map { HrRow(night + it * 600, 60) },
+            rr = (0L..5L).map { RrRow(night + it * 600, 1000) }), id)
+        fun fresh() = query(DAY_STREAM_FINGERPRINT_SQL, mapOf("deviceId" to id, "from" to night, "to" to to)) {
+            it.getString(1)
+        }.single() + "|rr5="
+        val first = repo.dayStreamFingerprint(id, night, to)
+        val hrFirst = repo.dayHrFingerprint(id, night, to)
+        val reads = dayStreamReads
+        assertEquals(first, repo.dayStreamFingerprint(id, night, to))
+        repo.insert(StreamBatch(rr = listOf(RrRow(night + 90, 900))), "ring")
+        repo.insert(StreamBatch(rr = listOf(RrRow(to + 600, 900))), id)
+        assertEquals(first, repo.dayStreamFingerprint(id, night, to))
+        assertEquals("an unchanged night must not be counted again", reads, dayStreamReads)
+
+        repo.insert(StreamBatch(rr = listOf(RrRow(night + 95, 905))), id)
+        val landed = repo.dayStreamFingerprint(id, night, to)
+        assertNotEquals(first, landed)
+        assertTrue(landed.startsWith(fresh()))
+        assertEquals(hrFirst, repo.dayHrFingerprint(id, night, to))
+        repo.insert(StreamBatch(hr = listOf(HrRow(night + 95, 70))), id)
+        assertEquals(repo.hrFingerprintWindow(id, night, to), repo.dayHrFingerprint(id, night, to))
+        assertNotEquals(hrFirst, repo.dayHrFingerprint(id, night, to))
+
+        assertEquals(0, repo.insert(StreamBatch(rr = listOf(
+            RrRow(night, 1000, RrSourceChannel.WHOOP5_HISTORICAL))), id).rr)
+        val promoted = repo.dayStreamFingerprint(id, night, to)
+        assertNotEquals(landed, promoted)
+        assertTrue(promoted.startsWith(fresh()))
+
+        repo.insert(StreamBatch(rr = listOf(RrRow(night + 96, 906))), "ring")
+        val top = query("SELECT MAX(rowid) FROM rrInterval") { it.getLong(1) }.single()
+        val beforeWipe = repo.dayStreamFingerprint(id, night, to)
+        StreamEditJournal.removing { sql("DELETE FROM rrInterval WHERE deviceId = 'ring'") }
+        repo.insert(StreamBatch(rr = listOf(RrRow(night + 97, 907))), id)
+        assertEquals("the fixture must reuse the freed rowid", top,
+            query("SELECT MAX(rowid) FROM rrInterval") { it.getLong(1) }.single())
+        val afterWipe = repo.dayStreamFingerprint(id, night, to)
+        assertNotEquals(beforeWipe, afterWipe)
+        assertTrue(afterWipe.startsWith(fresh()))
+    }
+
+    // STREAM_LANDINGS_SQL must seek each table's rowid range, never walk a key index: left to itself SQLite
+    // answers the GROUP BY deviceId from the (deviceId, ts) autoindex end to end.
+    @Test fun streamLandingsSeekTheRowidRangeOfEveryStream() {
+        val binds = StreamWitnessMemo.TRACKED.associate { it.first to 0L }
+        val plan = query("EXPLAIN QUERY PLAN $STREAM_LANDINGS_SQL", binds) { it.getString("detail") }
+        val reads = plan.filter { it.startsWith("SEARCH ") || it.startsWith("SCAN ") }
+            .filter { line -> StreamWitnessMemo.TRACKED.any { line.split(" ")[1] == it.second } }
+        assertEquals(plan.toString(), 20, reads.size)
+        for (line in reads) {
+            assertTrue("a landings read walks a stream: $line",
+                line.startsWith("SEARCH ") && (" USING " !in line || line.endsWith("(rowid>?)")))
+        }
     }
 }

@@ -179,6 +179,10 @@ public struct DeviceRegistryStore: Sendable {
     /// with `DELETE FROM <table> WHERE deviceId = ?`; a missing table would throw, but every table here
     /// is created unconditionally by the migrator, so the set is stable.
     public func deleteAllData(deviceId: String) throws {
+        // A delete leaves the stream frontiers `StreamWitnessMemo` tracks in place and can free rowids
+        // below them, so it is bracketed for the memo: noted before the write and again once it is done.
+        StreamEditJournal.shared.noteRemoval()
+        defer { StreamEditJournal.shared.noteRemoval() }
         try dbQueue.write { db in
             for table in Self.deviceScopedTables {
                 try db.execute(sql: "DELETE FROM \(table) WHERE deviceId = ?", arguments: [deviceId])
@@ -204,6 +208,10 @@ public struct DeviceRegistryStore: Sendable {
     @discardableResult
     public func adoptSerialIdentity(from activeId: String, to serialId: String) throws -> Bool {
         guard activeId != serialId else { return false }
+        // The re-key moves stream rows to another device without moving their rowids, and the delete
+        // after it frees rowids: bracketed for `StreamWitnessMemo` like `deleteAllData`.
+        StreamEditJournal.shared.noteRemoval()
+        defer { StreamEditJournal.shared.noteRemoval() }
         return try dbQueue.write { db in
             guard try Bool.fetchOne(db, sql: "SELECT 1 FROM pairedDevice WHERE id = ?", arguments: [activeId]) ?? false
             else { return false }   // nothing to re-point

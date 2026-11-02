@@ -42,6 +42,9 @@ extension WhoopStore {
     ) async throws -> TimestampHealResult {
         let lo = MIN_PLAUSIBLE_UNIX
         let hi = now + FUTURE_MARGIN
+        // Deletes stream rows, so it is bracketed for `StreamWitnessMemo` like `deleteAllData`.
+        StreamEditJournal.shared.noteRemoval()
+        defer { StreamEditJournal.shared.noteRemoval() }
         return try syncWrite { db in
             // (a) Raw, ts-keyed streams. Every one of these is fed by the historical type-47 / EVENT /
             // REALTIME paths the #547 gate now guards, so the same out-of-bounds predicate cleans them.
