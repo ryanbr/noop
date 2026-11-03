@@ -61,6 +61,19 @@ class LastWorkoutsFeedTest {
         assertEquals(listOf(6_000L, 5_000L, 4_000L, 3_000L), feed.map { it.startTs })
     }
 
+    /** The user-edited feed length (Today Customise) caps the same dedup'd, newest-first feed. */
+    @Test
+    fun explicitLimitCapsFeed() {
+        val rows = (1..6).map { i ->
+            row("my-whoop", i * 1_000L, i * 1_000L + 500, "Sport$i", "my-whoop")
+        }
+        val feed = lastWorkoutsFeed(rows, limit = 2)
+        assertEquals(listOf(6_000L, 5_000L), feed.map { it.startTs })
+        // An out-of-range saved value is clamped, never zero or unbounded.
+        assertEquals(1, lastWorkoutsFeed(rows, limit = 0).size)
+        assertEquals(6, lastWorkoutsFeed(rows, limit = 99).size)
+    }
+
     @Test
     fun emptyInputYieldsEmptyFeed() {
         assertTrue(lastWorkoutsFeed(emptyList()).isEmpty())

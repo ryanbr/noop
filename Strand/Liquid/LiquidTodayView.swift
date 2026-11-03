@@ -118,6 +118,10 @@ struct LiquidTodayView: View {
     /// The detailed graphs' trailing window — 1 week / 2 weeks / 1 month (shared key with Android). The
     /// loader banks a day-keyed 30-day superset; render filters down, so a window change applies instantly.
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14
+    // #today-layout: the user-edited Latest Workouts feed length + window (the SAME keys TodayView's
+    // editors write — the customization sheet takes both as live bindings and edits them in place).
+    @AppStorage(TodayLayoutPrefs.workoutsCountKey) private var workoutsCount = TodayLayoutPrefs.defaultWorkoutsCount
+    @AppStorage(TodayLayoutPrefs.workoutsWindowDaysKey) private var workoutsWindowDays = TodayLayoutPrefs.defaultWorkoutsWindowDays
     @State private var kSparks: [String: [(String, Double)]] = [:]
     private var enabledKeyMetrics: [KeyMetric] { KeyMetricPrefs.decodeEnabled(keyMetricsRaw) }
 

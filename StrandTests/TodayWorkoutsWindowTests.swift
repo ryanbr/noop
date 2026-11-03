@@ -49,6 +49,33 @@ final class TodayWorkoutsWindowTests: XCTestCase {
         XCTAssertEqual(kept.count, 1)
     }
 
+    /// A 20-day-old session is outside the default 14-day window but inside the 30-day one.
+    func testTwentyDayOldSessionDependsOnTheWindow() {
+        let twentyDaysAgo = Int(now.timeIntervalSince1970) - 20 * 86_400
+        XCTAssertTrue(TodayView.recentWorkoutsFeed([row(startingAt: twentyDaysAgo)], now: now).isEmpty,
+                      "20 days back is outside the default 14-day window")
+        XCTAssertEqual(
+            TodayView.recentWorkoutsFeed([row(startingAt: twentyDaysAgo)], windowDays: 30, now: now).count, 1)
+    }
+
+    /// A 200-day-old session needs a window that reaches 365 days (the year option).
+    func testTwoHundredDayOldSessionNeedsTheYearWindow() {
+        let twoHundredDaysAgo = Int(now.timeIntervalSince1970) - 200 * 86_400
+        XCTAssertTrue(
+            TodayView.recentWorkoutsFeed([row(startingAt: twoHundredDaysAgo)], windowDays: 30, now: now).isEmpty)
+        XCTAssertEqual(
+            TodayView.recentWorkoutsFeed([row(startingAt: twoHundredDaysAgo)], windowDays: 365, now: now).count, 1)
+    }
+
+    /// A hand-edited stored value can only ever be a selectable window: the snap makes 45 behave
+    /// exactly like the default 14-day window.
+    func testNonOptionWindowSnapsToTheDefault() {
+        let twentyDaysAgo = Int(now.timeIntervalSince1970) - 20 * 86_400
+        XCTAssertEqual(
+            TodayView.recentWorkoutsFeed([row(startingAt: twentyDaysAgo)], windowDays: 45, now: now),
+            TodayView.recentWorkoutsFeed([row(startingAt: twentyDaysAgo)], now: now))
+    }
+
     func testPreservesInputOrderAndDropsOnlyTheStale() {
         let recentA = Int(now.timeIntervalSince1970) - 3_600
         let recentB = Int(now.timeIntervalSince1970) - 7_200

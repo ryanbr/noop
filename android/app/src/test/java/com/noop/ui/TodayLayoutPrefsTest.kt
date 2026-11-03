@@ -24,11 +24,12 @@ class TodayLayoutPrefsTest {
             TodaySection.HEART_RATE, TodaySection.HERO, TodaySection.YOUR_CARDS,
             TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
             TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS, TodaySection.JOURNAL,
-            TodaySection.MENSTRUAL_CYCLE, TodaySection.ADDED_CARDS,
+            TodaySection.MENSTRUAL_CYCLE, TodaySection.DATA_SOURCES,
+            TodaySection.ADDED_CARDS,
         )
         val encoded = TodayLayoutPrefs.encode(reordered)
         assertEquals(
-            "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards",
+            "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,dataSources,addedCards",
             encoded,
         )
         assertEquals(reordered, TodayLayoutPrefs.decodeOrder(encoded))
@@ -45,7 +46,8 @@ class TodayLayoutPrefsTest {
                 TodaySection.HERO, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.WORKOUTS,
                 TodaySection.HEART_RATE, TodaySection.RECOVERY_VITALS, TodaySection.YOUR_CARDS,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.DATA_SOURCES,
+                TodaySection.ADDED_CARDS,
             ),
             TodayLayoutPrefs.decodeOrder(firstCut),
         )
@@ -66,6 +68,7 @@ class TodayLayoutPrefsTest {
                 TodaySection.HEART_RATE, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
                 TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL,
+                TodaySection.DATA_SOURCES,
                 TodaySection.ADDED_CARDS,
             ),
             decoded,
@@ -84,7 +87,8 @@ class TodayLayoutPrefsTest {
                 TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS,
                 TodaySection.KEY_METRICS, TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.HEART_RATE,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.DATA_SOURCES,
+                TodaySection.ADDED_CARDS,
             ),
             decoded,
         )
@@ -109,7 +113,8 @@ class TodayLayoutPrefsTest {
             listOf(
                 TodaySection.HEART_RATE, TodaySection.YOUR_CARDS, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.RECOVERY_VITALS,
-                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
+                TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.DATA_SOURCES,
+                TodaySection.ADDED_CARDS,
             ),
             TodayLayoutPrefs.visibleOrder(order, "hero,workouts"),
         )
@@ -133,6 +138,60 @@ class TodayLayoutPrefsTest {
         assertEquals(TodaySection.entries.size, TodaySection.defaultOrder.size)
     }
 
+    /** The user-edited Latest Workouts feed length bounds, pinned on both platforms. */
+    @Test
+    fun workoutsCountBoundsArePinned() {
+        assertEquals(1, TodayLayoutPrefs.minWorkoutsCount)
+        assertEquals(14, TodayLayoutPrefs.maxWorkoutsCount)
+        assertEquals(4, TodayLayoutPrefs.defaultWorkoutsCount)
+    }
+
+    /** Unset/empty fields mean EVERY chip is enabled (the historical default — existing users see no
+     *  change). Unknown tokens are ignored; an all-junk string degrades to the same default. */
+    @Test
+    fun workoutFields_unsetMeansAllEnabled() {
+        assertEquals(WorkoutField.entries.toSet(), TodayLayoutPrefs.decodeWorkoutFields(null))
+        assertEquals(WorkoutField.entries.toSet(), TodayLayoutPrefs.decodeWorkoutFields(""))
+        assertEquals(WorkoutField.entries.toSet(), TodayLayoutPrefs.decodeWorkoutFields("   "))
+        assertEquals(WorkoutField.entries.toSet(), TodayLayoutPrefs.decodeWorkoutFields("nope,,zzz"))
+    }
+
+    /** The stored string is the deterministic canonical-order encoding — a Set toggle order can never
+     *  produce two spellings of the same chip set. */
+    @Test
+    fun workoutFields_encodeIsCanonicalOrder() {
+        val fields = setOf(WorkoutField.CALORIES, WorkoutField.STRAIN, WorkoutField.DURATION)
+        assertEquals("strain,duration,calories", TodayLayoutPrefs.encodeWorkoutFields(fields))
+        assertEquals(fields, TodayLayoutPrefs.decodeWorkoutFields("strain,duration,calories"))
+    }
+
+    /** A partial set round-trips; unknown tokens are dropped and duplicates collapsed. */
+    @Test
+    fun workoutFields_decodeDropsUnknownAndDedupes() {
+        val decoded = TodayLayoutPrefs.decodeWorkoutFields("heartRate,BOGUS,heartRate,calories")
+        assertEquals(setOf(WorkoutField.HEART_RATE, WorkoutField.CALORIES), decoded)
+    }
+
+    /** The four chip raw keys are the persisted identity — pinned byte-identical to macOS. */
+    @Test
+    fun workoutFieldRawKeysArePinned() {
+        assertEquals(
+            listOf("strain", "duration", "heartRate", "calories"),
+            WorkoutField.entries.map { it.raw },
+        )
+    }
+
+    /** The user-edited Latest Workouts feed window options, pinned on both platforms. */
+    @Test
+    fun workoutsWindowOptionsArePinned() {
+        assertEquals(14, TodayLayoutPrefs.defaultWorkoutsWindowDays)
+        assertEquals(listOf(14, 30, 365), TodayLayoutPrefs.workoutsWindowOptions)
+        // The snap keeps every option and rejects everything else (the header can only name options).
+        assertEquals(14, TodayLayoutPrefs.snapWorkoutsWindowDays(45))
+        assertEquals(30, TodayLayoutPrefs.snapWorkoutsWindowDays(30))
+        assertEquals(365, TodayLayoutPrefs.snapWorkoutsWindowDays(365))
+    }
+
     @Test
     fun sectionRawKeysAreStableAndUnique() {
         val raws = TodaySection.entries.map { it.raw }
@@ -142,7 +201,7 @@ class TodayLayoutPrefsTest {
             listOf(
                 "hero", "liveSession", "synthesis", "keyMetrics",
                 "workouts", "heartRate", "recoveryVitals", "yourCards", "menstrualCycle", "journal",
-                "addedCards",
+                "dataSources", "addedCards",
             ),
             raws,
         )
