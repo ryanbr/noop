@@ -34,6 +34,7 @@ class Whoop5RRSqliteTest {
     private val gravity = mutableListOf<GravitySample>()
     private val id = "my-whoop"
     private var dayStreamReads = 0
+    private var hrWindowCounts = 0
 
     @Before fun open() {
         db = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -62,7 +63,7 @@ class Whoop5RRSqliteTest {
                 }
                 "hrSamples", "rawHrSamples" -> hrRows(args)
                 "hasHrInWindow" -> hrRows(args).isNotEmpty()
-                "countHrInWindow" -> hrRows(args).size
+                "countHrInWindow" -> { hrWindowCounts++; hrRows(args).size }
                 "maxHrTsInWindow" -> hrRows(args).maxOfOrNull { it.ts } ?: 0L
                 "gravityWitnessInWindow" -> GravityWitness(0, 0L)
                 "gravitySamples" -> gravity.filter {
@@ -960,6 +961,28 @@ class Whoop5RRSqliteTest {
         val afterWipe = repo.dayStreamFingerprint(id, night, to)
         assertNotEquals(beforeWipe, afterWipe)
         assertTrue(afterWipe.startsWith(fresh()))
+    }
+
+    // The cycle load cache asks for every cycle's HR union witness on each pass. From the memo, a cycle no
+    // HR row reached is not counted again and one an HR row reached is; the stress gates' default count
+    // runs every time.
+    @Test fun cycleHrWitnessIsCountedAgainOnlyWhenHrReachesTheCycle() = runBlocking {
+        val onset = 1_790_000_000L
+        val to = onset + 7200
+        repo.insert(StreamBatch(hr = (0L..5L).map { HrRow(onset + it * 600, 60) }), id)
+        val first = repo.hrUnionFingerprint(id, onset, to, fromMemo = true)
+        assertTrue(first, first.split(",").contains("$id=6:${onset + 3000}"))
+        val counts = hrWindowCounts
+        repo.insert(StreamBatch(hr = listOf(HrRow(to + 600, 61))), id)
+        assertEquals(first, repo.hrUnionFingerprint(id, onset, to, fromMemo = true))
+        assertEquals("a cycle no HR row reached must not be counted again", counts, hrWindowCounts)
+        assertEquals(first, repo.hrUnionFingerprint(id, onset, to))
+        assertTrue("the default witness counts every time", hrWindowCounts > counts)
+
+        repo.insert(StreamBatch(hr = listOf(HrRow(onset + 95, 70))), id)
+        val landed = repo.hrUnionFingerprint(id, onset, to, fromMemo = true)
+        assertTrue(landed, landed.split(",").contains("$id=7:${onset + 3000}"))
+        assertEquals(repo.hrUnionFingerprint(id, onset, to), landed)
     }
 
     // STREAM_LANDINGS_SQL must seek each table's rowid range, never walk a key index: left to itself SQLite

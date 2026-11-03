@@ -105,9 +105,9 @@ extension WhoopStore {
         try syncRead { db in try Self.hrWindowCount(db, deviceId: deviceId, from: from, to: to) }
     }
 
-    /// `hrFingerprint(deviceId:from:to:)` for the `analyzeRecent` per-day key, answered from
-    /// `witnessMemo` while no HR row reached the window since it was last counted. The value is the same
-    /// `(count, maxTs)`. Kotlin twin: `WhoopRepository.dayHrFingerprint`.
+    /// `hrFingerprint(deviceId:from:to:)` answered from `witnessMemo` while no HR row reached the window
+    /// since it was last counted: the `analyzeRecent` per-day key and the day-cycle load key. The value is
+    /// the same `(count, maxTs)`. Kotlin twin: `WhoopRepository.dayHrFingerprint`.
     public func dayHrFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
         let n = try memoizedWitness(.hr, deviceId: deviceId, from: from, to: to) { db in
             let fp = try Self.hrWindowCount(db, deviceId: deviceId, from: from, to: to)

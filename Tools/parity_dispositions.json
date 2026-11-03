@@ -55,8 +55,8 @@
     {
       "type": "out_of_scope_twin",
       "kind": "add-unpaired-function",
-      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::hrUnionFingerprint/3#1",
-      "identity_sha256": "c6879bd0c72d81c059254b85d6826258e1cf3cd97bf81e26bf013559678f415b",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::hrUnionFingerprint/4#1",
+      "identity_sha256": "5e6c8abdfcb1b3810f17053d8111b61cac5c84601e12c671bfb08d72617c1e08",
       "platform": "kotlin",
       "rationale": "Swift Repository.hrFingerprintUnion computes the same repository witness role, but the implementations encode the facts differently and have no byte-identity contract.",
       "twin_path": "Strand/Data/Repository.swift"

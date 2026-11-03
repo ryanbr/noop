@@ -818,9 +818,9 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
-    /** [hrFingerprintWindow] for analyzeRecent's per-day key, answered from [witnessMemo] while no HR row
-     *  reached the window since it was last counted (#2314). The value is the same (count, newestTs).
-     *  Mirrors Swift WhoopStore.dayHrFingerprint. */
+    /** [hrFingerprintWindow] answered from [witnessMemo] while no HR row reached the window since it was
+     *  last counted (#2314): analyzeRecent's per-day key and the cycle load key's [hrUnionFingerprint].
+     *  The value is the same (count, newestTs). Mirrors Swift WhoopStore.dayHrFingerprint. */
     suspend fun dayHrFingerprint(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         memoizedWitness(StreamWitnessMemo.Kind.HR, deviceId, from, to) { hrFingerprintWindow(deviceId, from, to) }
 
@@ -1326,13 +1326,19 @@ class WhoopRepository(
      * re-read, and [com.noop.widget.StressWidgetRefresh.storedFingerprint]'s stored value. Two of these
      * that were free to disagree is what #2566 removed, so route a new caller here rather than adding
      * another.
+     *
+     * [fromMemo] answers each id from [witnessMemo] (#2314) with the same value, counting a window again
+     * only once an HR row reaches it. The cycle load cache passes it: all but its open cycle are closed,
+     * and counting them on every pass was a quarter of a post-backfill pass. The stress gates leave it
+     * off: the widget's worker has no process memory between wakes, and the Stress screen's window ends
+     * at now, which new heart rate moves anyway.
      */
-    suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long): String {
+    suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long, fromMemo: Boolean = false): String {
         // An explicit loop rather than joinToString: the per-id read suspends and that builder's lambda
         // is not a suspend function.
         val parts = ArrayList<String>()
         for (id in rawWhoopSourceIds(activeDeviceId)) {
-            val (count, maxTs) = hrFingerprintWindow(id, from, to)
+            val (count, maxTs) = if (fromMemo) dayHrFingerprint(id, from, to) else hrFingerprintWindow(id, from, to)
             parts += "$id=$count:$maxTs"
         }
         return parts.joinToString(",")
