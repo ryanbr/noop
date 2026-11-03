@@ -3204,7 +3204,7 @@ class WhoopBleClient(
                 // Attribute this forced post-offload re-score. A completed offload ALWAYS re-scores (#836),
                 // so an EMPTY/duplicate offload (rows=0, common on a flapping link) still pays for a full
                 // ~18-day pass over the whole raw store (#1146). Compare the pre-run raw-input fingerprint
-                // (rowCount:maxTs) to the watermark the last successful run advanced: `newData=no` means
+                // to the watermark the last successful run advanced: `newData=no` means
                 // nothing changed since the last run — a re-score driven purely by the reconnect+offload, not
                 // by data. These lines quantify the background battery cost (#1005). Log-only; behaviour is
                 // unchanged (the pass still runs, matching Swift's force-re-score after a completed backfill).

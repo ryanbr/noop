@@ -97,7 +97,8 @@ extension WhoopStore {
         }
     }
 
-    /// The statement `dayStreamFingerprint` ran before the one-walk change, verbatim, composed the same way.
+    /// The statement `dayStreamFingerprint` ran before the one-walk change, verbatim but for the owner-wide tag
+    /// flag the key has since dropped, composed the same way.
     func referenceFingerprintInTest(deviceId: String, from: Int, to: Int) throws -> String {
         try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
@@ -114,7 +115,6 @@ extension WhoopStore {
                      AND srcChannel = 5 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w5,
                   (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
                      AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w7,
-                  EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND srcChannel IN (5, 6, 7)) AS w5owner,
                   (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
                      AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w4h,
                   COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice
@@ -142,8 +142,8 @@ extension WhoopStore {
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
             let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
-            return "s4|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
-                + "|w4h\(row["w4h"] as Int)|ownerTagged\(row["w5owner"] as Int)|registry\(registry)|rr5=\(strictRR)"
+            return "s5|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
+                + "|w4h\(row["w4h"] as Int)|registry\(registry)|rr5=\(strictRR)"
         }
     }
 }

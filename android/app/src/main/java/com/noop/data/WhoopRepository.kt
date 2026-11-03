@@ -508,6 +508,9 @@ class WhoopRepository(
     private val readoutRevisionLock = Any()
     private var readoutRevisions = ReadoutDataRevisions()
     private val stepRevisionIndex = StepDataRevisionIndex()
+    /** The per-window witnesses of the analyzeRecent pass, reused while their windows stand still (#2314).
+     *  See [StreamWitnessMemo]. */
+    private val witnessMemo = StreamWitnessMemo()
 
     constructor(db: WhoopDatabase) : this(
         dao = db.whoopDao(),
@@ -583,6 +586,8 @@ class WhoopRepository(
                 ecgWaveformPruneEveryRows = ecgWaveformPruneEveryRows,
             )
         }
+        // In-place R-R edits keep their rowids, so the witness memo learns of them here, once committed.
+        result.rrEditSpan?.let { StreamEditJournal.noteEdit("rrInterval", deviceId, it.first, it.last) }
         val counts = result.counts
         publishReadoutRevisions(counts)
         stepRevisionIndex.record(deviceId, result.insertedStepTimestamps, counts.steps)
@@ -606,6 +611,8 @@ class WhoopRepository(
     private data class InsertResult(
         val counts: InsertCounts,
         val insertedStepTimestamps: List<Long>,
+        /** The beats the source promotion or the fill flag may have changed in place, or null. */
+        val rrEditSpan: LongRange? = null,
     )
 
     private suspend fun insertWithinTransaction(
@@ -622,14 +629,20 @@ class WhoopRepository(
             dao.insertHr(streams.hr.map { HrSample(deviceId, it.ts, it.bpm) })
         val rrRows = assignRrSeq(deviceId, streams.rr)
         val rrIds = if (rrRows.isEmpty()) emptyList() else dao.insertRr(rrRows)
+        // The promotions and the fill flag do not say whether they changed a row, so every beat they were
+        // run for counts as edited: a spurious note only costs the witness memo one recount.
+        var editFrom = Long.MAX_VALUE
+        var editTo = Long.MIN_VALUE
         for ((index, row) in rrRows.withIndex()) {
             if (rrIds[index] == -1L && (row.srcChannel == RrSourceChannel.WHOOP5_HISTORICAL.code ||
                     row.srcChannel == RrSourceChannel.WHOOP5_STANDARD.code)) {
                 // Counts stay separate; the canonical observation owns this key's order and provenance.
                 dao.promoteWhoop5RrSource(row.deviceId, row.ts, row.rrMs, row.seq, row.ord!!, row.srcChannel)
+                editFrom = minOf(editFrom, row.ts); editTo = maxOf(editTo, row.ts)
             }
             if (rrIds[index] == -1L && row.srcChannel == RrSourceChannel.WHOOP4_HISTORICAL.code) {
                 dao.promoteWhoop4HistoricalRr(row.deviceId, row.ts, row.rrMs, row.seq, row.ord!!)
+                editFrom = minOf(editFrom, row.ts); editTo = maxOf(editTo, row.ts)
             }
         }
         // #2371: mark the strap's 500 ms fill beats in this batch's window. The batch's heart rate was written
@@ -641,7 +654,10 @@ class WhoopRepository(
         }.map { it.ts }
         val fillFrom = fillTs.minOrNull()
         val fillTo = fillTs.maxOrNull()
-        if (fillFrom != null && fillTo != null) dao.flagWhoop5RrFill(deviceId, fillFrom, fillTo)
+        if (fillFrom != null && fillTo != null) {
+            dao.flagWhoop5RrFill(deviceId, fillFrom, fillTo)
+            editFrom = minOf(editFrom, fillFrom); editTo = maxOf(editTo, fillTo)
+        }
         val evIds = if (streams.events.isEmpty()) emptyList() else
             dao.insertEvents(streams.events.map { EventRow(deviceId, it.ts, it.kind, it.payloadJSON) })
         val batIds = if (streams.battery.isEmpty()) emptyList() else
@@ -783,6 +799,7 @@ class WhoopRepository(
         return InsertResult(
             counts,
             newlyInsertedStepTimestamps(streams.steps.map { it.ts }, stepIds),
+            if (editFrom <= editTo) editFrom..editTo else null,
         )
     }
 
@@ -801,6 +818,23 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
+    /** [hrFingerprintWindow] answered from [witnessMemo] while no HR row reached the window since it was
+     *  last counted (#2314): analyzeRecent's per-day key and the cycle load key's [hrUnionFingerprint].
+     *  The value is the same (count, newestTs). Mirrors Swift WhoopStore.dayHrFingerprint. */
+    suspend fun dayHrFingerprint(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
+        memoizedWitness(StreamWitnessMemo.Kind.HR, deviceId, from, to) { hrFingerprintWindow(deviceId, from, to) }
+
+    private suspend fun <T : Any> memoizedWitness(
+        kind: StreamWitnessMemo.Kind,
+        deviceId: String,
+        from: Long,
+        to: Long,
+        variant: Any? = null,
+        count: suspend () -> T,
+    ): T = witnessMemo.witness(kind, deviceId, from, to, variant, { f ->
+        dao.streamLandings(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
+    }, count)
+
     /** Whether [deviceId] has ANY heart-rate row in the window, as a scalar EXISTS rather than a fetched
      *  row. The day-owner resolver's per-candidate-per-day probe; see [WhoopDao.hasHrInWindow]. */
     suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean {
@@ -815,11 +849,17 @@ class WhoopRepository(
 
     /** Per-day (device + window) gravity fingerprint as (count, newestTs) for the steps-calibration
      *  motion cache. Narrower than [dayStreamFingerprint] on purpose: dayMotionIntensity folds gravity
-     *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint. */
+     *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint.
+     *
+     *  Answered from [witnessMemo] while no gravity row reached the window since it was counted (#2314):
+     *  the steps loop asks for sixty days every pass, and the pair is persisted with the motion fold, so
+     *  the value itself stays the content-derived (count, newestTs). */
     suspend fun gravityFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> {
         // Timed here for the same budget reason as [hasHrInWindow]; see StoreProbeTally.
         val started = System.nanoTime()
-        val witness = dao.gravityWitnessInWindow(deviceId, from, to)
+        val witness = memoizedWitness(StreamWitnessMemo.Kind.GRAVITY, deviceId, from, to) {
+            dao.gravityWitnessInWindow(deviceId, from, to)
+        }
         com.noop.analytics.StoreProbeTally.recordGravityFp(System.nanoTime() - started)
         return witness.c to witness.m
     }
@@ -828,9 +868,17 @@ class WhoopRepository(
      *  HR, R-R, respiration, SpO2, gravity, steps, skin temp and events. [hrFingerprintWindow] cannot see a
      *  channel that lands after HR, and an offload commits its channels independently, so keyed on HR alone
      *  the reuse cache re-served an HRV-less scan for the rest of the process. See
-     *  DAY_STREAM_FINGERPRINT_SQL; mirrors Swift WhoopStore.dayStreamFingerprint. */
-    suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String =
-        dao.dayStreamFingerprint(deviceId, from, to) + "|rr5=${isWhoop5RrSource(deviceId)}"
+     *  DAY_STREAM_FINGERPRINT_SQL; mirrors Swift WhoopStore.dayStreamFingerprint.
+     *
+     *  The statement is answered from [witnessMemo] while the window stands still (#2314). It also quotes the
+     *  owner's registry row, which no stream frontier sees, so that row is read first and keys the memo: a
+     *  re-labelled owner is a new key and is counted again. The `rr5=` policy is decided fresh every call. */
+    suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String {
+        val owner = dao.pairedDevice(deviceId)
+        val streams = memoizedWitness(StreamWitnessMemo.Kind.DAY_STREAMS, deviceId, from, to,
+            variant = owner?.brand to owner?.model) { dao.dayStreamFingerprint(deviceId, from, to) }
+        return streams + "|rr5=${isWhoop5RrSource(deviceId)}"
+    }
 
     // MARK: - Server-derived caches (latest value wins on conflict)
 
@@ -1054,29 +1102,32 @@ class WhoopRepository(
         // back years) is never touched (v8.2.1). A day after `today` is future-dated and always purged.
         val minDay = java.time.Instant.ofEpochSecond(minTs)
             .atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
-        var deleted = 0
-        // (a) raw streams (all keyed by ts)
-        deleted += dao.pruneHrByTs(minTs, maxTs)
-        deleted += dao.prunePpgHrByTs(minTs, maxTs)
-        deleted += dao.pruneRrByTs(minTs, maxTs)
-        deleted += dao.pruneSkinTempByTs(minTs, maxTs)
-        deleted += dao.pruneStepByTs(minTs, maxTs)
-        deleted += dao.pruneRespByTs(minTs, maxTs)
-        deleted += dao.pruneGravityByTs(minTs, maxTs)
-        deleted += dao.pruneSpo2ByTs(minTs, maxTs)
-        // The instrumentation streams, missing from this list since they landed (see the DAO note).
-        deleted += dao.pruneSleepStateByTs(minTs, maxTs)
-        deleted += dao.prunePpgWaveformByTs(minTs, maxTs)
-        deleted += dao.pruneEcgWaveformByTs(minTs, maxTs)
-        deleted += dao.pruneV18AuxByTs(minTs, maxTs)
-        deleted += dao.pruneEventByTs(minTs, maxTs)
-        deleted += dao.pruneBatteryByTs(minTs, maxTs)
-        // (b) computed daily metrics (by day key) + sleep sessions (by startTs). The prune queries apply
-        // the far-past floor ONLY to `-noop` computed rows, so a multi-year import (bare "my-whoop")
-        // survives; future rows are always purged (v8.2.1).
-        deleted += dao.pruneDailyMetricByDay(today, minDay)
-        deleted += dao.pruneSleepSessionByTs(minTs, maxTs)
-        return deleted
+        // Deletes stream rows, so it is bracketed for the witness memo like DeviceRegistry.deleteDeviceData.
+        return StreamEditJournal.removing {
+            var deleted = 0
+            // (a) raw streams (all keyed by ts)
+            deleted += dao.pruneHrByTs(minTs, maxTs)
+            deleted += dao.prunePpgHrByTs(minTs, maxTs)
+            deleted += dao.pruneRrByTs(minTs, maxTs)
+            deleted += dao.pruneSkinTempByTs(minTs, maxTs)
+            deleted += dao.pruneStepByTs(minTs, maxTs)
+            deleted += dao.pruneRespByTs(minTs, maxTs)
+            deleted += dao.pruneGravityByTs(minTs, maxTs)
+            deleted += dao.pruneSpo2ByTs(minTs, maxTs)
+            // The instrumentation streams, missing from this list since they landed (see the DAO note).
+            deleted += dao.pruneSleepStateByTs(minTs, maxTs)
+            deleted += dao.prunePpgWaveformByTs(minTs, maxTs)
+            deleted += dao.pruneEcgWaveformByTs(minTs, maxTs)
+            deleted += dao.pruneV18AuxByTs(minTs, maxTs)
+            deleted += dao.pruneEventByTs(minTs, maxTs)
+            deleted += dao.pruneBatteryByTs(minTs, maxTs)
+            // (b) computed daily metrics (by day key) + sleep sessions (by startTs). The prune queries apply
+            // the far-past floor ONLY to `-noop` computed rows, so a multi-year import (bare "my-whoop")
+            // survives; future rows are always purged (v8.2.1).
+            deleted += dao.pruneDailyMetricByDay(today, minDay)
+            deleted += dao.pruneSleepSessionByTs(minTs, maxTs)
+            deleted
+        }
     }
 
     /** Manually ADD a missed sleep session , typically a daytime NAP the detector didn't pick up (#508).
@@ -1275,13 +1326,19 @@ class WhoopRepository(
      * re-read, and [com.noop.widget.StressWidgetRefresh.storedFingerprint]'s stored value. Two of these
      * that were free to disagree is what #2566 removed, so route a new caller here rather than adding
      * another.
+     *
+     * [fromMemo] answers each id from [witnessMemo] (#2314) with the same value, counting a window again
+     * only once an HR row reaches it. The cycle load cache passes it: all but its open cycle are closed,
+     * and counting them on every pass was a quarter of a post-backfill pass. The stress gates leave it
+     * off: the widget's worker has no process memory between wakes, and the Stress screen's window ends
+     * at now, which new heart rate moves anyway.
      */
-    suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long): String {
+    suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long, fromMemo: Boolean = false): String {
         // An explicit loop rather than joinToString: the per-id read suspends and that builder's lambda
         // is not a suspend function.
         val parts = ArrayList<String>()
         for (id in rawWhoopSourceIds(activeDeviceId)) {
-            val (count, maxTs) = hrFingerprintWindow(id, from, to)
+            val (count, maxTs) = if (fromMemo) dayHrFingerprint(id, from, to) else hrFingerprintWindow(id, from, to)
             parts += "$id=$count:$maxTs"
         }
         return parts.joinToString(",")

@@ -806,7 +806,7 @@ final class IntelligenceEngine: ObservableObject {
         // analyzeDay over it. After a big Apple Health import (a reporter's: 2.1 M rows, ~190 k HR/day) that
         // is multi-second, memory-heavy work, and the 15-minute steady-state tick (AppModel) repeats it
         // every tick even when NOTHING new landed — the ongoing lag/crash in #836. A cheap whole-history HR
-        // fingerprint (HR count+maxTs plus indexed row frontiers, no rows materialized) lets a NON-forced
+        // fingerprint (indexed row frontiers for every raw stream, no rows materialized) lets a NON-forced
         // caller short-circuit when the raw streams are unchanged since the last successful run. All-or-nothing: it
         // never produces a PARTIAL pass, so the window-wide reconciliation (stale-day eviction, detected-
         // workout delete) is untouched and no computed history is dropped. Every real update path (sync
@@ -1252,7 +1252,7 @@ final class IntelligenceEngine: ObservableObject {
                         }
                         skinAnchorResolvedOwners.insert(owner)
                     }
-                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to),
+                    if let fp = try? await store.dayHrFingerprint(deviceId: owner, from: from, to: to),
                        let streamFp = try? await store.dayStreamFingerprint(deviceId: owner, from: from, to: to) {
                         let key = AnalyzeRecentDayCache.cacheKey(
                             owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
@@ -1262,8 +1262,9 @@ final class IntelligenceEngine: ObservableObject {
                             // was scored from, and the HRV-less result is re-served for the rest of the
                             // session — force refresh included, since `force` only bypasses the whole-pass
                             // watermark gate above, never this one. Both reads are index-only aggregates
-                            // over the same `(deviceId, ts)` keys; a miss costs the 7 full stream reads
-                            // this gate exists to skip.
+                            // over the same `(deviceId, ts)` keys, answered from the store's memo while the
+                            // night stands still (#2314); a miss costs the 7 full stream reads this gate
+                            // exists to skip.
                             streams: streamFp + "|rrAlias5=\(activeWhoop5RR && owner == Repository.whoopSource)",
                             // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
                             // line is ever produced, so the flag describes nothing — but it would still
@@ -3059,6 +3060,13 @@ final class IntelligenceEngine: ObservableObject {
     /// `analyzeRecent` scored against. A non-forced tick whose current fingerprint equals this skips the
     /// 21-day rescore; cleared implicitly by any scoring-stream insert (the fingerprint moves), so it self-heals.
     private static let analyzeWatermarkKey = "noop.analyzeWatermark"
+
+    /// Forget the watermark so the next tick rescores although no scoring stream grew. A wipe of a device's
+    /// recordings needs it: the fingerprint reads each stream's rowid frontier, which a delete that spares a
+    /// table's newest row does not move, and the recent window still holds scores computed from what went.
+    static func forgetAnalyzeWatermark() {
+        UserDefaults.standard.removeObject(forKey: analyzeWatermarkKey)
+    }
 
     /// CAPTURE-B (#814/#799): build the universal `dayOwner …` self-diagnostic line VERBATIM (the Test
     /// Centre export parser depends on this exact shape). `readId` is the owner this day was read+scored

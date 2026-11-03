@@ -101,6 +101,17 @@ data class GravityWitness(
     val m: Long,
 )
 
+/** One row of [WhoopDao.streamLandings]: a table's rowid frontier [top] (with [deviceId] null), or the hull
+ *  [lo]..[hi] of the timestamps that landed for [deviceId] in one hour above the frontier last read. [tbl]
+ *  is the table's letter in [STREAM_LANDINGS_SQL]. Query result, not a table. */
+data class StreamLanding(
+    val tbl: String,
+    val deviceId: String?,
+    val lo: Long?,
+    val hi: Long?,
+    val top: Long?,
+)
+
 /** Aggregate HR over a time window, sample count + avg/max bpm. Query result of
  *  [WhoopDao.hrWindowStats], not a table. Used to derive a workout's HR from strap samples when
  *  the imported session carries none (#77). avg/max are null when n == 0. */

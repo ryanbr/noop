@@ -309,6 +309,19 @@ class DeviceRegistryTest {
         )
     }
 
+    // #2314: a wipe and an adoption delete or re-key stream rows, which the repository's witness memo cannot see
+    // from the rowid frontiers it reads, so each moves the edit journal's epoch before and after its write.
+    @Test
+    fun wipeAndAdoptionAreNotedForTheWitnessMemo() = runBlocking {
+        val reg = registryWith(seededDao())
+        val beforeWipe = StreamEditJournal.mark().epoch
+        reg.deleteDeviceData("my-whoop")
+        assertEquals(beforeWipe + 2, StreamEditJournal.mark().epoch)
+        val beforeAdoption = StreamEditJournal.mark().epoch
+        assertTrue(reg.adoptSerialIdentity("my-whoop", "whoop-serial"))
+        assertEquals(beforeAdoption + 2, StreamEditJournal.mark().epoch)
+    }
+
     @Test
     fun deleteDeviceDataForAppleHealthFansOutToEveryDeviceScopedTableAndKeepsRegistry() = runBlocking {
         // ah-delete (#616): "Remove Apple Health imported data" calls deleteDeviceData("apple-health").

@@ -10,10 +10,17 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 /** Kept as one compile-time constant so Room and the plain-JVM SQLite regression test execute the exact
- * same statement. Swift's twin lives in WhoopStore.analysisFingerprint(). */
+ * same statement. Swift's twin lives in WhoopStore.analysisFingerprint().
+ *
+ * Every stream, HR included, is read at its rowid frontier, one seek per table; the R-R source counts read only
+ * the `rrInterval_source_suspect` covering index. No stream index leads with ts, so a COUNT(*) or MAX(ts) over a
+ * stream walks its whole key index (for HR, 1.3 GB per call on a 3.85 GB store). The frontier holds across a
+ * duplicate offload because every stream inserts with IGNORE; a delete that spares a table's newest row does
+ * not move it, so the app forgets its watermark when it wipes a device's recordings. 'v6' reads HR at its
+ * frontier. */
 internal const val ANALYSIS_FINGERPRINT_SQL =
-    "SELECT 'v5|' || " +
-        "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
+    "SELECT 'v6|' || " +
+        "'h' || (SELECT COALESCE(MAX(rowid), 0) FROM hrSample) || '|' || " +
         "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
         "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
         "'x' || (SELECT COALESCE(MAX(rowid), 0) FROM respSample) || '|' || " +
@@ -60,9 +67,16 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  * from ONE walk (the `rr` derived table): each needs `srcChannel` or `tsSuspect`, which the key index does not
  * hold, so as five sub-selects every beat in the window paid its table lookup up to five times (44% of a warm
  * re-score's CPU on a 54-hour WHOOP 5 window). Same values; `Whoop5RRSqliteTest` compares it with the five
- * sub-selects it replaced. */
+ * sub-selects it replaced.
+ *
+ * Every arm of the statement is bounded by the window. The owner's R-R read policy is the one owner-wide input,
+ * and the repository's `|rr5=` suffix records it, so a first tagged beat that flips an unknown owner's policy
+ * still moves every cached day. For an owner the registry does not confirm (no row, or the legacy bare "WHOOP"
+ * model), that decision still probes the owner's R-R history for a tag. The key carries no owner-wide "has a
+ * tagged beat" EXISTS of its own: one walked the owner's R-R history with a table lookup per beat, once per
+ * cached day. */
 internal const val DAY_STREAM_FINGERPRINT_SQL =
-    "SELECT 's4|' || " +
+    "SELECT 's5|' || " +
         "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'r' || rr.rc || ':' || rr.rm || '|' || " +
@@ -81,7 +95,6 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "'|w5' || rr.w5 || '|w7' || rr.w7 || '|w4h' || rr.w4h || " +
-        "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
         "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent') " +
         "FROM (SELECT COUNT(CASE WHEN srcChannel IS NULL OR srcChannel <> 2 THEN 1 END) AS rc, " +
         "COALESCE(MAX(CASE WHEN srcChannel IS NULL OR srcChannel <> 2 THEN ts END), 0) AS rm, " +
@@ -89,6 +102,34 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "COUNT(CASE WHEN srcChannel = 8 THEN 1 END) AS w4h " +
         "FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
         "AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS rr"
+
+/** What landed in the raw streams since [StreamWitnessMemo] last looked: each table's rowid frontier (`deviceId`
+ * NULL), then the rows above `:<letter>` grouped by device and hour. Every delta arm is a rowid range seek, so a
+ * table with nothing new reads one page. `NOT INDEXED` keeps it one: left to itself the planner answers the
+ * `GROUP BY deviceId` by walking the narrower `(deviceId, ts)` key index end to end, a whole-stream read on every
+ * pass. The letters are [ANALYSIS_FINGERPRINT_SQL]'s. Swift runs the same statement inline in
+ * StreamWitnessMemo.refresh(); `Whoop5RRSqliteTest` runs it against the plain-JVM fixture. */
+internal const val STREAM_LANDINGS_SQL =
+    "SELECT 'h' AS tbl, NULL AS deviceId, NULL AS lo, NULL AS hi, (SELECT COALESCE(MAX(rowid), 0) FROM hrSample) AS top " +
+        "UNION ALL SELECT 'h', deviceId, MIN(ts), MAX(ts), NULL FROM hrSample NOT INDEXED WHERE rowid > :h GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'p', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) " +
+        "UNION ALL SELECT 'p', deviceId, MIN(ts), MAX(ts), NULL FROM ppgHrSample NOT INDEXED WHERE rowid > :p GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'r', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) " +
+        "UNION ALL SELECT 'r', deviceId, MIN(ts), MAX(ts), NULL FROM rrInterval NOT INDEXED WHERE rowid > :r GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'x', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM respSample) " +
+        "UNION ALL SELECT 'x', deviceId, MIN(ts), MAX(ts), NULL FROM respSample NOT INDEXED WHERE rowid > :x GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'g', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) " +
+        "UNION ALL SELECT 'g', deviceId, MIN(ts), MAX(ts), NULL FROM gravitySample NOT INDEXED WHERE rowid > :g GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 's', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) " +
+        "UNION ALL SELECT 's', deviceId, MIN(ts), MAX(ts), NULL FROM sleepStateSample NOT INDEXED WHERE rowid > :s GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'e', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM event) " +
+        "UNION ALL SELECT 'e', deviceId, MIN(ts), MAX(ts), NULL FROM event NOT INDEXED WHERE rowid > :e GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'o', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) " +
+        "UNION ALL SELECT 'o', deviceId, MIN(ts), MAX(ts), NULL FROM spo2Sample NOT INDEXED WHERE rowid > :o GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 't', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) " +
+        "UNION ALL SELECT 't', deviceId, MIN(ts), MAX(ts), NULL FROM skinTempSample NOT INDEXED WHERE rowid > :t GROUP BY deviceId, ts / 3600 " +
+        "UNION ALL SELECT 'z', NULL, NULL, NULL, (SELECT COALESCE(MAX(rowid), 0) FROM stepSample) " +
+        "UNION ALL SELECT 'z', deviceId, MIN(ts), MAX(ts), NULL FROM stepSample NOT INDEXED WHERE rowid > :z GROUP BY deviceId, ts / 3600"
 
 /** The Oura beat channels [RR_INTERVALS_SQL] chooses between, as a SQL list: GREEN_QUALITY (0x80) on
  *  one side, and the amplitude family on the other, IBI_AMPLITUDE (0x60) + IBI_BARE (0x44). Those two
@@ -1410,6 +1451,11 @@ interface WhoopDao : DeviceRegistryDao {
     // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.
     @Query(DAY_STREAM_FINGERPRINT_SQL)
     suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String
+    // #2314: each raw stream's rowid frontier and what landed above the one last read, for the witness memo
+    // in WhoopRepository. Every argument is a frontier; Long.MAX_VALUE asks for the frontiers alone.
+    @Query(STREAM_LANDINGS_SQL)
+    suspend fun streamLandings(h: Long, p: Long, r: Long, x: Long, g: Long, s: Long, e: Long, o: Long,
+                               t: Long, z: Long): List<StreamLanding>
     @Query("SELECT COUNT(*) FROM rrInterval") suspend fun countRr(): Int
     @Query("SELECT COUNT(*) FROM event") suspend fun countEvents(): Int
     @Query("SELECT COUNT(*) FROM battery") suspend fun countBattery(): Int

@@ -1,4 +1,5 @@
 import XCTest
+import GRDB
 import WhoopProtocol
 @testable import WhoopStore
 
@@ -82,6 +83,19 @@ final class ReadTests: XCTestCase {
         XCTAssertTrue(withGravity.contains("|g1|"))
     }
 
+    /// HR is witnessed by its rowid frontier, which holds only because a duplicate insert adds no row: a re-sent
+    /// offload must not move the watermark and re-score the whole recent window. A new second still moves it.
+    func testAnalysisFingerprintHoldsForADuplicateHrOffload() async throws {
+        let store = try await seeded()
+        let before = try await store.analysisFingerprint()
+        _ = try await store.insert(Streams(hr: [HRSample(ts: 300, bpm: 62)]), deviceId: "dev1")
+        let afterDuplicate = try await store.analysisFingerprint()
+        XCTAssertEqual(before, afterDuplicate)
+        _ = try await store.insert(Streams(hr: [HRSample(ts: 400, bpm: 63)]), deviceId: "dev1")
+        let afterNew = try await store.analysisFingerprint()
+        XCTAssertNotEqual(before, afterNew)
+    }
+
     /// #29: the per-DAY twin of the test above. `analysisFingerprint` answers "did anything change
     /// anywhere"; the `analyzeRecent` reuse cache asks "did THIS night's scored input change", and keyed on
     /// HR alone it could not see a channel that landed after HR — so a night scored from HR alone kept
@@ -136,6 +150,52 @@ final class ReadTests: XCTestCase {
         _ = try await store.insert(Streams(rr: [RRInterval(ts: 5000, rrMs: 810)]), deviceId: "dev1")
         let afterOutsideWindow = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
         XCTAssertEqual(base, afterOutsideWindow, "an R-R beat outside the window is not this night's input")
+    }
+
+    /// Both witnesses run on every post-offload pass and every idle tick, the day witness once per cached day,
+    /// so neither may walk a whole stream: no stream index leads with `ts`, so a `COUNT(*)` or `MAX(ts)` over a
+    /// stream walks its whole key index. The global R-R source counts pass: each reads one channel of the
+    /// `rrInterval_source_suspect` covering index. The owner is a registry-confirmed WHOOP 5: for an owner the
+    /// registry does not confirm, `rr5=` still probes the owner's R-R history for a tag.
+    func testFingerprintsNeverWalkAWholeStream() async throws {
+        let store = try await seeded()
+        try DeviceRegistryStore(dbQueue: store.registryWriter).add(PairedDevice(
+            id: "dev1", brand: "WHOOP", model: "5.0 MG", sourceKind: .liveBLE, capabilities: [.hr],
+            status: .active, addedAt: 1, lastSeenAt: 1))
+        let global = try await queryPlans(store) { _ = try await store.analysisFingerprint() }
+        let globalReads = global.filter { Self.streamTable(in: $0) != nil }
+        XCTAssertTrue(globalReads.contains { $0.contains("hrSample") }, "no HR read in the plan: \(global)")
+        for line in globalReads {
+            XCTAssertFalse(line.hasPrefix("SCAN "), "the watermark walks a whole stream: \(line)")
+            XCTAssertFalse(line.contains(" USING ") && !line.contains("("),
+                           "an unconstrained index walk (MAX over a non-leading column): \(line)")
+        }
+        let day = try await queryPlans(store) {
+            _ = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        }
+        let dayReads = day.filter { Self.streamTable(in: $0) != nil }
+        XCTAssertTrue(dayReads.contains { $0.contains("rrInterval") && $0.contains("ts>") },
+                      "no R-R window read in the plan: \(day)")
+        for line in dayReads {
+            XCTAssertTrue(line.contains("ts>") || Self.isRowidSeek(line),
+                          "a day witness read is bounded by neither the night nor the rowid frontier: \(line)")
+        }
+    }
+
+    /// A read `StreamWitnessMemo` answers from a table's right edge: `MAX(rowid)` (`SEARCH t`, no index) or
+    /// the rows above the last frontier (`SEARCH t USING INTEGER PRIMARY KEY (rowid>?)`).
+    static func isRowidSeek(_ line: String) -> Bool {
+        guard line.hasPrefix("SEARCH ") else { return false }
+        return !line.contains(" USING ") || line.hasSuffix("USING INTEGER PRIMARY KEY (rowid>?)")
+    }
+
+    private static let streamTables = Set(WhoopStore.rawTableKeys.map { $0.1 })
+
+    /// The raw stream a query-plan line reads (`SEARCH rrInterval USING …`, `SCAN hrSample …`), if any.
+    static func streamTable(in line: String) -> String? {
+        let words = line.split(separator: " ")
+        guard words.count >= 2, words[0] == "SEARCH" || words[0] == "SCAN" else { return nil }
+        return streamTables.contains(String(words[1])) ? String(words[1]) : nil
     }
 
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
@@ -473,4 +533,32 @@ final class ReadTests: XCTestCase {
         for (k, v) in negative { XCTAssertGreaterThan(v, 0, "\(k) must still estimate") }
     }
 
+}
+
+extension XCTestCase {
+    /// `EXPLAIN QUERY PLAN` of every statement `body` runs. The in-memory store is one `DatabaseQueue`, so a
+    /// trace installed through `registryWriter` sees the store's own reads, with their arguments inlined.
+    func queryPlans(_ store: WhoopStore, _ body: () async throws -> Void) async throws -> [String] {
+        let captured = CapturedSQL()
+        try await store.registryWriter.writeWithoutTransaction { db in
+            db.trace(options: .statement) { event in
+                if case let .statement(statement) = event { captured.append(statement.expandedSQL) }
+            }
+        }
+        try await body()
+        return try await store.registryWriter.writeWithoutTransaction { db in
+            db.trace(options: [], nil)
+            return try captured.all.flatMap { sql in
+                try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + sql).map { $0["detail"] as String }
+            }
+        }
+    }
+}
+
+/// Statements a trace saw. GRDB calls the trace on the store's queue, the test reads it after.
+private final class CapturedSQL: @unchecked Sendable {
+    private let lock = NSLock()
+    private var statements: [String] = []
+    func append(_ sql: String) { lock.lock(); statements.append(sql); lock.unlock() }
+    var all: [String] { lock.lock(); defer { lock.unlock() }; return statements }
 }

@@ -255,6 +255,9 @@ class IntelligenceEngineJacocoBudgetTest {
                     events.add("gravityFp")
                     GravityWitness(0, 0L)
                 }
+                // The witness memo's frontier read (#2314), left out of the sequence. Every invocation builds a
+                // fresh repository, so its memo starts cold and each day's witness is still read once.
+                "streamLandings" -> emptyList<Any>()
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }
         } as WhoopDao

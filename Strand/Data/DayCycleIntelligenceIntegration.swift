@@ -205,11 +205,13 @@ import WhoopStore
             // for all 21 cycles, although only the open one gains samples between syncs. On a replayed
             // phone database this was the costliest step of a pass in which every night was otherwise
             // reused (6–12 s of a 16 s pass). The index-only count and newest timestamp per owner witness
-            // the heart rate the same way the day cache does, so a closed cycle is scored once.
+            // the heart rate the same way the day cache does, so a closed cycle is scored once. Counting
+            // that witness for all 21 cycles was itself a quarter of a post-backfill pass, so it comes from
+            // the store's witness memo (#2314), which counts a cycle again only once an HR row reaches it.
             var hrWitness: [String] = []
             if hrEndInclusive >= window.onset {
                 for owner in owners {
-                    let fp = try? await store.hrFingerprint(deviceId: owner, from: window.onset, to: hrEndInclusive)
+                    let fp = try? await store.dayHrFingerprint(deviceId: owner, from: window.onset, to: hrEndInclusive)
                     hrWitness.append("\(owner)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")")
                 }
             }

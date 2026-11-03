@@ -950,8 +950,8 @@ object IntelligenceEngine {
             // WHOOP owner (4.0 or 5/MG) — a WHOOP always streams gravity, so its providedSleep is empty and
             // the reuse is byte-identical, whereas a ring's providedSleep could change a day without an HR
             // move (the un-coalesced family resolver returns null for non-WHOOP, so a ring is never cached).
-            // The per-day key folds the night's HR fingerprint (the SAME witness the whole-pass gate at the
-            // top trusts) and, for a 4.0, the window-wide skin anchor (a 5/MG banks centidegrees directly,
+            // The per-day key folds the night's HR fingerprint (count + newest timestamp over the night)
+            // and, for a 4.0, the window-wide skin anchor (a 5/MG banks centidegrees directly,
             // no anchor). Pass-global inputs (profile/baselines1/toggles) already dropped the whole cache
             // above on change. A miss falls straight through to the identical full path.
             var dayCacheKey: String? = null
@@ -3004,12 +3004,13 @@ object IntelligenceEngine {
     ): Boolean = repo.isWhoop5RrSource(candidates.firstOrNull { it.second == 0 }?.first ?: fallback)
 
     /** Keep both stream witnesses and the R-R alias policy in the nightly cache key (#29).
-     * The two database awaits live here to preserve the scoring method's instrumentation budget. */
+     * The two database awaits live here to preserve the scoring method's instrumentation budget. Both are
+     * answered from the repository's witness memo while the night stands still (#2314). */
     private suspend fun rrAwareDayCacheKey(
         repo: com.noop.data.WhoopRepository, owner: String, from: Long, to: Long,
         skinAnchor: Double?, unlabelledAliasOfWhoop5: Boolean, hrvWindowDetail: Boolean,
     ): String {
-        val (count, maxTs) = repo.hrFingerprintWindow(owner, from, to)
+        val (count, maxTs) = repo.dayHrFingerprint(owner, from, to)
         val streams = repo.dayStreamFingerprint(owner, from, to)
         return AnalyzeRecentDayCache.cacheKey(owner, count, maxTs, skinAnchor,
             streams = streams + "|rrAlias5=$unlabelledAliasOfWhoop5", hrvWindowDetail = hrvWindowDetail)

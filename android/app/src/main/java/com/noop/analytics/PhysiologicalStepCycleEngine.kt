@@ -219,7 +219,7 @@ internal object PhysiologicalStepCycleEngine {
                 ?: profile.age.takeIf { it > 0 }?.let { StrainScorer.tanakaHRmax(it.toDouble()) }
             val loadKey = loadCacheKey(
                 window.onset, window.endExclusive,
-                repo.hrUnionFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L),
+                repo.hrUnionFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L, fromMemo = true),
                 restingHr, effectiveMaxHr, effortMethod, profile,
             )
             val load = loadCache[window.sleepId]?.takeIf { it.key == loadKey } ?: run {
