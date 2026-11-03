@@ -418,7 +418,7 @@ object Metrics {
     // rhythm instead of a bare `20.dp` literal repeated per scaffold (and Today no longer injects ad-hoc
     // Spacer rows that broke that rhythm). One token = uniform, consistent gaps across the screens.
     val screenRowSpacing = 20.dp
-    val screenPadding = 24.dp
+    val screenPadding = 16.dp
     val tileHeight = 108.dp   // every metric tile is this tall
     val chartHeight = 220.dp
     val dialogScrollableMaxHeight = 560.dp

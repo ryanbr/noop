@@ -59,7 +59,7 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
                    alignment: hSizeClass == .regular ? .center : .leading)
             .frame(maxWidth: .infinity, alignment: .center)
             #else
-            .padding(28)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             #endif
         }

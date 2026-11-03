@@ -1272,7 +1272,7 @@ fun ScreenScaffold(
     // supplies its own compact header (Today, title = null) can pass a smaller value to tighten the
     // gap above its first element — Compose forbids negative padding, so this is how iOS's
     // `.padding(top: -16)` tightening is expressed.
-    topPadding: Dp = 28.dp,
+    topPadding: Dp = 16.dp,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     // Optional full-bleed view drawn behind the scroll content at the TOP of the screen (e.g. Today's
@@ -1308,8 +1308,8 @@ fun ScreenScaffold(
                 // backdrop paints behind and around the glass, while the scrolling content still stops
                 // clear of the bar. Zero when the overlay is off, so the slot layout is untouched.
                 .padding(
-                    start = 28.dp,
-                    end = 28.dp,
+                    start = 16.dp,
+                    end = 16.dp,
                     top = topPadding,
                     bottom = 28.dp + BottomBarStyleStore.barHeightForContent(),
                 ),
@@ -1409,7 +1409,7 @@ fun LazyScreenScaffold(
     // Mirrors ScreenScaffold: a screen with a scene-backed header (Today-style) can tighten the gap
     // above its first row, and supply leading/trailing header actions + a screen-level scene backdrop.
     // All defaulted, so the existing flat callers (Intelligence) are byte-for-byte untouched.
-    topPadding: Dp = 28.dp,
+    topPadding: Dp = 16.dp,
     // The inter-row vertical spacing between top-level items. Defaults to the shared `screenRowSpacing`
     // (20dp) so every existing caller is byte-for-byte untouched; the liquid Today passes a tighter value
     // to match the iOS Today's compact `VStack(spacing: 12)` section rhythm (the maintainer's "iOS is
@@ -1474,7 +1474,7 @@ fun LazyScreenScaffold(
         LazyColumn(
             modifier = listModifier,
             state = listState,
-            contentPadding = PaddingValues(start = 28.dp, top = topPadding, end = 28.dp, bottom = 28.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = topPadding, end = 16.dp, bottom = 28.dp),
             // #765: the shared inter-card spacing token by default (Today/Explore + the eager screens share
             // one uniform card rhythm); a caller may pass a tighter [rowSpacing] (the liquid Today does, for
             // the iOS-compact section rhythm).
