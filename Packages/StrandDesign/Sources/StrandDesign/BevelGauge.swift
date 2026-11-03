@@ -2,13 +2,15 @@ import SwiftUI
 
 // MARK: - BevelGauge (NEW) — the layered ring gauge primitive
 //
-// The shared instrument behind RecoveryRing and StrainGauge: a 240° open gauge with
-//   • a soft frosted inner disc (subtle radial fill, hairline rim)
-//   • a faint full-span track ring carved from `surfaceInset` (the Titanium "well")
-//   • a gradient-stroked progress arc (AngularGradient over the domain ramp:
-//     Charge=green, Effort=blue, Rest=slate-blue — caller-supplied score tokens; WHOOP, no gold)
-//   • a clean end-cap dot at the arc tip (small white core, very faint shadow) — NO outer bloom
-//   • a centred SF Pro **Rounded** bold number with an "of N" caption + state word
+// The shared instrument behind RecoveryRing and StrainGauge: a full-circle score ring with
+//   • a deep full-circle track (`NoopVisualStyle.ringTrack`, darker than the page — the "well")
+//   • a SOLID progress arc in the value's colour (`tipColor`), lightly graded from 85% to full opacity,
+//     drawn clockwise from 12 o'clock with rounded caps
+//   • NO inner disc, NO end-cap bead, NO outer bloom — a flat dashboard ring
+//   • a centred SF Pro condensed bold number with an "of N" caption + state word
+//
+// `stops` is still accepted (callers pass their domain ramp) but the arc is one colour, the colour of
+// the value, so the ring, the state word and every other read-out of the score agree.
 //
 // It owns no domain logic — callers pass the fraction, the stroke gradient, the tip
 // colour, and the centre read-out strings. RecoveryRing / StrainGauge keep their own
@@ -67,22 +69,19 @@ public struct BevelGauge: View {
         self.bloomActive = bloomActive
     }
 
-    private let arcSpanDegrees: Double = 240
-    private var startAngle: Angle { .degrees(150) }
-    private var endAngle: Angle { .degrees(150 + arcSpanDegrees) }
-
-    private var gradient: Gradient { Gradient(stops: stops) }
+    private let arcSpanDegrees: Double = 360
+    private var startAngle: Angle { .degrees(-90) }
 
     public var body: some View {
         ZStack {
-            // STATIC BACKDROP: the frosted inner disc + the faint full-span track. Neither depends on
+            // STATIC BACKDROP: the full-circle track. It does not depend on
             // `animatedFraction`, so SwiftUI/CoreAnimation already caches it as an unchanged layer and
             // does NOT re-render it when only the arc animates. No .drawingGroup() — a per-instance
             // offscreen flatten cost more than it saved (it was part of the v7.0.2 lag regression).
             staticBackdrop
                 .frame(width: diameter, height: diameter)
 
-            // LIVE LAYER: the gradient progress arc + end-cap, kept OUTSIDE the drawingGroup so the
+            // LIVE LAYER: the progress arc, kept OUTSIDE the drawingGroup so the
             // shape's `animatableData` still animates smoothly (a drawingGroup would freeze it).
             animatedArc
 
@@ -91,66 +90,25 @@ public struct BevelGauge: View {
         .frame(width: diameter, height: diameter)
     }
 
-    /// The non-animating backdrop: frosted disc behind the arc + the faint full-span track "well".
+    /// The non-animating backdrop: the deep full-circle track "well" the score arc fills.
     private var staticBackdrop: some View {
-        ZStack {
-            innerDisc
-            // Faint full-span track — the inset "well" the score arc sits in.
-            arcShape(to: 1.0)
-                .stroke(StrandPalette.surfaceInset,
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-        }
+        arcShape(to: 1.0)
+            .stroke(NoopVisualStyle.ringTrack,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
     }
 
-    /// The live layer: the filled gradient arc + its clean end-cap dot (both driven by animatedFraction).
+    /// The live layer: the filled arc in the value's colour (driven by animatedFraction).
+    ///
+    /// NO outer bloom and no end-cap bead: the colour against the dark track carries the arc edge.
+    /// `bloomActive` stays in the signature (callers still pass it) but no longer renders.
     private var animatedArc: some View {
-        ZStack {
-            // Filled gradient arc.
-            arcShape(to: animatedFraction)
-                .stroke(
-                    AngularGradient(gradient: gradient, center: .center,
-                                    startAngle: startAngle, endAngle: endAngle),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-
-            // Clean end-cap dot at the arc tip.
-            if animatedFraction > 0.001 { endCap }
-        }
-    }
-
-    // Frosted inner disc behind the arc — gives the gauge a glassy "well".
-    private var innerDisc: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [StrandPalette.surfaceInset.opacity(0.0), StrandPalette.surfaceInset.opacity(0.55)],
-                    center: .center, startRadius: diameter * 0.10, endRadius: diameter * 0.5
-                )
+        arcShape(to: animatedFraction)
+            .stroke(
+                LinearGradient(colors: [tipColor.opacity(0.85), tipColor],
+                               startPoint: .leading, endPoint: .trailing),
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
-            .overlay(Circle().strokeBorder(StrandPalette.hairline.opacity(0.5), lineWidth: 1))
-            .padding(lineWidth * 1.4)
-    }
-
-    // Design Reset (WHOOP): NO outer bloom. Fill-contrast carries the arc edge, so the ring reads as a
-    // clean, crisp Material instrument rather than a skeuomorphic glow. `bloomActive` stays in the
-    // signature (callers still pass it) but no longer renders. The track + disc now live in
-    // `staticBackdrop` and the filled arc + tip in `animatedArc` (see `body`).
-
-    private var endCap: some View {
-        GeometryReader { geo in
-            let radius = (min(geo.size.width, geo.size.height) - lineWidth) / 2
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-            let tipAngle = startAngle.radians + (arcSpanDegrees * .pi / 180) * animatedFraction
-            let pt = CGPoint(x: center.x + radius * cos(tipAngle),
-                             y: center.y + radius * sin(tipAngle))
-            // Clean Material tip: a single small solid dot at the arc end. The large
-            // blurred halo is gone; only a very faint shadow keeps it from looking pasted on.
-            Circle().fill(StrandPalette.tipCore)
-                .frame(width: lineWidth * 0.7, height: lineWidth * 0.7)
-                .overlay(Circle().fill(tipColor).opacity(0.35))
-                .shadow(color: tipColor.opacity(0.35), radius: lineWidth * 0.18)
-                .position(pt)
-        }
+            .opacity(animatedFraction > 0.001 ? 1 : 0)
     }
 
     private var centerLabel: some View {

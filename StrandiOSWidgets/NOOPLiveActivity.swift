@@ -24,7 +24,7 @@ struct NOOPLiveActivity: Widget {
                     Text(context.attributes.title)
                         .font(.caption).foregroundStyle(StrandPalette.textSecondary)
                     Text("\(Self.shownBpm(context).map(String.init) ?? "–") bpm")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .font(.system(size: 26, weight: .bold, design: .default))
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
                 Spacer()

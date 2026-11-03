@@ -67,7 +67,7 @@ struct RootTabView: View {
 
     /// V8 liquid redesign is the default Today; the Settings toggle lets a user fall back to the classic
     /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
-    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
+    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = false
 
     /// The Today tab root, honouring the liquid/classic preference.
     @ViewBuilder private var todayTabRoot: some View {
@@ -345,7 +345,7 @@ struct RootTabView: View {
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a
             // destination registered in THIS sheet's stack to resolve.
             .tabRouteDestinations()
-            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .background(NoopCanvasBackground().ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             // #1027: same fix as quickScreen — the pillar screens draw the full-bleed liquid sky, so a
             // transparent nav bar keeps it edge-to-edge instead of an opaque band clipping the top on scroll.
@@ -395,7 +395,7 @@ struct RootTabView: View {
     private func quickScreen<V: View>(_ view: V) -> some View {
         NavigationStack {
             view
-                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .background(NoopCanvasBackground().ignoresSafeArea())
                 .navigationBarTitleDisplayMode(.inline)
                 // #1027: these screens draw a full-bleed liquid sky (ScreenScaffold topBackground) that runs
                 // edge-to-edge under a transparent bar — exactly how the tab roots present it. An OPAQUE
@@ -417,7 +417,7 @@ struct RootTabView: View {
     private var devicesScreen: some View {
         NavigationStack {
             DevicesView()
-                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .background(NoopCanvasBackground().ignoresSafeArea())
                 .navigationBarTitleDisplayMode(.inline)
                 // #1027: same fix as quickScreen — Devices draws the full-bleed liquid sky, so a transparent
                 // nav bar keeps it edge-to-edge instead of an opaque band clipping the top on scroll.
@@ -443,7 +443,7 @@ struct RootTabView: View {
         // TabRoute values, registered here ONCE per stack (a double registration double-pushes, #38).
         NavigationStack(path: path) {
             view
-                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .background(NoopCanvasBackground().ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
         }
@@ -527,7 +527,7 @@ struct RootTabView: View {
             // identical at rest — the destination's own surfaceBase background shows through the bar.
             .navigationDestination(for: MoreDestination.self) { route in
                 route.destination
-                    .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                    .background(NoopCanvasBackground().ignoresSafeArea())
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.hidden, for: .navigationBar)
             }

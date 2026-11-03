@@ -189,7 +189,7 @@ struct LiquidTodayView: View {
     /// Day-cycle scene backdrop (#698). Default ON. When off, the liquid Today drops the sky for the plain
     /// dark canvas — parity with Android and the classic TodayView, which already honour this pref. Mirrors
     /// Kotlin `NoopPrefs.showDayCycleBackground`.
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
+    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = SceneBackgroundPrefs.defaultEnabled
     /// Custom background image (#custom-background): when active it overrides the sky in the backdrop below.
     @ObservedObject private var backgroundStore = BackgroundImageStore.shared
 
@@ -346,8 +346,8 @@ struct LiquidTodayView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     scene
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
-                    // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
-                    // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
+                    // the default Today on Android and an opt-in on Apple (RootTabView.swift's
+                    // liquidTodayEnabled, RootView.swift likewise), so while this was unmounted a RAISED health alert had no
                     // home-screen surface at all: it survived only as one push at the moment it fired
                     // (IllnessNotifier.post) and as HeadsUpCard two taps deep in More → Health. Pinned ABOVE
                     // the reorderable block — the same position classic TodayView uses on both platforms and
@@ -1621,7 +1621,7 @@ struct LiquidTodayView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Data

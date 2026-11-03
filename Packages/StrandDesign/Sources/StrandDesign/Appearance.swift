@@ -88,8 +88,8 @@ public extension View {
 /// `accent`/`accentHover`/`accentMuted`/`focusRing` accessors in `StrandPalette` branch on it. Mirror in
 /// Kotlin via `Palette.accentChoice` + `NoopPrefs.accentColor`/`accentCustomHex`.
 public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
-    case mint        // the brand default (#1068 NoopVisualStyle.mint world)
-    case whoopBlue   // the classic WHOOP link blue
+    case mint        // the earlier brand default (#1068 NoopVisualStyle.mint world)
+    case whoopBlue   // strain blue: the default, matching the slate dashboard theme
     case custom      // a user-picked colour (hex stored separately)
 
     public var id: String { rawValue }
@@ -107,13 +107,19 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public static func resolve(_ raw: String) -> AccentColor { AccentColor(rawValue: raw) ?? .mint }
+    /// The accent a fresh install uses (and an unreadable stored value falls back to).
+    public static let defaultChoice: AccentColor = .whoopBlue
+
+    public static func resolve(_ raw: String) -> AccentColor { AccentColor(rawValue: raw) ?? defaultChoice }
+
+    /// The one blue the `.whoopBlue` accent resolves to (fill, link, focus ring).
+    static let blue = Color(light: "#007FC8", dark: "#0093E7")
 
     /// The chrome accent. `.custom` resolves the stored hex at read time.
     public var accent: Color {
         switch self {
         case .mint:      return NoopVisualStyle.mint
-        case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0")
+        case .whoopBlue: return AccentColor.blue
         case .custom:    return Color(hex: StrandPalette.customAccentHex)
         }
     }
@@ -122,7 +128,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
     public var accentHover: Color {
         switch self {
         case .mint:      return NoopVisualStyle.mintGlow
-        case .whoopBlue: return Color(light: "#3A6FC0", dark: "#8FBEEC")
+        case .whoopBlue: return Color(light: "#2B9AD9", dark: "#4DA8FF")
         case .custom:    return AccentColor.lighten(StrandPalette.customAccentHex)
         }
     }
@@ -132,7 +138,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
     public var accentMuted: Color {
         switch self {
         case .mint:      return NoopVisualStyle.mintDeep.opacity(0.18)
-        case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0").opacity(0.18)
+        case .whoopBlue: return AccentColor.blue.opacity(0.18)
         case .custom:    return Color(hex: StrandPalette.customAccentHex).opacity(0.18)
         }
     }
@@ -166,10 +172,10 @@ public extension View {
 /// control simply resolves to `.custom`. Theme MODE (System/Light/Dark) is independent and never bundled.
 /// Twin of Kotlin `ThemePreset`.
 public enum ThemePreset: String, CaseIterable, Identifiable, Sendable {
-    case mint       // brand default: mint accent, Titanium charts, backdrop on, solid cards
+    case mint       // mint accent, Titanium charts, backdrop on, solid cards
     case ocean      // WHOOP-blue accent, Titanium charts, backdrop on, solid
     case classic    // WHOOP-blue accent, Classic throwback charts, backdrop on, solid
-    case midnight   // mint accent, Titanium charts, backdrop OFF (plain canvas), solid
+    case midnight   // the default: blue accent, Titanium charts, backdrop OFF (plain slate canvas), solid
     case frosted    // mint accent, Titanium charts, backdrop on, translucent cards
     case custom     // sentinel: the live combination matches no preset
 
@@ -201,7 +207,7 @@ public enum ThemePreset: String, CaseIterable, Identifiable, Sendable {
         case .mint:     return Recipe(accent: .mint,      chart: .titanium, backdrop: true,  cardOpacity: 100)
         case .ocean:    return Recipe(accent: .whoopBlue, chart: .titanium, backdrop: true,  cardOpacity: 100)
         case .classic:  return Recipe(accent: .whoopBlue, chart: .classic,  backdrop: true,  cardOpacity: 100)
-        case .midnight: return Recipe(accent: .mint,      chart: .titanium, backdrop: false, cardOpacity: 100)
+        case .midnight: return Recipe(accent: .whoopBlue, chart: .titanium, backdrop: false, cardOpacity: 100)
         case .frosted:  return Recipe(accent: .mint,      chart: .titanium, backdrop: true,  cardOpacity: 85)
         case .custom:   return nil
         }
@@ -210,7 +216,7 @@ public enum ThemePreset: String, CaseIterable, Identifiable, Sendable {
     /// The presets a user can pick (everything except the derived `.custom` sentinel).
     public static var selectable: [ThemePreset] { allCases.filter { $0 != .custom } }
 
-    public static func resolve(_ raw: String) -> ThemePreset { ThemePreset(rawValue: raw) ?? .mint }
+    public static func resolve(_ raw: String) -> ThemePreset { ThemePreset(rawValue: raw) ?? .midnight }
 
     /// Which preset the live prefs correspond to, or `.custom` when none match.
     public static func matching(accent: AccentColor, chart: ChartStyle,
@@ -290,8 +296,10 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 /// they stay perfectly readable. Read in `TodayView` via `@AppStorage(SceneBackgroundPrefs.enabledKey)`
 /// and toggled from Settings → Appearance. Mirror in Kotlin via `NoopPrefs.showDayCycleBackground`.
 public enum SceneBackgroundPrefs {
-    /// The @AppStorage key shared by TodayView and the Settings toggle. Default value is `true`.
+    /// The @AppStorage key shared by TodayView and the Settings toggle. Default value is `defaultEnabled`.
     public static let enabledKey = "noop.showDayCycleBackground"
+    /// Off by default: the page is the plain slate gradient; the day-cycle sky is opt-in from Settings.
+    public static let defaultEnabled = false
 }
 
 /// Card-surface opacity as a PERCENT (0 = fully see-through, 100 = solid; default 100). `FrostedCardSurface`

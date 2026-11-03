@@ -102,7 +102,7 @@ final class BodyClockDialLayoutTests: XCTestCase {
     /// accessibility sizes straight into the ticks, which is the collision this whole change removes.
     func testTheHourNumeralsDoNotScaleWithDynamicType() throws {
         let src = try Self.cardSource()
-        XCTAssertTrue(src.contains(".font(.system(size: 10, design: .rounded))"),
+        XCTAssertTrue(src.contains(".font(.system(size: 10, design: .default))"),
                       "dial numerals need a fixed point size, not a Dynamic Type text style")
         // CODE only. The first cut scanned the whole file, so the comment ABOVE the numerals, which
         // names `StrandFont.caption` to explain why it is not used, failed the assertion that it is not

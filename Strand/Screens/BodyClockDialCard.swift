@@ -215,7 +215,7 @@ struct BodyClockDialCard: View {
             // overload. The iOS leg compiled it happily on its iOS 17 floor, which is why only the macOS
             // leg caught it, and why `swiftc -parse` could not: it never resolves a symbol.
             var numeral = ctx.resolve(
-                Text(String(format: "%02d", Int(hour))).font(.system(size: 10, design: .rounded)))
+                Text(String(format: "%02d", Int(hour))).font(.system(size: 10, design: .default)))
             numeral.shading = .color(StrandPalette.textTertiary)
             ctx.draw(numeral, at: CGPoint(x: x, y: y), anchor: .center)
         }

@@ -69,13 +69,13 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
         // is width-capped), so the spurious horizontal rubber-band that caused the sideways drift is gone.
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         #endif
-        // The flat canvas, plus an optional full-bleed TOP backdrop (Today's day-cycle scene) drawn behind
+        // The slate page gradient, plus an optional full-bleed TOP backdrop (Today's day-cycle scene) drawn behind
         // the scroll content — edge-to-edge under the status bar. The scene is CONFINED to the header+hero
         // band (see SceneScreenBackground.height) so it fades out ABOVE the dashboard cards, which then sit
         // on the opaque canvas and stay fully legible (2026-06-23: cards were "losing the data").
         .background(alignment: .top) {
             ZStack(alignment: .top) {
-                StrandPalette.surfaceBase
+                NoopCanvasBackground()
                 topBackground
             }
             .ignoresSafeArea()

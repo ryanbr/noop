@@ -230,7 +230,7 @@ struct LiquidSky: View {
 /// `fullBleedBackground` pairing.
 struct LiquidScaffoldSky: View {
     var height: CGFloat = 240
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
+    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = SceneBackgroundPrefs.defaultEnabled
     @AppStorage(SkyBehindCardsPrefs.enabledKey) private var skyBehindCards = true
     // The custom-background store (#custom-background). A custom image OVERRIDES the sky and always fills
     // the viewport, so every scaffold that passes `liquidScaffoldSky()` reads the SAME cached image and
