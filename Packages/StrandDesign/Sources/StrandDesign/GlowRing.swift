@@ -1,12 +1,12 @@
 import SwiftUI
 
-// MARK: - GlowRing — crisp WHOOP-style score ring
+// MARK: - GlowRing — crisp dashboard score ring
 //
-// Quality here is CRISPNESS, not blur. A clean solid arc with rounded caps over a clearly-visible
-// full-circle track (so the ring reads as "X% of a circle"), a bold centred number that counts up, and
-// only a TIGHT, low-opacity glow hugging the arc (additive on dark, hidden on light) — never a wide
-// fuzzy bloom. The arc springs in from 12 o'clock and re-animates when the value changes (day nav).
-// Theme-aware (number + track follow light/dark). Motion gated on Reduce Motion; macOS-13 / iOS-17 safe.
+// Quality here is CRISPNESS, not blur. A solid arc with rounded caps, lightly graded from 85% to full
+// opacity of its colour, over a deep full-circle track (`NoopVisualStyle.ringTrack`, darker than the
+// page), so the ring reads as "X% of a circle". A bold condensed centred number counts up, with an
+// optional smaller unit beside it ("87%"). No glow. The arc springs in from 12 o'clock and re-animates
+// when the value changes (day nav). Theme-aware. Motion gated on Reduce Motion; macOS-13 / iOS-17 safe.
 
 public struct GlowRing: View {
 
@@ -20,15 +20,18 @@ public struct GlowRing: View {
     public var color: Color
     public var diameter: CGFloat
     public var lineWidth: CGFloat
+    /// An optional unit drawn after the number at a smaller size (e.g. "%"). nil draws the number alone.
+    public var unit: String?
 
     public init(fraction: Double, value: Double, format: @escaping (Double) -> String,
-                color: Color, diameter: CGFloat, lineWidth: CGFloat) {
+                color: Color, diameter: CGFloat, lineWidth: CGFloat, unit: String? = nil) {
         self.fraction = fraction
         self.value = value
         self.format = format
         self.color = color
         self.diameter = diameter
         self.lineWidth = lineWidth
+        self.unit = unit
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,6 +45,11 @@ public struct GlowRing: View {
         StrandFont.rounded(diameter * 0.36, weight: .bold)
     }
 
+    /// The unit font beside the centre number: about half the number's size, same face.
+    public static func unitFont(diameter: CGFloat) -> Font {
+        StrandFont.rounded(diameter * 0.18, weight: .bold)
+    }
+
     private var clamped: CGFloat { CGFloat(min(max(fraction, 0), 1)) }
     private var filled: CGFloat { appeared ? clamped : 0 }
     private var shown: Double { appeared ? value : 0 }
@@ -49,24 +57,32 @@ public struct GlowRing: View {
 
     public var body: some View {
         ZStack {
-            // Clearly-visible full-circle track, so the arc reads as a fraction of a circle (like WHOOP).
+            // Deep full-circle track, so the arc reads as a fraction of a circle.
             Circle()
-                .stroke(StrandPalette.textPrimary.opacity(0.10),
+                .stroke(NoopVisualStyle.ringTrack,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
 
-            // Design Reset: NO glow. A flat, crisp solid arc only — the clean Material-style look.
-            arc.stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            // NO glow. A flat solid arc, graded 85% → 100% of its colour across the ring.
+            arc.stroke(
+                LinearGradient(colors: [color.opacity(0.85), color], startPoint: .leading, endPoint: .trailing),
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+            )
 
-            // Centred rolling number.
-            Text(format(shown))
-                .font(Self.centerFont(diameter: diameter))
-                .foregroundStyle(StrandPalette.textPrimary)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .contentTransition(.numericText())
-                .padding(.horizontal, lineWidth + 4)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.85), value: shown)
+            // Centred rolling number, with the optional smaller unit sharing its baseline.
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(format(shown))
+                    .font(Self.centerFont(diameter: diameter))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                if let unit {
+                    Text(unit).font(Self.unitFont(diameter: diameter))
+                }
+            }
+            .foregroundStyle(StrandPalette.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, lineWidth + 4)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.85), value: shown)
         }
         .frame(width: diameter, height: diameter)
         .animation(reduceMotion ? nil : drawSpring, value: filled)

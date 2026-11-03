@@ -131,7 +131,7 @@ struct HeartRateWidgetView: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Text(shown.bpm.map(String.init) ?? "—")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .default))
                     .foregroundStyle(shown.stale ? StrandPalette.textSecondary : StrandPalette.textPrimary)
                 if shown.bpm != nil {
                     Text("bpm")

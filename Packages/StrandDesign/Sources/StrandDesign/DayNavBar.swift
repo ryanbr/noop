@@ -50,14 +50,10 @@ public struct DayNavBar: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 4) {
             Spacer(minLength: 0)
             Button { onSelect(selectedOffset + 1) } label: {
-                Image(systemName: "chevron.left")
-                    .font(StrandFont.headline)
-                    .foregroundStyle(StrandPalette.accent)
-                    .frame(width: 44, height: 44)        // ≥44pt hit target (HIG); glyph stays 17pt
-                    .contentShape(Rectangle())
+                stepGlyph("chevron.left", enabled: true)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Previous day", bundle: .module))
@@ -65,10 +61,24 @@ public struct DayNavBar: View {
             // Centre accent block — the selected day's label + full date, tappable to jump.
             Button { showingPicker = true } label: {
                 VStack(spacing: 2) {
-                    Text(label, bundle: .module)
-                        .font(StrandFont.caption)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .lineLimit(1)
+                    // The day as a bold ALL-CAPS label between a calendar glyph and a disclosure chevron,
+                    // so the pill reads as a date picker.
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .accessibilityHidden(true)
+                        Text(label, bundle: .module)
+                            .font(StrandFont.overline)
+                            .tracking(StrandFont.overlineTracking)
+                            .textCase(.uppercase)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .accessibilityHidden(true)
+                    }
                     // On today the label already reads "Today"; the full date would just duplicate the
                     // header, so it's shown only once you've navigated to another day (for orientation).
                     if selectedOffset > 0 {
@@ -76,12 +86,12 @@ public struct DayNavBar: View {
                             .dateTime.day().month(.abbreviated).year().locale(locale)
                         ))
                             .font(StrandFont.captionNumber)
-                            .foregroundStyle(StrandPalette.accent)
+                            .foregroundStyle(StrandPalette.textTertiary)
                             .lineLimit(1)
                     }
                 }
-                .padding(.vertical, 9)
-                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
                 // Reads as one of the flat WHOOP-grey cards, not a black bar. On macOS the full-width
                 // pill sits over the bright Today day-scene, where the darker inset well read as black;
                 // surfaceRaised (the card fill) lifts it to card level so it matches the dashboard
@@ -96,11 +106,7 @@ public struct DayNavBar: View {
             }
 
             Button { if canGoNewer { onSelect(selectedOffset - 1) } } label: {
-                Image(systemName: "chevron.right")
-                    .font(StrandFont.headline)
-                    .foregroundStyle(canGoNewer ? StrandPalette.accent : StrandPalette.textTertiary)
-                    .frame(width: 44, height: 44)        // ≥44pt hit target (HIG); glyph stays 17pt
-                    .contentShape(Rectangle())
+                stepGlyph("chevron.right", enabled: canGoNewer)
             }
             .buttonStyle(.plain)
             .disabled(!canGoNewer)
@@ -135,18 +141,31 @@ public struct DayNavBar: View {
             .frame(minWidth: 320, minHeight: 360)
     }
 
-    private var blockShape: RoundedRectangle { RoundedRectangle(cornerRadius: 14, style: .continuous) }
+    private var blockShape: Capsule { Capsule(style: .continuous) }
+
+    /// A previous/next step control: a small round card-grey button holding the chevron, inside a ≥44pt
+    /// hit target (HIG). A disabled step dims its glyph.
+    private func stepGlyph(_ systemName: String, enabled: Bool) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(enabled ? StrandPalette.textPrimary : StrandPalette.textTertiary)
+            .frame(width: 28, height: 28)
+            .background(StrandPalette.surfaceRaised, in: Circle())
+            .overlay(Circle().strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+    }
 
     /// Fill for the centre day block. On macOS the bar spans the bright Today day-scene, so it uses the
     /// raised WHOOP-grey card fill to read as a card rather than a black bar; iOS (which uses the compact
     /// top-bar day-nav, not this control) keeps the inset well fill unchanged.
     private var blockFill: Color {
         #if os(macOS)
-        // Compact translucent pill (not a full-width bar) — the scene shows through so it reads as a
-        // floating control over the day-scene, never a solid black bar; white label stays legible at 0.72.
-        StrandPalette.surfaceBase.opacity(0.72)
+        // The card grey, slightly translucent so an optional day-scene backdrop still shows through and
+        // the pill reads as a floating control rather than a solid bar.
+        StrandPalette.surfaceRaised.opacity(0.92)
         #else
-        StrandPalette.surfaceInset
+        StrandPalette.surfaceRaised
         #endif
     }
 

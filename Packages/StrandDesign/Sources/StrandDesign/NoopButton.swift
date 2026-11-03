@@ -34,14 +34,14 @@ public enum NoopButtonKind: Sendable {
 public enum NoopButtonMetrics {
     /// Standard control height (48) — also the source for the min hit target floor.
     public static let height: CGFloat = NoopMetrics.controlHeight
-    /// Corner radius (14) — softer than a card, not a pill.
-    public static let cornerRadius: CGFloat = 14
+    /// Corner radius (24): half the 48pt control height, so a standard button is a full pill.
+    public static let cornerRadius: CGFloat = 24
     /// Horizontal label inset.
     public static let hPadding: CGFloat = 18
     /// Spacing between a leading icon and the label.
     public static let iconSpacing: CGFloat = 8
-    /// Label tracking — a hair of openness on the semibold face.
-    public static let tracking: CGFloat = 0.2
+    /// Label tracking — 0.075em of the 17pt label, the open button-label spacing.
+    public static let tracking: CGFloat = 1.2
     /// Apple's minimum touch target. The button never reports a hit area below this.
     public static let minHitTarget: CGFloat = 44
     /// Pressed scale (spec: subtle 0.97). Reduce-Motion collapses this to 1 (dim only).
@@ -70,7 +70,7 @@ struct NoopButtonAppearance {
         case .secondary:
             fill = nil
             label = StrandPalette.textPrimary
-            border = nil
+            border = StrandPalette.accent       // card-grey pill with an accent rim
             usesPanelSurface = true
         case .tertiary:
             fill = nil

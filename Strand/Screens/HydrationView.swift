@@ -132,7 +132,7 @@ struct HydrationView: View {
         content()
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Quick log (Sip / Cup / Bottle, secondary style)

@@ -201,7 +201,7 @@ struct RootView: View {
     /// switch the sidebar selection without owning it — see `NavRouter`.
     @EnvironmentObject var router: NavRouter
     /// The liquid Today (default) vs the classic Today, same flag the iOS shell + Settings toggle read.
-    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
+    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = false
     /// The Coach master switch (`noop.coachEnabled`, shared by name with Android and iOS). Default ON.
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
 
@@ -299,7 +299,7 @@ struct RootView: View {
             }
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24), value: selection)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .background(NoopCanvasBackground().ignoresSafeArea())
         }
         .task {
             await repo.refresh()

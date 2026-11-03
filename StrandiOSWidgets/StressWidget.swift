@@ -154,7 +154,7 @@ struct StressWidgetView: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Text(latest.map { StressTrace.formatLevel($0) } ?? "—")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .default))
                     .foregroundStyle(StrandPalette.textPrimary)
                 if latest != nil {
                     Text("of 3")

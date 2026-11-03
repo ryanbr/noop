@@ -7,11 +7,10 @@ import SwiftUI
 // lightweight GlowRing instead). The pure `RecoveryArc` Shape at the bottom of this file stays
 // available on ALL platforms because the watch-safe BevelGauge / BrandMark depend on it.
 //
-// A 240° open gauge arc (gap at the bottom), thick rounded-cap stroke filled
-// with an AngularGradient sampling the recovery gradient (WHOOP: value-based
-// green→yellow→red via `recoveryStops`), filled to score/100 of the 240° span
-// over a faint `surfaceInset` track. NO outer bloom (WHOOP-flat); a crisp leading
-// bead at the fill tip; a draw-in animation when the value changes. Center shows the
+// A full-circle score ring: a rounded-cap stroke in the score's band colour
+// (`StrandPalette.recoveryColor`: red / yellow / green), filled clockwise from 12 o'clock to
+// score/100 over the deep `ringTrack` well. NO outer bloom, no tip bead; a draw-in animation
+// when the value changes. Center shows the
 // big rounded-700 number (no %), a state word tinted to the sampled color, and an
 // optional supporting line.
 //
@@ -67,7 +66,7 @@ public struct RecoveryRing: View {
     @State private var hoverPoint: CGPoint? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Animated fill fraction so changing `score` draws the arc in. The 240° open-gauge
+    // Animated fill fraction so changing `score` draws the arc in. The ring
     // geometry + bloom now live in the shared `BevelGauge` this delegates to.
     @State private var animatedFraction: Double = 0
     @State private var bloomPulse: Bool = false
@@ -173,7 +172,8 @@ public struct RecoveryRing: View {
 
 // MARK: - Arc Shape
 
-/// An open 240° gauge arc that fills clockwise from the start angle.
+/// A gauge arc spanning `spanDegrees` (240° for the open brand glyph, 360° for a score ring) that
+/// fills clockwise from the start angle.
 public struct RecoveryArc: Shape {
     public var startAngle: Angle
     public var spanDegrees: Double

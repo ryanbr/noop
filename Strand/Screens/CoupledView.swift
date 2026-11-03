@@ -680,7 +680,7 @@ struct CoupledView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     private func clockString(_ ts: Int) -> String {

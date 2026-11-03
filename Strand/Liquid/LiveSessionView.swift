@@ -375,7 +375,7 @@ struct LiveSessionSummarySheet: View {
         VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) { content() }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     private var cueLine: String {

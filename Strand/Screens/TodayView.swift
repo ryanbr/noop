@@ -237,7 +237,7 @@ struct TodayView: View {
     // Day-cycle scene backdrop (#698). Default ON. When the user turns it off in Settings → Appearance,
     // Today drops the SceneScreenBackground and falls back to the plain dark surfaceBase canvas. The
     // cards already sit on an opaque canvas, so readability is unchanged either way.
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
+    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = SceneBackgroundPrefs.defaultEnabled
     // Effort display scale (#268), drives the Effort tile's value + caption. Display-only.
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -1302,7 +1302,7 @@ struct TodayView: View {
                 // they can change the day by swiping across or tapping here. fixedSize makes it claim its own
                 // width so a tight top bar never compresses it, and the trailing icon cluster keeps its room.
                 Text(dayNavHint ?? dayNavDateText)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .default))
                     .foregroundStyle(dayNavHint != nil ? StrandPalette.accent : StrandPalette.textPrimary)
                     .lineLimit(1)
                     .fixedSize()
@@ -1345,7 +1345,7 @@ struct TodayView: View {
                         .overlay(alignment: .topTrailing) {
                             if updateStore.unreadCount > 0 {
                                 Text("\(min(updateStore.unreadCount, 99))")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .font(.system(size: 9, weight: .bold, design: .default))
                                     .monospacedDigit()
                                     .foregroundStyle(StrandPalette.goldDeepText)
                                     .padding(.horizontal, 3.5).padding(.vertical, 1)
@@ -1423,7 +1423,7 @@ struct TodayView: View {
                 .overlay(alignment: .topTrailing) {
                     if updateStore.unreadCount > 0 {
                         Text("\(min(updateStore.unreadCount, 99))")
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .font(.system(size: 9, weight: .bold, design: .default))
                             .monospacedDigit()
                             .foregroundStyle(StrandPalette.goldDeepText)
                             // Fixed 14pt square + Circle() = a true CIRCLE on both platforms, kept INSIDE
@@ -3207,17 +3207,22 @@ struct TodayView: View {
             // `HeroRingDetailRouteTests` pins against `MetricCatalog`; `TabRoute.metric` falls back to the
             // Health screen on an unknown key rather than failing, which is why they are pinned.
             heroRingColumn(section: .charge, domain: .charge, provenanceKey: "recovery",
-                           onOpenBreakdown: { showChargeBreakdown = true }) {
+                           onOpenBreakdown: { showChargeBreakdown = true },
+                           labelTint: score.map { StrandPalette.recoveryColor($0) }) {
                 chargeRing(score: score, d: d, diameter: ring)
             }
             heroRingColumn(section: .effort, domain: .effort,
-                           detailRoute: .metric(HeroRingMetric.effort)) { effortRing(d: d, diameter: ring) }
+                           detailRoute: .metric(HeroRingMetric.effort),
+                           labelTint: effortStrain(d) != nil ? StrandPalette.effortColor : nil) {
+                effortRing(d: d, diameter: ring)
+            }
             // `provenanceKey` spells the same string the route does and stays a literal on purpose: it
             // asks which SOURCE won this day, not which catalog entry to open. See `HeroRingMetric`.
             heroRingColumn(section: .rest, domain: .rest, provenanceKey: "sleep_performance",
                            detailRoute: .metric(HeroRingMetric.rest),
                            caption: restIsPendingSync ? "Pending sync" : nil,
-                           captionWidth: ring) { restRing(diameter: ring) }
+                           captionWidth: ring,
+                           labelTint: restScore != nil ? StrandPalette.restColor : nil) { restRing(diameter: ring) }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         // Zero-impact width reader: a clear background that publishes the row's width up via preference. It
@@ -3278,10 +3283,14 @@ struct TodayView: View {
     /// laid out at the COLUMN's width rather than the ring's, so it has room to render: the overlay was
     /// measured against the circle and ellipsised its own explanation mid-word while spilling past the
     /// ring's edge. Mirrors Android's `HeroRingColumn(caption:)`.
+    ///
+    /// `labelTint` colours the domain label + chevron in the SAME colour as the ring's arc, so the word
+    /// and the ring read as one control. The caller passes the colour its ring resolved (Charge: the
+    /// score's band colour) and nil when the ring shows no score, which leaves the label neutral grey.
     private func heroRingColumn<RingBody: View>(
         section: ScoreSection, domain: DomainTheme, provenanceKey: String? = nil,
         onOpenBreakdown: (() -> Void)? = nil, detailRoute: TabRoute? = nil, caption: String? = nil,
-        captionWidth: CGFloat = 98,
+        captionWidth: CGFloat = 98, labelTint: Color? = nil,
         @ViewBuilder ring: () -> RingBody
     ) -> some View {
         VStack(spacing: 8) {
@@ -3344,7 +3353,7 @@ struct TodayView: View {
                         .font(.system(size: 9, weight: .bold))
                         .opacity(0.6)
                 }
-                .foregroundStyle(StrandPalette.textSecondary)
+                .foregroundStyle(labelTint ?? StrandPalette.textSecondary)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -3408,14 +3417,16 @@ struct TodayView: View {
     private func chargeRing(score: Double?, d: DailyMetric?, diameter: CGFloat) -> some View {
         if let s = score {
             GlowRing(fraction: s / 100, value: s, format: { "\(Int($0.rounded()))" },
-                     color: StrandPalette.recoveryColor(s), diameter: diameter, lineWidth: diameter * 0.10)
+                     color: StrandPalette.recoveryColor(s), diameter: diameter,
+                     lineWidth: diameter * Self.heroRingStrokeRatio, unit: "%")
         } else if recoveryCalibration == nil, let carried = lastScoredCharge {
             // #802: a CARRIED last-night Charge draws as a real (dimmed) ring, matching the Rest ring, rather
             // than a bare number on a faint track, which read as broken next to Rest's filled ring. Same
             // diameter, so the #762 self-sizing hero row is untouched; the dim + the row-level "Last night"
             // caption already beneath the rings mark it as carried, not today's fresh score.
             GlowRing(fraction: carried.value / 100, value: carried.value, format: { "\(Int($0.rounded()))" },
-                     color: StrandPalette.recoveryColor(carried.value), diameter: diameter, lineWidth: diameter * 0.10)
+                     color: StrandPalette.recoveryColor(carried.value), diameter: diameter,
+                     lineWidth: diameter * Self.heroRingStrokeRatio, unit: "%")
                 .opacity(0.8)
         } else {
             emptyHeroRing(diameter: diameter) { ringEmptyOverlay(d: d, diameter: diameter) }
@@ -3429,7 +3440,8 @@ struct TodayView: View {
         if effortStrain(d) != nil, let gv = effortGaugeValue(d) {
             GlowRing(fraction: gv / effortGaugeMax, value: gv,
                      format: { effortScale == .whoop ? String(format: "%.1f", locale: AppLanguage.activeLocale, $0) : "\(Int($0.rounded()))" },
-                     color: StrandPalette.effortColor, diameter: diameter, lineWidth: diameter * 0.10)
+                     color: StrandPalette.effortColor, diameter: diameter,
+                     lineWidth: diameter * Self.heroRingStrokeRatio)
         } else {
             emptyHeroRing(diameter: diameter) { ringNoData(diameter: diameter) }
         }
@@ -3452,7 +3464,8 @@ struct TodayView: View {
         // the column's caption, rather than shown by withholding the number. Past days are final.
         if let s = restScore {
             GlowRing(fraction: s / 100, value: s, format: { "\(Int($0.rounded()))" },
-                     color: StrandPalette.restColor, diameter: diameter, lineWidth: diameter * 0.10)
+                     color: StrandPalette.restColor, diameter: diameter,
+                     lineWidth: diameter * Self.heroRingStrokeRatio, unit: "%")
         } else if displayDay?.recovery != nil {
             // #898: an aggregate-import user (a daily HRV/RHR import, no in-bed session) gets a Charge from
             // WatchRecovery but NO sleep_performance, so Rest read a bare "No data" next to a lit Charge ,
@@ -3478,12 +3491,15 @@ struct TodayView: View {
         }
     }
 
-    /// The faint full-circle track with a centred overlay, shown when a score is still calibrating/absent.
+    /// Hero ring stroke as a fraction of its diameter: a slim ring, about 1/15 of its width.
+    private static let heroRingStrokeRatio: CGFloat = 0.07
+
+    /// The deep full-circle track with a centred overlay, shown when a score is still calibrating/absent.
     @ViewBuilder
     private func emptyHeroRing<Overlay: View>(diameter: CGFloat, @ViewBuilder overlay: () -> Overlay) -> some View {
         ZStack {
-            Circle().stroke(StrandPalette.textPrimary.opacity(0.10),
-                            style: StrokeStyle(lineWidth: diameter * 0.10, lineCap: .round))
+            Circle().stroke(NoopVisualStyle.ringTrack,
+                            style: StrokeStyle(lineWidth: diameter * Self.heroRingStrokeRatio, lineCap: .round))
             overlay()
         }
         .frame(width: diameter, height: diameter)

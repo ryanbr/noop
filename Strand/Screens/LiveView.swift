@@ -206,7 +206,7 @@ struct LiveView: View {
         content()
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+            .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     // MARK: - Console header
@@ -612,7 +612,7 @@ struct LiveView: View {
                 scanButton
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.cardRadius, style: .continuous)
             .strokeBorder(StrandPalette.accent.opacity(0.30), lineWidth: 1))
     }
 
@@ -711,7 +711,7 @@ struct LiveView: View {
                 ringReconnectButton
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: NoopVisualStyle.cardRadius, style: .continuous)
             .strokeBorder(StrandPalette.accent.opacity(0.30), lineWidth: 1))
     }
 
@@ -1317,7 +1317,7 @@ private struct LiveLogCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+        .background(NoopPanelSurface(cornerRadius: NoopVisualStyle.cardRadius, surfaceOpacity: cardOpacity))
     }
 
     /// The tail of the log, lazily.

@@ -179,9 +179,20 @@ public struct SectionHeader: View {
     }
     public var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                if let overline { Text(overline).strandOverline() }
-                Text(title).font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                if let overline {
+                    Text(overline)
+                        .font(StrandFont.overline)
+                        .tracking(StrandFont.overlineTracking)
+                        .textCase(.uppercase)
+                        .foregroundStyle(NoopVisualStyle.sectionText)
+                }
+                // Bold ALL-CAPS with 0.1em tracking: the dashboard heading treatment.
+                Text(title)
+                    .font(StrandFont.title2)
+                    .tracking(StrandFont.headingTracking(22))
+                    .textCase(.uppercase)
+                    .foregroundStyle(StrandPalette.textPrimary)
             }
             Spacer()
             if let trailing {
@@ -372,6 +383,7 @@ public struct ChartFooter: View {
 public struct InsightCard: View {
     let category: LocalizedStringKey, status: LocalizedStringKey, detail: LocalizedStringKey
     var statusColor: Color = StrandPalette.accent
+    /// Accepted for source compatibility; the card no longer draws a hue wash.
     var tint: Color? = nil
     /// Extra trailing inset reserved on the overline + status rows so a caller's
     /// `.overlay(alignment: .topTrailing)` (greeting + state pill) doesn't run over the
@@ -381,23 +393,35 @@ public struct InsightCard: View {
         self.category = category; self.status = status; self.detail = detail; self.statusColor = statusColor; self.tint = tint; self.titleTrailingInset = titleTrailingInset
     }
     public var body: some View {
-        // Defaults the card wash to the status colour so the coaching card sits in the
-        // same colour world as the score it summarises (e.g. gold for Charge). The
-        // insight card reads a touch stronger than a tile: an explicit hue wash
-        // (.14 → .04) + a matching .22 hue border on top of the frosted surface.
-        let hue = tint ?? statusColor
-        // Apple-flat: a plain flat card. Identity comes from the COLOURED status headline alone — no extra
-        // hue-gradient wash, no border (so it reads identical to every other card on the page).
-        return NoopCard(padding: 18, tint: hue) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(category).strandOverline()
-                    .padding(.trailing, titleTrailingInset)
-                Text(status).font(StrandFont.rounded(28, weight: .bold)).foregroundStyle(statusColor)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.trailing, titleTrailingInset)
-                Text(detail).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        // The coaching card is the one card that does NOT sit on the grey card fill: it is a see-through
+        // panel over the page with a violet → sky-blue gradient rim, so the day's headline reads as a
+        // callout rather than one more data card. `tint` is kept for API compatibility; identity comes
+        // from the coloured status headline.
+        let shape = RoundedRectangle(cornerRadius: NoopVisualStyle.compactRadius, style: .continuous)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(category).strandOverline()
+                .padding(.trailing, titleTrailingInset)
+            Text(status).font(StrandFont.rounded(28, weight: .bold)).foregroundStyle(statusColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, titleTrailingInset)
+            Text(detail).font(StrandFont.subhead.weight(.medium)).foregroundStyle(StrandPalette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            shape
+                .fill(LinearGradient(
+                    colors: [NoopVisualStyle.insightStart.opacity(0.08), NoopVisualStyle.insightEnd.opacity(0.04)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                .overlay(shape.strokeBorder(
+                    LinearGradient(
+                        colors: [NoopVisualStyle.insightStart.opacity(0.5), NoopVisualStyle.insightEnd.opacity(0.5)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                ))
         }
     }
 }
@@ -459,7 +483,7 @@ public struct SegmentedPillControl<T: Hashable>: View {
     }
 
     private func track(equalWidth: Bool) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 let sel = item == selection
                 let enabled = isEnabled(item)
@@ -471,11 +495,12 @@ public struct SegmentedPillControl<T: Hashable>: View {
                     Text(label(item))
                         .font(StrandFont.captionNumber)
                         .lineLimit(equalWidth ? 1 : nil)
-                        // Range selection stays deliberately neutral so the control works above charts
-                        // from every metric colour world without borrowing their green/blue/amber tint.
-                        // Disabled segments drop to a fainter tertiary so the lock reads at a glance.
-                        .foregroundStyle(sel ? StrandPalette.textPrimary
-                                             : StrandPalette.textTertiary.opacity(enabled ? 1 : 0.35))
+                        // The active segment is a solid accent capsule with white ink; the rest stay a
+                        // quiet secondary grey. Disabled segments drop to a fainter tertiary so the lock
+                        // reads at a glance.
+                        .fontWeight(sel ? .semibold : .medium)
+                        .foregroundStyle(sel ? StrandPalette.goldDeepText
+                                             : StrandPalette.textSecondary.opacity(enabled ? 1 : 0.35))
                         // Fill the segment height so the selected pill has EQUAL margins to the track
                         // on every side. (The old compact pill inside a taller 44pt touch frame left
                         // more vertical margin than horizontal — it read as off-centre.)
@@ -485,25 +510,14 @@ public struct SegmentedPillControl<T: Hashable>: View {
                         .padding(.horizontal, equalWidth ? NoopMetrics.space1 : 9)
                         .background {
                             if sel {
-                                let selectedShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                selectedShape
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [NoopVisualStyle.surfaceTop, NoopVisualStyle.surface],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                                    .overlay(
-                                        selectedShape.strokeBorder(
-                                            NoopVisualStyle.borderHighlight.opacity(0.62),
-                                            lineWidth: 0.75
-                                        )
-                                    )
-                                    .shadow(color: .black.opacity(0.20), radius: 4, x: 0, y: 2)
+                                Capsule(style: .continuous)
+                                    .fill(StrandPalette.accent)
+                                    .overlay(Capsule(style: .continuous)
+                                        .strokeBorder(StrandPalette.accent.opacity(0.3), lineWidth: 1))
+                                    .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .contentShape(Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: equalWidth ? .infinity : nil)
@@ -513,28 +527,12 @@ public struct SegmentedPillControl<T: Hashable>: View {
                 .accessibilityAddTraits(sel ? .isSelected : [])
             }
         }
-        .padding(3)
+        .padding(2)
         .frame(maxWidth: equalWidth ? .infinity : nil)
         .background {
-            let trackShape = RoundedRectangle(cornerRadius: 13, style: .continuous)
-            trackShape
-                .fill(
-                    LinearGradient(
-                        colors: [NoopVisualStyle.inset, NoopVisualStyle.canvas.opacity(0.78)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    trackShape.strokeBorder(
-                        LinearGradient(
-                            colors: [NoopVisualStyle.borderHighlight.opacity(0.48), NoopVisualStyle.border],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.8
-                    )
-                )
+            Capsule(style: .continuous)
+                .fill(NoopVisualStyle.inset.opacity(0.8))
+                .overlay(Capsule(style: .continuous).strokeBorder(NoopVisualStyle.divider, lineWidth: 1))
         }
     }
 }
@@ -548,7 +546,7 @@ public struct SourceBadge: View {
         // `.frame(height:)` centres its content by default, so the label sits mid-capsule for free. Noted
         // because the Android twin pinned the same 18 with `heightIn` applied to the label itself, which
         // top-aligns — same number, different render. That one is matched to this, not the reverse.
-        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold, design: .rounded)).tracking(0.5)
+        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .bold, design: .default)).tracking(1.0)
             .padding(.horizontal, 9).frame(height: NoopMetrics.sourceBadgeHeight)
             .background(tint.opacity(0.16), in: Capsule(style: .continuous))
             .foregroundStyle(tint)
@@ -597,7 +595,7 @@ public extension View {
 // CTAs. Drop in via `.buttonStyle(.noopPrimary)` etc. on any `Button`. All read off
 // the new gold tokens so they match Apple ⇄ Android. Pressed = subtle dim + scale.
 
-/// Primary call-to-action: gold-gradient fill, dark gold-deep ink (700), rounded 13.
+/// Primary call-to-action: accent-gradient capsule fill, white ink (700).
 public struct NoopPrimaryButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -608,7 +606,7 @@ public struct NoopPrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 11).padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                Capsule(style: .continuous)
                     .fill(LinearGradient(gradient: StrandPalette.goldGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
             )
             // A crisp, subtle NEUTRAL elevation — the gold cast-glow read as too much against the
@@ -621,19 +619,19 @@ public struct NoopPrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Secondary: inset well + 1px white-12 border + primary text. Quieter than gold.
+/// Secondary: card-grey capsule + 1px accent border + primary text. Quieter than the primary fill.
 public struct NoopSecondaryButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
+        let shape = Capsule(style: .continuous)
         return configuration.label
             .font(StrandFont.body.weight(.semibold))
             .foregroundStyle(StrandPalette.textPrimary)
             .padding(.vertical, 11).padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
-            .background(shape.fill(StrandPalette.surfaceInset))
-            .overlay(shape.strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .background(shape.fill(StrandPalette.surfaceRaised))
+            .overlay(shape.strokeBorder(StrandPalette.accent, lineWidth: 1))
             .opacity(pressed ? 0.82 : 1)
             .scaleEffect(pressed ? 0.98 : 1)
             .animation(StrandMotion.interactive, value: pressed)
@@ -646,7 +644,7 @@ public struct NoopGhostButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
+        let shape = Capsule(style: .continuous)
         return configuration.label
             .font(StrandFont.body.weight(.semibold))
             .foregroundStyle(StrandPalette.gold)
