@@ -1546,7 +1546,6 @@ struct TodayView: View {
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
-                sourcesSection
             }
             #if os(iOS)
             // #817 - horizontal swipe to change day. A right-swipe (positive X) steps to the NEWER day
@@ -2097,6 +2096,11 @@ struct TodayView: View {
             if selectedDayOffset == 0 { JournalReminderCard() }
         case .addedCards:
             hostedCardsSection
+        case .dataSources:
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader("Data Sources", overline: "Provenance")
+                sourcesSection
+            }
         }
     }
 
@@ -4379,7 +4383,6 @@ struct TodayView: View {
     @ViewBuilder
     private var sourcesSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Data Sources", overline: "Provenance")
             // S5: collapsed to a single "Synced from: …" summary line by default; tapping expands the full
             // per-source rows + strap battery/sync inline. Nothing is removed, the detail is one tap away.
             if sourcesExpanded {

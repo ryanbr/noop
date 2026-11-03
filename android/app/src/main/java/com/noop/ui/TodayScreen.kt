@@ -1693,6 +1693,8 @@ fun TodayScreen(
                         (cycleOptInApplies(profileStore.sex) || cycleEnabled || periodStarts.isNotEmpty())
                 TodaySection.JOURNAL ->
                     selectedDayOffset == 0 && journalReminderOn
+                TodaySection.DATA_SOURCES ->
+                    true
                 TodaySection.ADDED_CARDS ->
                     selectedDayOffset == 0 && enabledHostedCards.isNotEmpty()
                 else -> true
@@ -1966,6 +1968,20 @@ fun TodayScreen(
                             days = days,
                             viewModel = viewModel,
                         )
+                        TodaySection.DATA_SOURCES -> Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            SectionHeader(uiString(R.string.today_section_data_sources), overline = uiString(R.string.today_provenance))
+                            TodaySourcesSection(
+                                footer = footer,
+                                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
+                                    liveSnap.batteryPct?.roundToInt() else null,
+                                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
+                                expanded = sourcesExpanded,
+                                onToggle = { sourcesExpanded = !sourcesExpanded },
+                            )
+                        }
                     }
                 }
             }
@@ -1977,24 +1993,7 @@ fun TodayScreen(
             item { AutoWorkoutNudgeCard(viewModel = viewModel, days = days) }
         }
         // Strap battery only while the link is up AND a real reading exists, a stale % from a
-        // dropped connection must not present as live (#159).
-        item {
-            TodaySourcesSection(
-                footer,
-                // NOT routed through LiveConsoleReadout.batteryPercent, which substitutes the RING's charge
-                // for a non-WHOOP active device. That is right for a readout that names the active device,
-                // and wrong here: this value lands in the SourceRow badged `today_source_whoop`, and it
-                // also feeds that row's `present` flag. Substituting would put the ring's number under a
-                // WHOOP label and assert a WHOOP source that is not there, which is worse than the stale
-                // reading being fixed. Nothing is the honest answer for a strap that is not active.
-                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
-                    liveSnap.batteryPct?.roundToInt() else null,
-                // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
-                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
-                expanded = sourcesExpanded,
-                onToggle = { sourcesExpanded = !sourcesExpanded },
-            )
-        }
+        // dropped connection must not present as live (#159). Rendered as the reorderable Data Sources section.
     }
         // Material3's PullToRefreshContainer draws its indicator circle even at rest (progress 0, not
         // refreshing), so an idle Today showed a permanent grey dot at the top (#582). Compose it only
@@ -7629,8 +7628,6 @@ private fun TodaySourcesSection(
     expanded: Boolean = true,
     onToggle: () -> Unit = {},
 ) {
-    SectionHeader(uiString(R.string.today_data_sources), overline = uiString(R.string.today_provenance))
-    Spacer(Modifier.height(Metrics.gap))
     val whoopPresent = (footer.whoopDays ?: 0) > 0 || strapBatteryPct != null
     val applePresent = (footer.appleDays ?: 0) > 0 || (footer.appleWorkouts ?: 0) > 0
     val hcPresent = (footer.hcDays ?: 0) > 0 || (footer.hcWorkouts ?: 0) > 0

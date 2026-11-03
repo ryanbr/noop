@@ -33,6 +33,7 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
     YOUR_CARDS("yourCards", R.string.today_section_your_cards),
     MENSTRUAL_CYCLE("menstrualCycle", R.string.today_section_menstrual_cycle),
     JOURNAL("journal", R.string.today_section_journal),
+    DATA_SOURCES("dataSources", R.string.today_section_data_sources),
 
     /** Cards hosted from the Trends / Sleep tabs (#today-hosted-cards). Renders the [HostedCardPrefs]
      *  selection in order; empty (and effectively invisible) until the user adds a card in Customise.
@@ -46,7 +47,7 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
          *  journal widget (#656) is last by default, where it was first added, above the data-sources card. */
         val defaultOrder: List<TodaySection> = listOf(
             HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
-            MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS,
+            MENSTRUAL_CYCLE, JOURNAL, DATA_SOURCES, ADDED_CARDS,
         )
     }
 }

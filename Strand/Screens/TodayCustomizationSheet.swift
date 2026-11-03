@@ -285,6 +285,8 @@ private struct TodaySectionsCustomizationPage: View {
             return String(localized: "\(keyMetricCount) metrics shown")
         case .yourCards:
             return String(localized: "\(dashboardCardCount) cards shown")
+        case .dataSources:
+            return String(localized: "Import and sync status")
         case .addedCards:
             return hostedCardCount == 0
                 ? String(localized: "None added yet")
