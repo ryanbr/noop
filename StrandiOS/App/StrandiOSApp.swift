@@ -32,6 +32,9 @@ struct StrandiOSApp: App {
     /// activity is suppressed rather than stacked beside it. Built in `init`, where the strap log it
     /// writes to exists.
     @State private var liftActivity: LiftLiveActivityController
+    /// The live-tracked workout's own Live Activity (time, distance, pace, heart rate), with its own switch.
+    /// Built and fed from `init` (`WorkoutLiveActivityController.follow`), like the live-HR one.
+    @State private var workoutActivity: WorkoutLiveActivityController
     /// The live gym session. Owned HERE, at the app root, rather than by the screen that shows it:
     /// swiping the workout sheet away must not stop the clock, silence the strap or drop the
     /// double-tap handler. See `LiftSessionController`.
@@ -116,17 +119,24 @@ struct StrandiOSApp: App {
             model?.live.append(log: AppModel.stamped(line))
         })
         _liftActivity = State(initialValue: liftActivity)
-        // The live heart rate banner makes room only for the Lift Log banner actually on screen, which carries the
-        // heart rate itself — not for a sync (`LiveHRBannerLifecycle`).
+        let workoutActivity = WorkoutLiveActivityController()
+        workoutActivity.follow(model)
+        _workoutActivity = State(initialValue: workoutActivity)
+        // The live heart rate banner makes room only for a Lift Log or workout banner actually on screen, each of
+        // which carries the heart rate itself — not for a sync (`LiveHRBannerLifecycle`).
         let liveActivity = LiveActivityController()
-        liveActivity.follow(model, standsAside: { [weak liftActivity] in liftActivity?.isShowing == true })
+        liveActivity.follow(model, standsAside: { [weak liftActivity, weak workoutActivity] in
+            liftActivity?.isShowing == true || workoutActivity?.isShowing == true
+        })
         _liveActivity = State(initialValue: liveActivity)
         // A gym session keeps ONE banner on the Lock Screen, its own — as the live-HR banner already
         // stands aside for it. A sync started in the foreground mid-session starts no sync banner.
         // Held back only for a gym banner that will actually show: with its switch off, a session leaves the
         // Lock Screen to the sync, rather than to nothing.
-        SyncLiveActivityController.shared.holdsBackNewBanner = { [weak liftSession] in
-            liftSession?.isActive == true && UnitPrefs.liftLiveActivityEnabled()
+        // A live-tracked workout keeps the Lock Screen to its own banner the same way.
+        SyncLiveActivityController.shared.holdsBackNewBanner = { [weak liftSession, weak model] in
+            (liftSession?.isActive == true && UnitPrefs.liftLiveActivityEnabled())
+                || (model?.activeWorkout != nil && UnitPrefs.workoutLiveActivityEnabled())
         }
         // Before any view or publisher exists: the first push to the Lock Screen banner must find the
         // session already running, or it ends the banner iOS kept alive across the restart.
@@ -352,6 +362,8 @@ struct StrandiOSApp: App {
                 // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
                 // the background comes back now, whether or not the strap is sending anything.
                 pushLiftActivity()
+                // The same for a running workout's banner — before the heart rate banner, which stands aside for it.
+                workoutActivity.appBecameActive()
                 // Only the foreground may start the live heart rate banner: offer it now.
                 liveActivity.appBecameActive()
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.

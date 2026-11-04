@@ -122,6 +122,7 @@ struct SettingsView: View {
     // Strap-sync Live Activity, iOS only. Separate from the live-HR one on purpose. Default on.
     @AppStorage(UnitPrefs.syncLiveActivityKey) private var syncLiveActivityEnabled = true
     @AppStorage(UnitPrefs.liftLiveActivityKey) private var liftLiveActivityEnabled = true
+    @AppStorage(UnitPrefs.workoutLiveActivityKey) private var workoutLiveActivityEnabled = true
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
     // Alternate app icon (iOS only) — false = Titanium (primary AppIcon), true = Blue Titanium
     // ("AppIcon-Navy"). Display-only preference; the live switch goes through setAlternateIconName.
@@ -1560,7 +1561,8 @@ struct SettingsView: View {
     /// kicks a recompute the same way the sleep-edit path does (analyzeRecent → refresh). History stays.
     #if os(iOS)
     /// NOOP's live notifications — its Live Activities, on the Lock Screen and in the Dynamic Island — one switch
-    /// each: the live heart rate, a Lift Log session, a strap sync. These three are every Live Activity the app has.
+    /// each: the live heart rate, a Lift Log session, a live-tracked workout, a strap sync. These four are every Live
+    /// Activity the app has.
     /// A switch only decides whether its notification is SHOWN: the heart rate is still measured, recorded and
     /// scored, a session still runs and buzzes, a sync still runs, with any of them off.
     private var liveNotificationsCard: some View {
@@ -1575,6 +1577,9 @@ struct SettingsView: View {
                 rowDivider
                 liveNotificationSwitch("Lift Log session", isOn: $liftLiveActivityEnabled,
                                        detail: "Your set, rest and heart rate, and the Lock Screen light-up on a double-tap.")
+                rowDivider
+                liveNotificationSwitch("Workout", isOn: $workoutLiveActivityEnabled,
+                                       detail: "Duration, distance, pace and heart rate while a workout runs.")
                 rowDivider
                 liveNotificationSwitch("Strap sync", isOn: $syncLiveActivityEnabled,
                                        detail: "Progress while NOOP pulls history from the strap.")

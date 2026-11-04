@@ -158395,6 +158395,70 @@
         }
       }
     },
+    "Duration, distance, pace and heart rate while a workout runs.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dauer, Distanz, Tempo und Herzfrequenz während eines Workouts."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duration, distance, pace and heart rate while a workout runs."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duración, distancia, ritmo y frecuencia cardíaca durante un entrenamiento."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durée, distance, allure et fréquence cardiaque pendant un entraînement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durata, distanza, passo e frequenza cardiaca durante un allenamento."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duração, distância, ritmo e frequência cardíaca durante um treino."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длительность, расстояние, темп и пульс во время тренировки."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锻炼期间的时长、距离、配速和心率。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鍛鍊期間的時長、距離、配速和心率。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Czas trwania, dystans, tempo i tętno podczas treningu."
+          }
+        }
+      }
+    },
     "Strap sync": {
       "localizations": {
         "de": {
