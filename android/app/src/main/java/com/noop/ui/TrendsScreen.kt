@@ -744,7 +744,8 @@ private fun ChartCard(
             }
 
             // Footer stats + a window-change chip aligned to the trailing edge.
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            HorizontalDivider(color = Palette.hairline)
+            Row(verticalAlignment = Alignment.Top) {
                 Box(modifier = Modifier.weight(1f)) { ChartFooter(footer) }
                 ChangeChip(change, higherIsBetter, changeFmt)
             }
@@ -823,6 +824,7 @@ private fun ChangeChip(change: Double?, higherIsBetter: Boolean?, fmt: (Double) 
         horizontalAlignment = Alignment.Start,
     ) {
         Overline(trendLabel, color = Palette.textTertiary)
+        Spacer(modifier = Modifier.height(2.dp))
         TrendChip(text = deltaText, color = color)
     }
 }
@@ -1051,17 +1053,14 @@ private fun periodChange(values: List<Double>): Double? {
     return recent.average() - earlier.average()
 }
 
-/** Evenly-spaced labelled stats under a chart, separated by a hairline rule. */
+/** Evenly-spaced labelled stats under a chart. */
 @Composable
 private fun ChartFooter(items: List<Pair<String, String>>) {
-    Column(verticalArrangement = Arrangement.spacedBy(Metrics.space10)) {
-        HorizontalDivider(color = Palette.hairline)
-        Row(modifier = Modifier.fillMaxWidth()) {
-            items.forEach { (label, value) ->
-                Column(modifier = Modifier.weight(1f)) {
-                    Overline(label, color = Palette.textTertiary)
-                    Text(value, style = NoopType.bodyNumber, color = Palette.textPrimary)
-                }
+    Row(modifier = Modifier.fillMaxWidth()) {
+        items.forEach { (label, value) ->
+            Column(modifier = Modifier.weight(1f)) {
+                Overline(label, color = Palette.textTertiary)
+                Text(value, style = NoopType.bodyNumber, color = Palette.textPrimary)
             }
         }
     }
