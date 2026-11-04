@@ -2332,6 +2332,8 @@
     <string name="today_beta">测试版</string>
     <string name="today_sleep_source_last_night">%1$s · 昨晚</string>
     <string name="today_dashboard_editor_description">选择“今天”中显示的卡片。暂无数值的卡片会显示短横线。</string>
+    <string name="dashboard_layout_normal">常规</string>
+    <string name="dashboard_layout_tab">选项卡</string>
     <string name="today_charge_driver_guidance">每一行表示该信号相对于设备端个人基线使能量变化了多少分。仅供参考，不构成医疗建议。</string>
     <string name="today_confidence_solid">稳定</string>
     <string name="today_confidence_building">建立中</string>

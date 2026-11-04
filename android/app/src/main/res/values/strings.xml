@@ -2533,6 +2533,8 @@
     <string name="today_beta">BETA</string>
     <string name="today_sleep_source_last_night">%1$s · last night</string>
     <string name="today_dashboard_editor_description">Choose which cards show on Today. Cards with no value yet show a dash.</string>
+    <string name="dashboard_layout_normal">Normal</string>
+    <string name="dashboard_layout_tab">Tab</string>
     <string name="today_charge_driver_guidance">Each line shows how many points that signal moved Charge versus your on-device baseline. Approximate, not medical advice.</string>
     <string name="today_confidence_solid">SOLID</string>
     <string name="today_confidence_building">BUILDING</string>

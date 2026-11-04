@@ -2410,6 +2410,8 @@
     <string name="today_beta">BETA</string>
     <string name="today_sleep_source_last_night">%1$s · ostatnia noc</string>
     <string name="today_dashboard_editor_description">Wybierz karty widoczne na ekranie Dzisiaj. Karty bez wartości pokazują kreskę.</string>
+    <string name="dashboard_layout_normal">Normalny</string>
+    <string name="dashboard_layout_tab">Karta</string>
     <string name="today_charge_driver_guidance">Każdy wiersz pokazuje, o ile punktów sygnał zmienił energię względem bazy obliczonej na urządzeniu. To przybliżenie, nie porada medyczna.</string>
     <string name="today_confidence_solid">PEWNY</string>
     <string name="today_confidence_building">W BUDOWIE</string>

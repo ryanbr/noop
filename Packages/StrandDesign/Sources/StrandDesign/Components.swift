@@ -12,6 +12,9 @@ public enum NoopMetrics {
     public static let sectionGap: CGFloat = NoopVisualStyle.sectionGap
     public static let screenPadding: CGFloat = NoopVisualStyle.pagePadding
     public static let tileHeight: CGFloat = 96   // Design Reset: tighter metric tile
+    // "Your cards" dashboard tiles: a hair under the metric tile so a value-less card
+    // (Coach / Coupled) with a three-line description still clears the fixed height.
+    public static let dashboardCardHeight: CGFloat = 94
     // Key Metrics grid: one fixed height every tile snaps to, so a sparkline-and-caption tile and a
     // plain value tile read the same. maxHeight: .infinity can't equalise them inside a LazyVGrid (the
     // grid only offers a cell its content height, so there's nothing for the shorter tile to grow into),

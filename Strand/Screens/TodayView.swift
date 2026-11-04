@@ -265,6 +265,9 @@ struct TodayView: View {
     // Resting HR). The "CUSTOMISE" link on the section header opens a local sheet (no new nav destination).
     // Persistence is display-only, these cards read the SAME values the rest of Today already loads.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
+    /// The "Your cards" section layout (1-column list vs 2-column grid), persisted with the
+    /// Android twin under the shared key. Default `.tab` keeps the shipped look.
+    @AppStorage(DashboardCardPrefs.layoutKey) private var dashboardLayoutRaw = DashboardLayout.tab.rawValue
     /// #today-hosted-cards: the ordered Trends/Sleep cards hosted in Today (empty/opt-in). Shared key
     /// with Android; rendered by the `.addedCards` section.
     @AppStorage(HostedCardPrefs.selectionKey) private var hostedCardsRaw = ""
@@ -1770,6 +1773,7 @@ struct TodayView: View {
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
                 dashboardCardsRaw: $dashboardCardsRaw,
+                dashboardLayoutRaw: $dashboardLayoutRaw,
                 hostedCardsRaw: $hostedCardsRaw
             )
         }
@@ -2593,8 +2597,24 @@ struct TodayView: View {
                     .accessibilityLabel("Customise your cards")
                     .help("Choose which cards show and reorder them")
                 }
-                ForEach(enabledDashboardCards) { card in
-                    dashboardCardRow(card)
+                // The user's layout choice (Normal / Tab): a 1-column list or the 2-column grid (the
+                // WHOOP "My Dashboard" density). Each card keeps its own frosted surface either way.
+                if DashboardCardPrefs.layout(dashboardLayoutRaw) == .normal {
+                    VStack(spacing: NoopMetrics.gap) {
+                        ForEach(enabledDashboardCards) { card in
+                            dashboardCardRow(card)
+                        }
+                    }
+                } else {
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
+                        alignment: .top,
+                        spacing: 8
+                    ) {
+                        ForEach(enabledDashboardCards) { card in
+                            dashboardCardRow(card, grid: true)
+                        }
+                    }
                 }
             }
         }
@@ -2758,21 +2778,21 @@ struct TodayView: View {
     /// card's detail screen. Branching keeps the destination type concrete (no AnyView) so navigation is
     /// exact and the original three cards reach the SAME screens as before.
     @ViewBuilder
-    private func dashboardCardRow(_ card: DashboardCard) -> some View {
+    private func dashboardCardRow(_ card: DashboardCard, grid: Bool = false) -> some View {
         let tint = dashboardTint(card)
         switch card {
         case .stepsAverage30:
-            RollingStepsAverageCard(day: selectedDayKey)
+            RollingStepsAverageCard(day: selectedDayKey, grid: grid)
         case .stress:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .stress)
+                          value: dashboardValue(card), grid: grid, route: .stress)
         case .fitnessAge, .vo2max, .vitality, .steps, .calories:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .health)
+                          value: dashboardValue(card), grid: grid, route: .health)
         case .hrv, .restingHr, .respiratory, .bloodOxygen, .skinTemp:
             // The overnight vitals share the Health detail screen (the vital-signs surface).
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .health)
+                          value: dashboardValue(card), grid: grid, route: .health)
         case .sleep:
             // #110: the value is `totalSleepMin` — WHOOP's imported TST, which can legitimately differ
             // from the Sleep tab's on-device re-staged night. Label the row with its source + which night
@@ -2780,20 +2800,20 @@ struct TodayView: View {
             // provenance; fall back to the card's static description when there's no banked sleep.
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title,
                           subtitle: sleepSourceSubtitle(displayDay) ?? card.subtitle,
-                          value: dashboardValue(card), route: .sleep)
+                          value: dashboardValue(card), grid: grid, route: .sleep)
         case .hydration:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .hydration)
+                          value: dashboardValue(card), grid: grid, route: .hydration)
         case .coupled:
             // The Coupled view row (#43) carries NO metric value, it is a tap-through to the full
             // coupled day screen. An empty value renders just the icon + title + subtitle + chevron.
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .coupled)
+                          value: dashboardValue(card), grid: grid, route: .coupled)
         case .coach:
             // #1862: a SHEET, not a push — Coach is a thing you dip into and dismiss, and pushing it
             // would take you off Today, which is the discoverability problem this card exists to solve.
             pinnedCardActionRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                                value: dashboardValue(card)) { showCoachLauncher = true }
+                                value: dashboardValue(card), grid: grid) { showCoachLauncher = true }
         }
     }
 
@@ -2940,9 +2960,13 @@ struct TodayView: View {
     /// Today root must ride the tab's `NavigationPath` so a re-tap of the Today tab can pop it (#198;
     /// see TabRoute.swift).
     private func pinnedCardRow(icon: String, tint: Color, title: String, subtitle: String,
-                               value: String, route: TabRoute) -> some View {
+                               value: String, grid: Bool = false, route: TabRoute) -> some View {
         NavigationLink(value: route) {
-            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            if grid {
+                pinnedCardGridBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            } else {
+                pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            }
         }
         .buttonStyle(.plain)
     }
@@ -2950,16 +2974,24 @@ struct TodayView: View {
     /// The same row, but it runs `action` instead of pushing a route (#1862).
     ///
     /// Coach is the one dashboard card that opens a SHEET rather than a screen, so it cannot ride
-    /// `NavigationLink`. Both wrappers render `pinnedCardRowBody`, so the two kinds of row cannot drift
-    /// apart visually — which duplicating the HStack for one caller would have guaranteed eventually.
+    /// `NavigationLink`. Both wrappers render the same body for a given layout, so the two kinds of row
+    /// cannot drift apart visually — which duplicating the HStack for one caller would have guaranteed
+    /// eventually.
     private func pinnedCardActionRow(icon: String, tint: Color, title: String, subtitle: String,
-                                     value: String, action: @escaping () -> Void) -> some View {
+                                     value: String, grid: Bool = false,
+                                     action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            if grid {
+                pinnedCardGridBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            } else {
+                pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            }
         }
         .buttonStyle(.plain)
     }
 
+    /// The Normal (1-column) face: the original metric row — label over a one-line caption, the value
+    /// (white for a real number, dimmed for a placeholder) and a chevron, sized to its content.
     @ViewBuilder
     private func pinnedCardRowBody(icon: String, tint: Color, title: String, subtitle: String,
                                    value: String) -> some View {
@@ -2980,7 +3012,7 @@ struct TodayView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            // A real number reads white; a placeholder (, / Calibrating) reads dimmed so it doesn't
+            // A real number reads white; a placeholder (— / Calibrating) reads dimmed so it doesn't
             // masquerade as a value.
             let isPlaceholder = (value == "—" || value == Self.calibratingPlaceholder)
             Text(value).font(StrandFont.rounded(18, weight: .semibold))
@@ -2990,6 +3022,48 @@ struct TodayView: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
+        .contentShape(Rectangle())
+    }
+
+    /// The Tab (2-column) face of the same card: a fixed-height tile — the title overline, the value on a
+    /// middle line (a placeholder renders none), and the description on the bottom — so half-width tiles
+    /// stay even in the grid.
+    @ViewBuilder
+    private func pinnedCardGridBody(icon: String, tint: Color, title: String, subtitle: String,
+                                    value: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .frame(width: 34, height: 34)
+                .overlay(Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.uppercased())
+                    .font(StrandFont.overline)
+                    .tracking(StrandFont.overlineTracking)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                // Middle line: the real value only — a placeholder (— / Calibrating) or the empty
+                // tap-through value (Coupled / Coach) renders no number, the subtitle carries the state.
+                let hasValue = !value.isEmpty && value != "—" && value != Self.calibratingPlaceholder
+                if hasValue {
+                    Text(value).font(StrandFont.rounded(18, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                // Bottom text one size down: in the 2-column grid the card is half width, so the
+                // description sits on a caption to keep the card compact (title overline, value number face).
+                Text(subtitle)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Fixed card height: every "Your cards" tile is this tall, so a long subtitle wraps
+        // instead of stretching its card taller than the neighbour's.
+        .frame(height: NoopMetrics.dashboardCardHeight)
         .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
         .contentShape(Rectangle())
     }

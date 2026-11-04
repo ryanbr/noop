@@ -2411,6 +2411,8 @@
     <string name="today_beta">BÊTA</string>
     <string name="today_sleep_source_last_night">%1$s · nuit dernière</string>
     <string name="today_dashboard_editor_description">Choisissez les cartes affichées dans Aujourd’hui. Les cartes sans valeur affichent un tiret.</string>
+    <string name="dashboard_layout_normal">Normal</string>
+    <string name="dashboard_layout_tab">Onglet</string>
     <string name="today_charge_driver_guidance">Chaque ligne indique de combien de points ce signal a modifié l’énergie par rapport à votre référence calculée sur l’appareil. Valeur approximative, pas un avis médical.</string>
     <string name="today_confidence_solid">SOLIDE</string>
     <string name="today_confidence_building">EN COURS</string>

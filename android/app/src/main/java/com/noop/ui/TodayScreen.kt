@@ -578,6 +578,8 @@ fun TodayScreen(
     // SharedPreferences isn't reactive, so it's mirrored into local state and re-read when the editor saves.
     var showDashboardEditor by remember { mutableStateOf(false) }
     var enabledDashboardCards by remember { mutableStateOf(DashboardCardPrefs.enabled(context)) }
+    // The "Your cards" section layout (Normal 1-column / Tab 2-column), re-read when the editor saves.
+    var dashboardLayout by remember { mutableStateOf(DashboardCardPrefs.layout(context)) }
     // #today-hosted-cards: the Trends/Sleep cards hosted in Today (empty/opt-in). Mirrored into local
     // state like the dashboard selection and re-read when the hosted-cards editor saves.
     var showHostedEditor by remember { mutableStateOf(false) }
@@ -1936,6 +1938,7 @@ fun TodayScreen(
                             onOpenCoach = onOpenCoach,
                             onCustomise = { showDashboardEditor = true },
                             spo2CandidateByDay = spo2CandidateByDay,
+                            layout = dashboardLayout,
                         )
                         TodaySection.MENSTRUAL_CYCLE -> MenstrualCycleHomeCard(
                             enabled = cycleEnabled,
@@ -2111,10 +2114,13 @@ fun TodayScreen(
     if (showDashboardEditor) {
         DashboardCardsEditorDialog(
             initial = enabledDashboardCards,
+            initialLayout = dashboardLayout,
             onDismiss = { showDashboardEditor = false },
-            onSave = { cards ->
+            onSave = { cards, layout ->
                 DashboardCardPrefs.setEnabled(context, cards)
+                DashboardCardPrefs.setLayout(context, layout)
                 enabledDashboardCards = cards
+                dashboardLayout = layout
                 showDashboardEditor = false
             },
         )
@@ -4222,6 +4228,7 @@ private fun YourCardsSection(
     onOpenCoach: (String?) -> Unit,
     onCustomise: () -> Unit,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    layout: DashboardLayout = DashboardLayout.TAB,
 ) {
     // #1331 parity: honor the °C/°F preference on the Skin Temp card, the way Health / Compare (and the
     // Swift twin) do. The classic dashboard hardcoded Celsius here alone, so a °F user saw °C on this
@@ -4253,71 +4260,102 @@ private fun YourCardsSection(
                     contentDescription = uiString(R.string.l10n_today_screen_customise_your_cards_2428d761),
                 )
             }
-            cards.forEach { card ->
-                DashboardCardRow(
+            // Resolve the card's data once, then render it per the user's layout choice: Normal is the
+            // original full-width row, Tab is the fixed-height grid tile — the same card, two faces.
+            val cardRow: @Composable (DashboardCard) -> Unit = { card ->
+                val cardValue = dashboardCardValue(
                     card = card,
-                    value = dashboardCardValue(
-                        card = card,
-                        stepsAverage30 = stepsAverage30.first,
-                        day = day,
-                        carriedDay = carriedDay,
-                        vitalsDay = vitalsDay,
-                        spo2Day = spo2Day,
-                        skinTempDay = skinTempDay,
-                        hrvDay = hrvDay,
-                        rhrDay = rhrDay,
-                        respDay = respDay,
-                        fahrenheit = fahrenheit,
-                        // #1846: the user's lead-with choice. Read at the call site, not defaulted inside —
-                        // a defaulted parameter no caller passes is a setting that silently does nothing.
-                        skinTempPreferred = com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
-                        stress = stress,
-                        fitnessAge = fitnessAge,
-                        vo2max = vo2max,
-                        vitality = vitality,
-                        importedStepsForDay = importedStepsForDay,
-                        estimatedStepsForDay = estimatedStepsForDay,
-                        caloriesForDay = caloriesForDay,
-                        hydrationTotalMl = hydrationTotalMl,
-                        hydrationGoalMl = hydrationGoalMl,
-                        spo2CandidateByDay = spo2CandidateByDay,
-                    ),
-                    // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
-                    fraction = dashboardCardFraction(
-                        card = card,
-                        stepsAverage30 = stepsAverage30.first,
-                        day = day,
-                        carriedDay = carriedDay,
-                        vitalsDay = vitalsDay,
-                        respDay = respDay,
-                        stress = stress,
-                        fitnessAge = fitnessAge,
-                        vo2max = vo2max,
-                        vitality = vitality,
-                        importedStepsForDay = importedStepsForDay,
-                        estimatedStepsForDay = estimatedStepsForDay,
-                    ),
-                    tint = dashboardCardTint(card),
-                    // #110: label the sleep row with its source + night (this section renders at offset 0
-                    // only, so it IS last night), so a WHOOP-imported figure is never silently shown as
-                    // "last night" with no provenance. iOS TodayView.sleepSourceSubtitle twin.
-                    subtitleOverride = if (card == DashboardCard.STEPS_AVERAGE_30)
-                        uiString(R.string.steps_average_coverage, stepsAverage30.second)
-                    else sleepSourceSubtitle(card, day),
-                    // #706/#684: every card now opens its OWN detail, matching iOS. The Stress card -> Stress;
-                    // the overnight vitals (HRV / Resting HR / Respiratory / SpO₂ / Skin Temp) + Fitness age /
-                    // Vitality / Steps / Calories -> each metric's focused trend (vital_detail/<key>, the iOS
-                    // metricDetail twin); Sleep -> Sleep; Hydration -> Hydration. Whole row is the button.
-                    onClick = dashboardCardDestination(
-                        card = card,
-                        onOpenStress = onOpenStress,
-                        onOpenMetric = onOpenMetric,
-                        onOpenSleep = onOpenSleep,
-                        onOpenHydration = onOpenHydration,
-                        onOpenCoupled = onOpenCoupled,
-                        onOpenCoach = { showCoachLauncher = true },
-                    ),
+                    stepsAverage30 = stepsAverage30.first,
+                    day = day,
+                    carriedDay = carriedDay,
+                    vitalsDay = vitalsDay,
+                    spo2Day = spo2Day,
+                    skinTempDay = skinTempDay,
+                    hrvDay = hrvDay,
+                    rhrDay = rhrDay,
+                    respDay = respDay,
+                    fahrenheit = fahrenheit,
+                    // #1846: the user's lead-with choice. Read at the call site, not defaulted inside —
+                    // a defaulted parameter no caller passes is a setting that silently does nothing.
+                    skinTempPreferred = com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
+                    stress = stress,
+                    fitnessAge = fitnessAge,
+                    vo2max = vo2max,
+                    vitality = vitality,
+                    importedStepsForDay = importedStepsForDay,
+                    estimatedStepsForDay = estimatedStepsForDay,
+                    caloriesForDay = caloriesForDay,
+                    hydrationTotalMl = hydrationTotalMl,
+                    hydrationGoalMl = hydrationGoalMl,
+                    spo2CandidateByDay = spo2CandidateByDay,
                 )
+                // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
+                val cardFraction = dashboardCardFraction(
+                    card = card,
+                    stepsAverage30 = stepsAverage30.first,
+                    day = day,
+                    carriedDay = carriedDay,
+                    vitalsDay = vitalsDay,
+                    respDay = respDay,
+                    stress = stress,
+                    fitnessAge = fitnessAge,
+                    vo2max = vo2max,
+                    vitality = vitality,
+                    importedStepsForDay = importedStepsForDay,
+                    estimatedStepsForDay = estimatedStepsForDay,
+                )
+                // #110: label the sleep row with its source + night (this section renders at offset 0
+                // only, so it IS last night), so a WHOOP figure is never silently shown as
+                // "last night" with no provenance. iOS TodayView.sleepSourceSubtitle twin.
+                val cardSubtitle = if (card == DashboardCard.STEPS_AVERAGE_30)
+                    uiString(R.string.steps_average_coverage, stepsAverage30.second)
+                else sleepSourceSubtitle(card, day)
+                // #706/#684: every card now opens its OWN detail, matching iOS. The Stress card -> Stress;
+                // the overnight vitals (HRV / Resting HR / Respiratory / SpO₂ / Skin Temp) + Fitness age /
+                // Vitality / Steps / Calories -> each metric's focused trend (vital_detail/<key>, the iOS
+                // metricDetail twin); Sleep -> Sleep; Hydration -> Hydration. Whole row is the button.
+                val cardClick: () -> Unit = dashboardCardDestination(
+                    card = card,
+                    onOpenStress = onOpenStress,
+                    onOpenMetric = onOpenMetric,
+                    onOpenSleep = onOpenSleep,
+                    onOpenHydration = onOpenHydration,
+                    onOpenCoupled = onOpenCoupled,
+                    onOpenCoach = { showCoachLauncher = true },
+                )
+                if (layout == DashboardLayout.TAB) {
+                    DashboardCardGridTile(
+                        card = card,
+                        value = cardValue,
+                        fraction = cardFraction,
+                        tint = dashboardCardTint(card),
+                        subtitleOverride = cardSubtitle,
+                        onClick = cardClick,
+                    )
+                } else {
+                    DashboardCardRow(
+                        card = card,
+                        value = cardValue,
+                        fraction = cardFraction,
+                        tint = dashboardCardTint(card),
+                        subtitleOverride = cardSubtitle,
+                        onClick = cardClick,
+                    )
+                }
+            }
+            if (layout == DashboardLayout.TAB) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cards.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { card ->
+                                Box(modifier = Modifier.weight(1f)) { cardRow(card) }
+                            }
+                            if (row.size == 1) Box(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                cards.forEach { card -> cardRow(card) }
             }
         }
     }
@@ -4678,7 +4716,7 @@ private fun DashboardCardRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                subtitleOverride ?: uiString(card.subtitleRes),
+                subtitleOverride ?: card.subtitleRes?.let { uiString(it) } ?: "",
                 style = NoopType.caption,
                 color = Palette.textTertiary,
                 maxLines = 1,
@@ -4693,6 +4731,102 @@ private fun DashboardCardRow(
             maxLines = 1,
         )
         // iOS chevron = 12.
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Palette.textTertiary,
+            modifier = Modifier.size(12.dp),
+        )
+    }
+}
+
+/**
+ * The Tab (2-column) face of a "Your cards" card: the SAME data as [DashboardCardRow], but a fixed-height
+ * tile — title overline, the value on the middle line (a placeholder renders none), the description on the
+ * bottom — so half-width tiles stay even in the grid.
+ */
+@Composable
+private fun DashboardCardGridTile(
+    card: DashboardCard,
+    value: String,
+    fraction: Double?,
+    tint: Color,
+    // #110: a per-card dynamic subtitle (currently the sleep row's source + night); null keeps the
+    // card's static description.
+    subtitleOverride: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    // Middle line: a real value only — NO_DATA / the Stress calibrating state / the empty
+    // tap-through value (Coupled / Coach) render no number, the subtitle carries the state.
+    val hasValue = value.isNotEmpty() && value != NO_DATA && value != STRESS_CALIBRATING
+    val displayValue = localizedMetricValue(value)
+    val rowShape = RoundedCornerShape(20.dp)
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Fixed card height: every Tab tile is this tall, so a long subtitle wraps
+            // instead of stretching the tile taller than the neighbour's.
+            .height(Metrics.dashboardCardHeight)
+            .let { if (onClick != null) it.liquidPress(interaction) else it }
+            .clip(rowShape)
+            .frostedCardSurface(cornerRadius = 20.dp)
+            .let {
+                if (onClick != null) {
+                    it.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                } else it
+            }
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .semantics { contentDescription = uiString(R.string.l10n_today_screen_card_title_value_e4bb76b3, uiString(card.titleRes), displayValue) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val cardGaugeCtx = LocalContext.current
+        if (remember { NoopPrefs.todayRingGauges(cardGaugeCtx) }) {
+            GlowRing(
+                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+                value = 0.0,
+                color = tint,
+                diameter = 36.dp,
+                lineWidth = 3.dp,
+                showsLabel = false,
+            )
+        } else {
+            LiquidVessel(
+                value = fraction,
+                tint = tint,
+                animated = false,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(
+                uiString(card.titleRes).uppercase(),
+                style = NoopType.overline.copy(fontSize = 11.sp, letterSpacing = 1.0.sp),
+                color = Palette.textPrimary,
+            )
+            if (hasValue) {
+                Text(
+                    displayValue,
+                    style = NoopType.number(17f),
+                    color = Palette.textPrimary,
+                )
+            }
+            // Null for a card that carries title + value only (the 30-day steps card).
+            val subtitle = subtitleOverride ?: card.subtitleRes?.let { uiString(it) }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    // One size down in the 2-column grid: the description sits on footnote (11sp) to keep
+                    // the half-width tile compact.
+                    style = NoopType.footnote,
+                    color = Palette.textTertiary,
+                )
+            }
+        }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
@@ -4988,11 +5122,13 @@ internal fun <T> EditableVisibilityRows(
 @Composable
 private fun DashboardCardsEditorDialog(
     initial: List<DashboardCard>,
+    initialLayout: DashboardLayout,
     onDismiss: () -> Unit,
-    onSave: (List<DashboardCard>) -> Unit,
+    onSave: (List<DashboardCard>, DashboardLayout) -> Unit,
 ) {
     val titles = DashboardCard.entries.associateWith { uiString(it.titleRes) }
     val shown = remember { mutableStateListOf<DashboardCard>().apply { addAll(initial) } }
+    var layout by remember { mutableStateOf(initialLayout) }
     val hidden = remember {
         mutableStateListOf<DashboardCard>().apply {
             addAll(DashboardCard.hiddenOptions(initial))
@@ -5023,6 +5159,22 @@ private fun DashboardCardsEditorDialog(
                     itemTitle = { titles.getValue(it) },
                 )
 
+                // The section layout (Normal 1-column / Tab 2-column). The SAME pill control the
+                // other Today editors use for their mode choices.
+                SegmentedPillControl(
+                    items = DashboardLayout.entries.toList(),
+                    selection = layout,
+                    label = { mode ->
+                        uiString(
+                            if (mode == DashboardLayout.NORMAL) R.string.dashboard_layout_normal
+                            else R.string.dashboard_layout_tab
+                        )
+                    },
+                    onSelect = { layout = it },
+                    adaptsToAvailableWidth = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
@@ -5030,12 +5182,13 @@ private fun DashboardCardsEditorDialog(
                             shown.addAll(DashboardCard.defaultSelection)
                             hidden.clear()
                             hidden.addAll(DashboardCard.hiddenOptions(shown))
+                            layout = DashboardLayout.TAB
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
                     ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
                     Spacer(Modifier.weight(1f))
                     Button(
-                        onClick = { onSave(shown.toList()) },
+                        onClick = { onSave(shown.toList(), layout) },
                         enabled = shown.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Palette.accent,

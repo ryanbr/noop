@@ -2367,6 +2367,8 @@
     <string name="today_beta">БЕТА</string>
     <string name="today_sleep_source_last_night">%1$s · прошлая ночь</string>
     <string name="today_dashboard_editor_description">Выберите, какие карточки показывать на «Сегодня». Карточки без значения показывают прочерк.</string>
+    <string name="dashboard_layout_normal">Обычный</string>
+    <string name="dashboard_layout_tab">Вкладка</string>
     <string name="today_charge_driver_guidance">Каждая строка показывает, на сколько пунктов этот сигнал сдвинул Заряд относительно вашей нормы на устройстве. Приблизительно, не медицинская рекомендация.</string>
     <string name="today_confidence_solid">Стабильный</string>
     <string name="today_confidence_building">Накопление данных</string>

@@ -2404,6 +2404,8 @@
     <string name="today_beta">BETA</string>
     <string name="today_sleep_source_last_night">%1$s · noite passada</string>
     <string name="today_dashboard_editor_description">Escolha os cartões apresentados em Hoje. Os cartões sem valor mostram um traço.</string>
+    <string name="dashboard_layout_normal">Normal</string>
+    <string name="dashboard_layout_tab">Separador</string>
     <string name="today_charge_driver_guidance">Cada linha mostra quantos pontos esse sinal alterou a energia face à sua referência calculada no dispositivo. Valor aproximado, não constitui aconselhamento médico.</string>
     <string name="today_confidence_solid">SÓLIDA</string>
     <string name="today_confidence_building">EM CONSTRUÇÃO</string>

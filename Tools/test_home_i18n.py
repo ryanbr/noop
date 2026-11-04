@@ -94,10 +94,10 @@ ANDROID_INDIRECT_NON_UI_LITERALS = {
     "charge", "effort", "rest", "restingHr", "bloodOxygen", "respiratory", "steps",
     "weight", "calories", "today.keyMetrics", "today.keyMetricsDetailed",
     "today.keyMetricsWindowDays", ",",
-    # Stable DashboardCard raw values + preference; units remain measurement metadata.
+    # Stable DashboardCard raw values + preferences; units remain measurement metadata.
     "stress", "fitnessAge", "vo2max", "vitality", "skinTemp", "sleep", "hydration", "coupled",
-    "coach", "stepsAverage30",
-    "today.dashboardCards", "yrs", "kcal", "",
+    "coach", "stepsAverage30", "normal", "tab",
+    "today.dashboardCards", "today.dashboardLayout", "yrs", "kcal", "",
 }
 
 # Confirmed runtime copy that reaches Today through variables, lambdas, model fields or accessibility

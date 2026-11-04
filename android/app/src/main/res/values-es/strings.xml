@@ -2412,6 +2412,8 @@
     <string name="today_beta">BETA</string>
     <string name="today_sleep_source_last_night">%1$s · anoche</string>
     <string name="today_dashboard_editor_description">Elige las tarjetas que aparecen en Hoy. Las tarjetas sin valor muestran un guion.</string>
+    <string name="dashboard_layout_normal">Normal</string>
+    <string name="dashboard_layout_tab">Pestaña</string>
     <string name="today_charge_driver_guidance">Cada línea muestra cuántos puntos movió esa señal la carga frente a tu referencia calculada en el dispositivo. Es una aproximación, no un consejo médico.</string>
     <string name="today_confidence_solid">SÓLIDA</string>
     <string name="today_confidence_building">EN PROGRESO</string>

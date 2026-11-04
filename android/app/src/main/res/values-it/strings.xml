@@ -2477,6 +2477,8 @@
     <string name="today_beta">BETA</string>
     <string name="today_sleep_source_last_night">%1$s · ieri notte</string>
     <string name="today_dashboard_editor_description">Scegli quali schede mostrare in Oggi. Le schede ancora senza valore mostrano un trattino.</string>
+    <string name="dashboard_layout_normal">Normale</string>
+    <string name="dashboard_layout_tab">Scheda</string>
     <string name="today_charge_driver_guidance">Ogni riga mostra di quanti punti quel segnale ha spostato la carica rispetto alla linea di base sul dispositivo. Valore approssimativo, non un consiglio medico.</string>
     <string name="today_confidence_solid">STABILE</string>
     <string name="today_confidence_building">IN CREAZIONE</string>

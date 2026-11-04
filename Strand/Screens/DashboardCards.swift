@@ -56,7 +56,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .restingHr:   return String(localized: "Resting HR")
         case .respiratory: return String(localized: "Respiratory")
         case .steps:       return String(localized: "Steps")
-        case .stepsAverage30: return String(localized: "30-day step average")
+        case .stepsAverage30: return String(localized: "30-day step avg")
         case .stress:      return String(localized: "Stress")
         case .fitnessAge:  return String(localized: "Fitness Age")
         case .vo2max:      return String(localized: "VO₂ Max")
@@ -149,12 +149,28 @@ enum DashboardCard: String, CaseIterable, Identifiable {
     static let canonicalOrder: [DashboardCard] = allCases
 }
 
+/// The "Your cards" section layout: `.normal` is the 1-column full-width list, `.tab` is the 2-column
+/// grid. The `rawValue` is the stable persisted identifier, keep it byte-identical to the Android
+/// `DashboardLayout` raws so a backup/restore reads the same layout on either OS.
+enum DashboardLayout: String {
+    case normal
+    case tab
+}
+
 /// Display-only persistence for the "Your cards" dashboard selection. Holds an ORDERED list of the enabled
 /// cards as a JSON-encoded [String] of ids; a card not in the list is hidden. Stored in
 /// @AppStorage("today.dashboardCards").
 enum DashboardCardPrefs {
     /// UserDefaults key, a JSON array of `DashboardCard` ids in display order.
     static let selectionKey = "today.dashboardCards"
+
+    /// UserDefaults key for the section layout, a `DashboardLayout` raw.
+    static let layoutKey = "today.dashboardLayout"
+
+    /// Parse the stored layout. An empty/unset value yields `.tab`, the shipped look.
+    static func layout(_ raw: String) -> DashboardLayout {
+        DashboardLayout(rawValue: raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .tab
+    }
 
     /// Preserve a prior explicit opt-in once, then let Your Cards own the preference.
     static func migrateLegacyStepsAverage(defaults: UserDefaults = .standard) {

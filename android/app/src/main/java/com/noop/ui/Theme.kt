@@ -420,6 +420,9 @@ object Metrics {
     val screenRowSpacing = 20.dp
     val screenPadding = 16.dp
     val tileHeight = 108.dp   // every metric tile is this tall
+    // "Your cards" dashboard tiles: a hair under the metric tile so a value-less card
+    // (Coach / Coupled) with a three-line description still clears the fixed height.
+    val dashboardCardHeight = 88.dp
     val chartHeight = 220.dp
     val dialogScrollableMaxHeight = 560.dp
     val divider = 1.dp
