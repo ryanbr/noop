@@ -171,7 +171,7 @@ struct CompareView: View {
     private var loadTaskID: String { "\(selectionKey)|\(repo.refreshSeq)" }
 
     var body: some View {
-        ScreenScaffold(title: "Compare", subtitle: "Overlay signals, draw conclusions.",
+        ScreenScaffold(title: "Compare", subtitle: "Put two to four readings on one chart to see whether they rise and fall together.",
                        // PERF (scroll): lazy column — byte-identical layout (LazyVStack == eager VStack
                        // alignment/spacing/header). The content is one inner eager VStack; no staggered
                        // reveals, and the only GeometryReaders are chart-local (.chartOverlay plot rects),

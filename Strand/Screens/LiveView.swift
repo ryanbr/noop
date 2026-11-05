@@ -108,8 +108,8 @@ struct LiveView: View {
     @State private var showHRVSnapshot = false
 
     var body: some View {
-        ScreenScaffold(title: "Live Body Console",
-                       subtitle: "Current physiology, strap trust, and session controls in one working view.",
+        ScreenScaffold(title: "Live",
+                       subtitle: "Your heart rate and other readings right now, how well the strap is reading them, and controls to record what it sends.",
                        topBackground: liquidScaffoldSky()) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 consoleHeader

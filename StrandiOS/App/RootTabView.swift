@@ -400,7 +400,7 @@ struct RootTabView: View {
                 // #1027: these screens draw a full-bleed liquid sky (ScreenScaffold topBackground) that runs
                 // edge-to-edge under a transparent bar — exactly how the tab roots present it. An OPAQUE
                 // surfaceBase toolbar background sat on top of that sky and, as the content scrolled up, its
-                // extended status-bar band CLIPPED the sky + the in-content header ("Live Body Console").
+                // extended status-bar band CLIPPED the sky + the in-content header ("Live").
                 // Hiding the bar background lets the sky stay continuous under the floating Done button.
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbar {

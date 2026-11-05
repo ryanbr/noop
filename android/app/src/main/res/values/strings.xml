@@ -201,7 +201,7 @@
     <!-- Trends / Explore / Deep Timeline (#448, completed by #453): these screens originally used
          hardcoded English throughout. Direct Compose copy and data-driven MetricSpec/TimelineMetric
          labels now live in resources; German wording follows the Apple catalogs where available. -->
-    <string name="trends_subtitle">The thread of you over time.</string>
+    <string name="trends_subtitle">How your scores and body readings have changed over days, weeks and months.</string>
     <string name="trends_trailing">Trailing</string>
     <string name="trends_trailing_days">Trailing %1$d days</string>
     <string name="trends_all_history">All history</string>
@@ -238,7 +238,7 @@
     <string name="trends_empty_title">Trends need history to draw</string>
     <string name="trends_empty_body">Trends need history to draw. Import your WHOOP export in Data Sources to see weeks, months and years instantly.</string>
 
-    <string name="explore_subtitle">Every signal, one tap deep.</string>
+    <string name="explore_subtitle">Every reading NOOP keeps, grouped by type. Tap one to see its history in detail.</string>
     <string name="explore_import_title">Import your history first</string>
     <string name="explore_import_body">Import your history first. A WHOOP export in Data Sources fills every metric you can explore here in about a minute.</string>
     <string name="deep_timeline_title">Deep Timeline</string>
@@ -2098,7 +2098,7 @@
     <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
     <string name="score_state_title_calibrating">Calibrating</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Resumes in the morning</string>
-    <string name="stress_screen_subtitle">Autonomic load across your waking day</string>
+    <string name="stress_screen_subtitle">How stressed your body seemed while you were awake, judged from your heart rate and heart-rate variability.</string>
     <string name="stress_timeline_caption_day">The line is each waking hour\'s 0–3 proxy, scored against your own calm hours today. The bar below splits your day into calm, moderate and high stress time.</string>
     <string name="stress_timeline_caption_personal">The line is each waking hour\'s 0–3 proxy, scored against your personal daytime baseline (how your own days usually run). The bar below splits your day into calm, moderate and high stress time.</string>
     <plurals name="stress_hours_excluded_moving">
@@ -2889,4 +2889,10 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="compare_screen_subtitle">Put two to four readings on one chart to see whether they rise and fall together.</string>
+    <string name="insights_screen_subtitle">Whether the habits you log, like alcohol or late meals, go with better or worse scores, and which readings move together.</string>
+    <string name="live_screen_subtitle">Your heart rate and other readings right now, how well the strap is reading them, and controls to record what it sends.</string>
+    <string name="sleep_screen_subtitle">How long and how well you slept, night by night.</string>
+    <string name="workouts_screen_subtitle">All your workouts in one place, recorded by your strap or imported.</string>
+    <string name="intelligence_screen_subtitle">Your Charge, Effort and Rest for each day, worked out by NOOP itself on this device. Nothing is sent online.</string>
 </resources>

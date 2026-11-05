@@ -604,7 +604,7 @@ fun SleepScreen(
 
     LazyScreenScaffold(
         title = uiString(R.string.l10n_sleep_screen_sleep_3cac34e6),
-        subtitle = "Last night, read in two seconds.",
+        subtitle = uiString(R.string.sleep_screen_subtitle),
         listState = sleepListState,   // #sleep-layout: the hold-to-drag frame loop drives this list state
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the static time-of-day liquid sky
         // settles into the theme canvas behind the header + hero, bled full-width up behind the status bar

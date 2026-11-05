@@ -177,7 +177,7 @@ struct WorkoutsView: View {
         let resolved = effectiveRange
         let unscopedRows = sessions(for: resolved)
         let trendRows = recoveryTrendRows(from: unscopedRows)
-        return ScreenScaffold(title: "Workouts", subtitle: "Every session, threaded together.",
+        return ScreenScaffold(title: "Workouts", subtitle: "All your workouts in one place, recorded by your strap or imported.",
                        onRefresh: { await repo.refresh() },
                        // PERF: the column ends in the full "All Sessions" log (the breakdown grid, the
                        // zones card, and a row-per-session table). On a large imported history the eager

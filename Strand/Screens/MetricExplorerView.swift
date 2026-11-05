@@ -502,7 +502,7 @@ struct MetricExplorerView: View {
         // cards), so LazyVStack genuinely builds the off-screen category cards on demand. No
         // `staggeredAppear` here and identical column alignment/spacing (20) + per-child bottom padding,
         // so the layout is byte-identical to the eager VStack.
-        ScreenScaffold(title: "Explore", subtitle: "Every signal, one tap deep.",
+        ScreenScaffold(title: "Explore", subtitle: "Every reading NOOP keeps, grouped by type. Tap one to see its history in detail.",
                        onRefresh: { await repo.refresh() }, lazy: true,
                        topBackground: liquidScaffoldSky()) {
             // A quiet, non-blocking hint while the empty-dot probe runs its first pass. The rows below

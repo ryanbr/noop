@@ -1,6 +1,15 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "How your scores and body readings have changed over days, weeks and months.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "How your scores and body readings have changed over days, weeks and months."}}, "de": {"stringUnit": {"state": "translated", "value": "Wie sich deine Werte und Körpermessungen über Tage, Wochen und Monate verändert haben."}}, "es": {"stringUnit": {"state": "translated", "value": "Cómo han cambiado tus puntuaciones y mediciones corporales a lo largo de días, semanas y meses."}}, "fr": {"stringUnit": {"state": "translated", "value": "Comment vos scores et vos mesures corporelles ont évolué au fil des jours, des semaines et des mois."}}, "it": {"stringUnit": {"state": "translated", "value": "Come sono cambiati i tuoi punteggi e le misurazioni del corpo nel corso di giorni, settimane e mesi."}}, "pl": {"stringUnit": {"state": "translated", "value": "Jak zmieniały się Twoje wyniki i pomiary ciała na przestrzeni dni, tygodni i miesięcy."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Como as tuas pontuações e medições do corpo mudaram ao longo de dias, semanas e meses."}}, "ru": {"stringUnit": {"state": "translated", "value": "Как ваши оценки и показатели тела менялись по дням, неделям и месяцам."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的分数和身体读数在几天、几周和几个月里的变化。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的分數和身體讀數在幾天、幾週和幾個月裡的變化。"}}}},
+    "Every reading NOOP keeps, grouped by type. Tap one to see its history in detail.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Every reading NOOP keeps, grouped by type. Tap one to see its history in detail."}}, "de": {"stringUnit": {"state": "translated", "value": "Jeder Messwert, den NOOP speichert, nach Art gruppiert. Tippe auf einen, um seinen Verlauf im Detail zu sehen."}}, "es": {"stringUnit": {"state": "translated", "value": "Cada medición que guarda NOOP, agrupada por tipo. Toca una para ver su historial en detalle."}}, "fr": {"stringUnit": {"state": "translated", "value": "Chaque mesure que NOOP conserve, regroupée par type. Touchez-en une pour voir son historique en détail."}}, "it": {"stringUnit": {"state": "translated", "value": "Ogni misurazione che NOOP conserva, raggruppata per tipo. Toccane una per vederne la cronologia in dettaglio."}}, "pl": {"stringUnit": {"state": "translated", "value": "Każdy pomiar, który przechowuje NOOP, pogrupowany według rodzaju. Stuknij jeden, aby zobaczyć jego historię ze szczegółami."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Cada medição que o NOOP guarda, agrupada por tipo. Toca numa para ver o seu histórico em detalhe."}}, "ru": {"stringUnit": {"state": "translated", "value": "Все показатели, которые хранит NOOP, по группам. Нажмите на любой, чтобы увидеть его историю подробно."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "NOOP 保存的每项读数，按类型分组。点按任意一项查看其详细历史。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "NOOP 儲存的每項讀數，按類型分組。點按任意一項查看其詳細歷史。"}}}},
+    "Put two to four readings on one chart to see whether they rise and fall together.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Put two to four readings on one chart to see whether they rise and fall together."}}, "de": {"stringUnit": {"state": "translated", "value": "Lege zwei bis vier Messwerte in ein Diagramm, um zu sehen, ob sie gemeinsam steigen und fallen."}}, "es": {"stringUnit": {"state": "translated", "value": "Pon de dos a cuatro mediciones en un mismo gráfico para ver si suben y bajan a la vez."}}, "fr": {"stringUnit": {"state": "translated", "value": "Placez deux à quatre mesures sur un même graphique pour voir si elles montent et descendent ensemble."}}, "it": {"stringUnit": {"state": "translated", "value": "Metti da due a quattro misurazioni su un unico grafico per vedere se salgono e scendono insieme."}}, "pl": {"stringUnit": {"state": "translated", "value": "Umieść od dwóch do czterech pomiarów na jednym wykresie, aby sprawdzić, czy rosną i spadają razem."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Coloca duas a quatro medições num só gráfico para ver se sobem e descem em conjunto."}}, "ru": {"stringUnit": {"state": "translated", "value": "Выведите от двух до четырёх показателей на один график, чтобы увидеть, растут и падают ли они вместе."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "把两到四项读数放在同一张图上，看看它们是否同升同降。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "把兩到四項讀數放在同一張圖上，看看它們是否同升同降。"}}}},
+    "Whether the habits you log, like alcohol or late meals, go with better or worse scores, and which readings move together.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Whether the habits you log, like alcohol or late meals, go with better or worse scores, and which readings move together."}}, "de": {"stringUnit": {"state": "translated", "value": "Ob die Gewohnheiten, die du einträgst, etwa Alkohol oder späte Mahlzeiten, mit besseren oder schlechteren Werten einhergehen, und welche Messwerte sich gemeinsam bewegen."}}, "es": {"stringUnit": {"state": "translated", "value": "Si los hábitos que registras, como el alcohol o las cenas tardías, van con mejores o peores puntuaciones, y qué mediciones se mueven juntas."}}, "fr": {"stringUnit": {"state": "translated", "value": "Si les habitudes que vous notez, comme l'alcool ou les repas tardifs, vont de pair avec de meilleurs ou de moins bons scores, et quelles mesures évoluent ensemble."}}, "it": {"stringUnit": {"state": "translated", "value": "Se le abitudini che registri, come l'alcol o i pasti tardi, vanno di pari passo con punteggi migliori o peggiori, e quali misurazioni si muovono insieme."}}, "pl": {"stringUnit": {"state": "translated", "value": "Czy nawyki, które zapisujesz, takie jak alkohol czy późne posiłki, idą w parze z lepszymi lub gorszymi wynikami, i które pomiary zmieniają się razem."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Se os hábitos que registas, como o álcool ou as refeições tardias, andam a par de pontuações melhores ou piores, e que medições se movem em conjunto."}}, "ru": {"stringUnit": {"state": "translated", "value": "Связаны ли привычки, которые вы отмечаете, например алкоголь или поздний ужин, с лучшими или худшими оценками, и какие показатели меняются вместе."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你记录的习惯（比如饮酒或吃得晚）是否伴随更好或更差的分数，以及哪些读数会一起变化。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你記錄的習慣（比如飲酒或吃得晚）是否伴隨更好或更差的分數，以及哪些讀數會一起變化。"}}}},
+    "All your workouts in one place, recorded by your strap or imported.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "All your workouts in one place, recorded by your strap or imported."}}, "de": {"stringUnit": {"state": "translated", "value": "Alle deine Trainings an einem Ort, vom Band aufgezeichnet oder importiert."}}, "es": {"stringUnit": {"state": "translated", "value": "Todos tus entrenamientos en un solo lugar, registrados por tu banda o importados."}}, "fr": {"stringUnit": {"state": "translated", "value": "Tous vos entraînements au même endroit, enregistrés par votre bracelet ou importés."}}, "it": {"stringUnit": {"state": "translated", "value": "Tutti i tuoi allenamenti in un unico posto, registrati dalla fascia o importati."}}, "pl": {"stringUnit": {"state": "translated", "value": "Wszystkie Twoje treningi w jednym miejscu, zarejestrowane przez opaskę lub zaimportowane."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Todos os teus treinos num só lugar, registados pela banda ou importados."}}, "ru": {"stringUnit": {"state": "translated", "value": "Все ваши тренировки в одном месте: записанные браслетом или импортированные."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你所有的训练都在这里，无论是手环记录的还是导入的。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你所有的訓練都在這裡，無論是手環記錄的還是匯入的。"}}}},
+    "How long and how well you slept, night by night.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "How long and how well you slept, night by night."}}, "de": {"stringUnit": {"state": "translated", "value": "Wie lange und wie gut du geschlafen hast, Nacht für Nacht."}}, "es": {"stringUnit": {"state": "translated", "value": "Cuánto y qué tan bien dormiste, noche a noche."}}, "fr": {"stringUnit": {"state": "translated", "value": "Combien de temps et à quel point vous avez bien dormi, nuit après nuit."}}, "it": {"stringUnit": {"state": "translated", "value": "Quanto e quanto bene hai dormito, notte per notte."}}, "pl": {"stringUnit": {"state": "translated", "value": "Jak długo i jak dobrze spałeś, noc po nocy."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Quanto tempo e quão bem dormiste, noite a noite."}}, "ru": {"stringUnit": {"state": "translated", "value": "Сколько и насколько хорошо вы спали, ночь за ночью."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你每晚睡了多久、睡得怎么样。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你每晚睡了多久、睡得怎麼樣。"}}}},
+    "How stressed your body seemed while you were awake, judged from your heart rate and heart-rate variability.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "How stressed your body seemed while you were awake, judged from your heart rate and heart-rate variability."}}, "de": {"stringUnit": {"state": "translated", "value": "Wie gestresst dein Körper im Wachzustand wirkte, beurteilt anhand deiner Herzfrequenz und Herzfrequenzvariabilität."}}, "es": {"stringUnit": {"state": "translated", "value": "Qué tan estresado parecía tu cuerpo mientras estabas despierto, según tu frecuencia cardíaca y tu variabilidad de la frecuencia cardíaca."}}, "fr": {"stringUnit": {"state": "translated", "value": "À quel point votre corps semblait stressé pendant vos heures d'éveil, d'après votre fréquence cardiaque et votre variabilité de la fréquence cardiaque."}}, "it": {"stringUnit": {"state": "translated", "value": "Quanto sembrava stressato il tuo corpo mentre eri sveglio, in base alla frequenza cardiaca e alla variabilità della frequenza cardiaca."}}, "pl": {"stringUnit": {"state": "translated", "value": "Jak zestresowany wydawał się Twój organizm w ciągu dnia, oceniony na podstawie tętna i zmienności rytmu serca."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Quão stressado parecia o teu corpo enquanto estavas acordado, avaliado pela frequência cardíaca e pela variabilidade da frequência cardíaca."}}, "ru": {"stringUnit": {"state": "translated", "value": "Насколько напряжённым выглядел ваш организм во время бодрствования — по пульсу и вариабельности сердечного ритма."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "清醒时你的身体看起来有多大压力，依据你的心率和心率变异性判断。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "清醒時你的身體看起來有多大壓力，依據你的心率和心率變異性判斷。"}}}},
+    "Your heart rate and other readings right now, how well the strap is reading them, and controls to record what it sends.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your heart rate and other readings right now, how well the strap is reading them, and controls to record what it sends."}}, "de": {"stringUnit": {"state": "translated", "value": "Deine Herzfrequenz und andere Messwerte genau jetzt, wie gut das Band sie erfasst, und Steuerungen, um aufzuzeichnen, was es sendet."}}, "es": {"stringUnit": {"state": "translated", "value": "Tu frecuencia cardíaca y otras mediciones ahora mismo, qué tan bien las está leyendo la banda y controles para grabar lo que envía."}}, "fr": {"stringUnit": {"state": "translated", "value": "Votre fréquence cardiaque et vos autres mesures en ce moment, la qualité de leur lecture par le bracelet, et des commandes pour enregistrer ce qu'il envoie."}}, "it": {"stringUnit": {"state": "translated", "value": "La tua frequenza cardiaca e le altre misurazioni in questo momento, quanto bene la fascia le sta leggendo e i comandi per registrare ciò che invia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoje tętno i inne pomiary w tej chwili, jak dobrze opaska je odczytuje, oraz przyciski do nagrywania tego, co wysyła."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A tua frequência cardíaca e outras medições neste momento, quão bem a banda as está a ler e controlos para gravar o que envia."}}, "ru": {"stringUnit": {"state": "translated", "value": "Ваш пульс и другие показатели прямо сейчас, насколько хорошо браслет их считывает, и кнопки для записи того, что он передаёт."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你此刻的心率和其他读数、手环读取它们的准确程度，以及用于录制手环传来数据的控制。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你此刻的心率和其他讀數、手環讀取它們的準確程度，以及用於錄製手環傳來資料的控制。"}}}},
+    "Your Charge, Effort and Rest for each day, worked out by NOOP itself on this device. Nothing is sent online.": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Your Charge, Effort and Rest for each day, worked out by NOOP itself on this device. Nothing is sent online."}}, "de": {"stringUnit": {"state": "translated", "value": "Deine Energie, Belastung und Erholung für jeden Tag, von NOOP selbst auf diesem Gerät berechnet. Nichts wird online gesendet."}}, "es": {"stringUnit": {"state": "translated", "value": "Tu Carga, Esfuerzo y Descanso de cada día, calculados por el propio NOOP en este dispositivo. No se envía nada a internet."}}, "fr": {"stringUnit": {"state": "translated", "value": "Votre Charge, votre Effort et votre Repos pour chaque jour, calculés par NOOP lui-même sur cet appareil. Rien n'est envoyé en ligne."}}, "it": {"stringUnit": {"state": "translated", "value": "La tua Carica, Sforzo e Riposo di ogni giorno, calcolati da NOOP stesso su questo dispositivo. Non viene inviato nulla online."}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoja Energia, Wysiłek i Odpoczynek dla każdego dnia, wyliczane przez sam NOOP na tym urządzeniu. Nic nie jest wysyłane do sieci."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A tua Carga, Esforço e Descanso de cada dia, calculados pelo próprio NOOP neste dispositivo. Nada é enviado online."}}, "ru": {"stringUnit": {"state": "translated", "value": "Ваши Заряд, Усилие и Отдых за каждый день, рассчитанные самим NOOP на этом устройстве. Ничего не отправляется в интернет."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你每天的能量、消耗和休息，由 NOOP 在本设备上自行计算。不会上传任何数据。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你每天的能量、消耗和休息，由 NOOP 在本裝置上自行計算。不會上傳任何資料。"}}}},
     "Move, relative to tonight": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Move, relative to tonight"}}, "de": {"stringUnit": {"state": "translated", "value": "Bewegung, relativ zu dieser Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "Movimiento, en relación con esta noche"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mouvement, par rapport à cette nuit"}}, "it": {"stringUnit": {"state": "translated", "value": "Movimento, rispetto a questa notte"}}, "pl": {"stringUnit": {"state": "translated", "value": "Ruch, w odniesieniu do tej nocy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Movimento, em relação a esta noite"}}, "ru": {"stringUnit": {"state": "translated", "value": "Движение, относительно этой ночи"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "活动，相对于今晚"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "活動，相對於今晚"}}}},
     "Route and GPS distance, without the heart-rate and calorie summary": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Route and GPS distance, without the heart-rate and calorie summary"}}, "de": {"stringUnit": {"state": "translated", "value": "Route und GPS-Distanz, ohne die Herzfrequenz- und Kalorienübersicht"}}, "es": {"stringUnit": {"state": "translated", "value": "Ruta y distancia GPS, sin el resumen de frecuencia cardiaca y calorías"}}, "fr": {"stringUnit": {"state": "translated", "value": "Itinéraire et distance GPS, sans le récapitulatif de fréquence cardiaque et de calories"}}, "it": {"stringUnit": {"state": "translated", "value": "Percorso e distanza GPS, senza il riepilogo di frequenza cardiaca e calorie"}}, "pl": {"stringUnit": {"state": "translated", "value": "Trasa i dystans GPS, bez podsumowania tętna i kalorii"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Rota e distância GPS, sem o resumo de frequência cardíaca e calorias"}}, "ru": {"stringUnit": {"state": "translated", "value": "Маршрут и GPS-дистанция, без сводки пульса и калорий"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "路线和 GPS 距离，不含心率和卡路里摘要"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "路線和 GPS 距離，不含心率和卡路里摘要"}}}},
     "Export Workout Route": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Export Workout Route"}}, "de": {"stringUnit": {"state": "translated", "value": "Trainingsroute exportieren"}}, "es": {"stringUnit": {"state": "translated", "value": "Exportar ruta del entrenamiento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Exporter l’itinéraire de la séance"}}, "it": {"stringUnit": {"state": "translated", "value": "Esporta il percorso dell’allenamento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Eksportuj trasę treningu"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Exportar rota do treino"}}, "ru": {"stringUnit": {"state": "translated", "value": "Экспортировать маршрут тренировки"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出运动路线"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出運動路線"}}}},
@@ -58453,64 +58462,6 @@
         }
       }
     },
-    "Current physiology, strap trust, and session controls in one working view.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktuelle Physiologie, Strap-Vertrauen und Sitzungssteuerung in einer Arbeitsansicht."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fisiología actual, confianza de la pulsera y controles de sesión en una sola vista de trabajo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Physiologie actuelle, fiabilité du bracelet et contrôles de séance dans une seule vue de travail."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fisiologia attuale, affidabilità della fascia e controlli di sessione in un'unica vista operativa."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fisiologia atual, confiança nas braceletes e controlos de sessão numa visualização de trabalho."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Текущая физиология, доверие к браслету и элементы управления сеансом в одном рабочем окне."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "将当前的生理状态、手环信任度和会话控制集中在一个操作视图中。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "將目前的生理狀態、手環信任度和工作階段控制集中在一個操作檢視中。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bieżąca fizjologia, zaufanie paska i elementy sterujące sesją w jednym widoku roboczym."
-          }
-        }
-      }
-    },
     "Current: %@": {
       "localizations": {
         "de": {
@@ -70652,134 +70603,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Możliwość powiększania każdej sekundy dnia."
-          }
-        }
-      }
-    },
-    "Every session, threaded together.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jede Sitzung, miteinander verwoben."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Every session, threaded together."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada sesión, hilada con las demás."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chaque séance, reliée ensemble."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ogni sessione, intrecciata insieme."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada sessão, encadeada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Все сессии складываются в единую историю."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每一次会话，串连成线。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每一次工作階段，串連成線。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Każda sesja połączona ze sobą."
-          }
-        }
-      }
-    },
-    "Every signal, one tap deep.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jedes Signal, nur einen Tipp entfernt."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Every signal, one tap deep."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada señal, a un toque de distancia."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chaque signal, à un tap."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ogni segnale, a un tocco di distanza."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cada sinal, um toque profundo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Каждый показатель, в одном касании."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每一个信号，轻点即达。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每一個訊號，輕點即達。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Każdy sygnał, głębokość jednego dotknięcia."
           }
         }
       }
@@ -89940,70 +89763,6 @@
         }
       }
     },
-    "Interrogate what affects what.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Untersuche, was was beeinflusst."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrogate what affects what."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Investiga qué afecta a qué."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrogez ce qui affecte quoi."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indaga cosa influenza cosa."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Interrogue o que afeta o quê."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выясните, что на что влияет."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "追问什么影响着什么。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "追問什麼影響著什麼。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zapytaj, co wpływa na co."
-          }
-        }
-      }
-    },
     "Interval Timer": {
       "localizations": {
         "de": {
@@ -93398,70 +93157,6 @@
         }
       }
     },
-    "Last night, read in two seconds.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Letzte Nacht, in zwei Sekunden erfasst."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last night, read in two seconds."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anoche, resumido en dos segundos."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La nuit dernière, lu en deux secondes."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La scorsa notte, in due secondi."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ontem à noite, leia-o em dois segundos."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Итоги последней ночи, за две секунды."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "昨晚，两秒读懂。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "昨晚，兩秒讀懂。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wczoraj wieczorem, przeczytaj w dwie sekundy."
-          }
-        }
-      }
-    },
     "Last offload completed": {
       "localizations": {
         "de": {
@@ -96180,64 +95875,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Na żywo"
-          }
-        }
-      }
-    },
-    "Live Body Console": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Live-Körperkonsole"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Consola corporal en vivo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Console corporelle en direct"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Console del corpo in diretta"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Consola de corpo em direto"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Консоль тела в реальном времени"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "实时身体控制台"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "即時身體控制台"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konsola na żywo"
           }
         }
       }
@@ -107696,64 +107333,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP odczytuje tętno, HRV, tętno spoczynkowe, sen, kroki, energię, a VO₂ max z Apple Health oblicza Twoje wyniki. Wszystko pozostaje na tym iPhonie, a Ty wybierasz, co chcesz udostępnić na następnym ekranie."
-          }
-        }
-      }
-    },
-    "NOOP scores your charge, effort and rest itself: on-device, no cloud.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP berechnet deine Energie, Belastung und Erholung selbst: auf dem Gerät, keine Cloud."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP calcula tu carga, esfuerzo y descanso por sí mismo: en el dispositivo, sin nube."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP calcule lui-même votre charge, votre effort et votre repos : sur l'appareil, sans cloud."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP calcola da sé la tua carica, lo sforzo e il riposo, sul dispositivo, niente cloud."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O NOOP avalia a tua carga, esforço e descanso: no dispositivo, sem cloud."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP сам рассчитывает ваш заряд, усилие и отдых: на устройстве, без облака."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP 自行计算你的能量、消耗和休息评分，在设备本地，无需云端。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP 自行計算你的能量、消耗和休息評分，在裝置本地，無需雲端。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP sam ocenia Twój poziom naładowania, wysiłku i odpoczynku: na urządzeniu, bez chmury."
           }
         }
       }
@@ -122886,70 +122465,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nakładanie 2–4 sygnałów"
-          }
-        }
-      }
-    },
-    "Overlay signals, draw conclusions.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signale überlagern, Schlüsse ziehen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Overlay signals, draw conclusions."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Superpón señales, saca conclusiones."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Superposez les signaux, tirez des conclusions."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sovrapponi i segnali, trai le conclusioni."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sobreponha sinais, tire conclusões."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сравнивайте показатели и делайте выводы."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "叠加信号，得出结论。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "疊加訊號，得出結論。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nakładaj sygnały, wyciągaj wnioski."
           }
         }
       }
@@ -165547,70 +165062,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "手環回報的時間與 NOOP 傳送的時間始終不一致，因此它的韌體鬧鐘不會在你的起床時間響起——通常是手環的時鐘或鬧鐘被重設了。請在官方 WHOOP 應用程式中重設手環（或將其充滿電後重新連線），在此之前請以手機的「時鐘」鬧鐘作為起床提醒。"
-          }
-        }
-      }
-    },
-    "The thread of you over time.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dein Verlauf über die Zeit."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The thread of you over time."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El hilo de ti a lo largo del tiempo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le fil de vous au fil du temps."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il filo di te nel tempo."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O teu fio ao longo do tempo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ваша история во времени."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你随时间延展的脉络。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你隨時間延展的脈絡。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wątek Ciebie z biegiem czasu."
           }
         }
       }
@@ -219428,7 +218879,6 @@
         } },
         "%lld hours excluded — you were moving.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "%lld Stunden ausgeschlossen — du warst in Bewegung."}}, "es": {"stringUnit": {"state": "translated", "value": "Se excluyeron %lld horas porque estabas en movimiento."}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld heures exclues — vous étiez en mouvement."}}, "it": {"stringUnit": {"state": "translated", "value": "%lld ore escluse — eri in movimento."}}, "pl": {"stringUnit": {"state": "translated", "value": "Wykryty ruch — wykluczone godziny: %lld."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Foram excluídas %lld horas — estiveste em movimento."}}, "ru": {"stringUnit": {"state": "translated", "value": "Движение: исключённые часы — %lld."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "因你当时在活动，已排除 %lld 小时。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "因你當時在活動，已排除 %lld 小時。"}}}},
         "1 hour excluded — you were moving.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "1 Stunde ausgeschlossen — du warst in Bewegung."}}, "es": {"stringUnit": {"state": "translated", "value": "Se excluyó 1 hora porque estabas en movimiento."}}, "fr": {"stringUnit": {"state": "translated", "value": "1 heure exclue — vous étiez en mouvement."}}, "it": {"stringUnit": {"state": "translated", "value": "1 ora esclusa — eri in movimento."}}, "pl": {"stringUnit": {"state": "translated", "value": "Wykluczono 1 godzinę — wykryto ruch."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Foi excluída 1 hora — estiveste em movimento."}}, "ru": {"stringUnit": {"state": "translated", "value": "Исключён 1 час — вы двигались."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "因你当时在活动，已排除 1 小时。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "因你當時在活動，已排除 1 小時。"}}}},
-        "Autonomic load across your waking day": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Autonome Belastung im Verlauf deines wachen Tages"}}, "es": {"stringUnit": {"state": "translated", "value": "Carga autonómica durante las horas de vigilia"}}, "fr": {"stringUnit": {"state": "translated", "value": "Charge autonome au fil de votre journée éveillée"}}, "it": {"stringUnit": {"state": "translated", "value": "Carico autonomico durante le ore di veglia"}}, "pl": {"stringUnit": {"state": "translated", "value": "Obciążenie autonomiczne w ciągu dnia"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Carga autonómica ao longo do teu dia acordado"}}, "ru": {"stringUnit": {"state": "translated", "value": "Вегетативная нагрузка в течение дня бодрствования"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "清醒时段的自主神经负荷"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "清醒時段的自主神經負荷"}}}},
         "The line is each waking hour's 0-3 proxy, scored against your personal daytime baseline (how your own days usually run). The bar below splits your day into calm, moderate and high stress time.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Die Linie zeigt den 0–3-Näherungswert jeder Wachstunde, bewertet anhand deiner persönlichen Tages-Baseline (wie deine Tage normalerweise verlaufen). Der Balken darunter teilt deinen Tag in ruhige, mäßige und hohe Stresszeiten."}}, "es": {"stringUnit": {"state": "translated", "value": "La línea muestra el indicador de 0 a 3 de cada hora de vigilia, comparado con tu referencia diurna personal (cómo suelen transcurrir tus días). La barra inferior divide el día en periodos de estrés bajo, moderado y alto."}}, "fr": {"stringUnit": {"state": "translated", "value": "La ligne représente l'indice 0–3 de chaque heure éveillée, évalué par rapport à votre référence diurne personnelle (le déroulement habituel de vos journées). La barre ci-dessous répartit votre journée en périodes de stress faible, modéré et élevé."}}, "it": {"stringUnit": {"state": "translated", "value": "La linea mostra l'indicatore da 0 a 3 per ogni ora di veglia, valutato rispetto al tuo riferimento diurno personale (l'andamento abituale delle tue giornate). La barra sottostante divide la giornata in periodi di stress basso, moderato e alto."}}, "pl": {"stringUnit": {"state": "translated", "value": "Linia pokazuje wskaźnik 0–3 dla każdej godziny czuwania, oceniany względem Twojej osobistej dziennej linii bazowej (typowego przebiegu Twoich dni). Pasek poniżej dzieli dzień na okresy niskiego, umiarkowanego i wysokiego stresu."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A linha mostra o indicador de 0–3 de cada hora de vigília, avaliado em relação à tua linha de base diurna pessoal (como os teus dias costumam decorrer). A barra abaixo divide o teu dia em períodos de stress baixo, moderado e elevado."}}, "ru": {"stringUnit": {"state": "translated", "value": "Линия показывает показатель 0–3 за каждый час бодрствования относительно вашей личной дневной нормы (обычного хода ваших дней). Полоса ниже делит день на периоды низкого, умеренного и высокого стресса."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "折线显示每个清醒小时的 0–3 指标，并以你的个人日间基线（你平时一天的状态）为基准评分。下方的条形将你的一天划分为低、中、高压力时段。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "折線顯示每個清醒小時的 0–3 指標，並以你的個人日間基線（你平時一天的狀態）為基準評分。下方的長條將你的一天劃分為低、中、高壓力時段。"}}}},
         "End session": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Sitzung beenden"}}, "es": {"stringUnit": {"state": "translated", "value": "Finalizar sesión"}}, "fr": {"stringUnit": {"state": "translated", "value": "Terminer la session"}}, "it": {"stringUnit": {"state": "translated", "value": "Termina sessione"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zakończ sesję"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Encerrar sessão"}}, "ru": {"stringUnit": {"state": "translated", "value": "Завершить сессию"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "结束监测"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "結束監測"}}}},
         "Use NOOP's own folder (browse in Files)": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "NOOPs eigenen Ordner verwenden (in Dateien durchsuchen)"}}, "es": {"stringUnit": {"state": "translated", "value": "Usar la carpeta propia de NOOP (explorar en Archivos)"}}, "fr": {"stringUnit": {"state": "translated", "value": "Utiliser le dossier de NOOP (parcourir dans Fichiers)"}}, "it": {"stringUnit": {"state": "translated", "value": "Usa la cartella di NOOP (sfoglia in File)"}}, "pl": {"stringUnit": {"state": "translated", "value": "Użyj własnego folderu NOOP (przeglądaj w Plikach)"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Usar a pasta própria do NOOP (explorar em Ficheiros)"}}, "ru": {"stringUnit": {"state": "translated", "value": "Использовать собственную папку NOOP (открыть в «Файлах»)"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "使用 NOOP 自己的文件夹（在“文件”中浏览）"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "使用 NOOP 自己的檔案夾（在「檔案」中瀏覽）"}}}},

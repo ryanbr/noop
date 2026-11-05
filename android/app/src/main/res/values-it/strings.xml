@@ -178,7 +178,7 @@
     <string name="terms_attest_liability">Nella massima misura consentita dalla legge, non riterrò il progetto NOOP o i suoi contributori responsabili di perdite o danni derivanti dal mio utilizzo.</string>
     <string name="terms_checkbox">Ho letto e accetto questi termini e sto usando NOOP con il mio dispositivo e i miei dati, a mio rischio.</string>
     <string name="terms_accept">Accetta e continua</string>
-    <string name="trends_subtitle">Il filo di te nel tempo.</string>
+    <string name="trends_subtitle">Come sono cambiati i tuoi punteggi e le misurazioni del corpo nel corso di giorni, settimane e mesi.</string>
     <string name="trends_trailing">Ultimi</string>
     <string name="trends_trailing_days">Ultimi %1$d giorni</string>
     <string name="trends_all_history">Tutta la cronologia</string>
@@ -214,7 +214,7 @@
     <string name="trends_not_enough_data">Dati insufficienti per questo intervallo.</string>
     <string name="trends_empty_title">Gli andamenti hanno bisogno di una cronologia</string>
     <string name="trends_empty_body">Gli andamenti hanno bisogno di una cronologia per essere tracciati. Importa la tua esportazione WHOOP in Sorgenti dati per vedere subito settimane, mesi e anni.</string>
-    <string name="explore_subtitle">Ogni segnale, a un tocco di distanza.</string>
+    <string name="explore_subtitle">Ogni misurazione che NOOP conserva, raggruppata per tipo. Toccane una per vederne la cronologia in dettaglio.</string>
     <string name="explore_import_title">Importa prima la tua cronologia</string>
     <string name="explore_import_body">Importa prima la tua cronologia. Un\'esportazione WHOOP in Sorgenti dati riempie in circa un minuto ogni metrica che puoi esplorare qui.</string>
     <string name="deep_timeline_title">Cronologia dettagliata</string>
@@ -2046,7 +2046,7 @@
     <string name="recording_chip_detail_connected_no_data">Ancora nessuna frequenza cardiaca in diretta né cronologia sincronizzata in questa sessione.</string>
     <string name="score_state_title_calibrating">Calibrazione</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Riprende al mattino</string>
-    <string name="stress_screen_subtitle">Carico autonomico durante le ore di veglia</string>
+    <string name="stress_screen_subtitle">Quanto sembrava stressato il tuo corpo mentre eri sveglio, in base alla frequenza cardiaca e alla variabilità della frequenza cardiaca.</string>
     <string name="stress_timeline_caption_day">La linea è l\'indicatore 0–3 di ogni ora di veglia, calcolato rispetto alle tue ore tranquille di oggi. La barra sotto divide la giornata in tempo calmo, di stress moderato e di stress alto.</string>
     <string name="stress_timeline_caption_personal">La linea mostra l\'indicatore da 0 a 3 per ogni ora di veglia, valutato rispetto al tuo riferimento diurno personale (l\'andamento abituale delle tue giornate). La barra sottostante divide la giornata in periodi di stress basso, moderato e alto.</string>
     <plurals name="stress_hours_excluded_moving">
@@ -2828,4 +2828,10 @@
     <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
     <string name="today_customize_live_session_availability">Compare oggi se le sessioni in diretta sono attivate nelle Impostazioni o una sessione è attiva.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Oggi a modo tuo, frequenza cardiaca leggibile da ogni app e l\'italiano</string>
+    <string name="compare_screen_subtitle">Metti da due a quattro misurazioni su un unico grafico per vedere se salgono e scendono insieme.</string>
+    <string name="insights_screen_subtitle">Se le abitudini che registri, come l\'alcol o i pasti tardi, vanno di pari passo con punteggi migliori o peggiori, e quali misurazioni si muovono insieme.</string>
+    <string name="live_screen_subtitle">La tua frequenza cardiaca e le altre misurazioni in questo momento, quanto bene la fascia le sta leggendo e i comandi per registrare ciò che invia.</string>
+    <string name="sleep_screen_subtitle">Quanto e quanto bene hai dormito, notte per notte.</string>
+    <string name="workouts_screen_subtitle">Tutti i tuoi allenamenti in un unico posto, registrati dalla fascia o importati.</string>
+    <string name="intelligence_screen_subtitle">La tua Carica, Sforzo e Riposo di ogni giorno, calcolati da NOOP stesso su questo dispositivo. Non viene inviato nulla online.</string>
 </resources>

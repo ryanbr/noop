@@ -90,7 +90,7 @@
     <string name="terms_attest_liability">W najszerszym zakresie, na jaki pozwala prawo, nie będę pociągał projektu NOOP ani jego współpracowników do odpowiedzialności za jakiekolwiek straty lub szkody powstałe w wyniku korzystania z niego.</string>
     <string name="terms_checkbox">Przeczytałem i akceptuję te warunki oraz używam NOOP na własnym urządzeniu i własnych danych, na własne ryzyko.</string>
     <string name="terms_accept">Zaakceptuj i kontynuuj</string>
-    <string name="trends_subtitle">Wątek Ciebie z biegiem czasu.</string>
+    <string name="trends_subtitle">Jak zmieniały się Twoje wyniki i pomiary ciała na przestrzeni dni, tygodni i miesięcy.</string>
     <string name="trends_trailing">Kończący</string>
     <string name="trends_trailing_days">Końcowe dni %1$d</string>
     <string name="trends_all_history">Cała historia</string>
@@ -128,7 +128,7 @@
     <string name="trends_not_enough_data">Za mało danych dla tego okna.</string>
     <string name="trends_empty_title">Trendy potrzebują historii, aby rysować</string>
     <string name="trends_empty_body">Trendy potrzebują historii, aby rysować. Zaimportuj eksport WHOOP do źródeł danych, aby natychmiast zobaczyć tygodnie, miesiące i lata.</string>
-    <string name="explore_subtitle">Każdy sygnał, głębokość jednego dotknięcia.</string>
+    <string name="explore_subtitle">Każdy pomiar, który przechowuje NOOP, pogrupowany według rodzaju. Stuknij jeden, aby zobaczyć jego historię ze szczegółami.</string>
     <string name="explore_import_title">Najpierw zaimportuj swoją historię</string>
     <string name="explore_import_body">Najpierw zaimportuj swoją historię. Eksport WHOOP w źródłach danych wypełnia wszystkie metryki, które możesz tu zbadać w ciągu około minuty.</string>
     <string name="deep_timeline_title">Głęboka oś czasu</string>
@@ -1948,7 +1948,7 @@
     <string name="recording_chip_detail_connected_no_data">W tej sesji nie ma jeszcze tętna na żywo ani zsynchronizowanej historii.</string>
     <string name="score_state_title_calibrating">Kalibracja</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wznowi się rano</string>
-    <string name="stress_screen_subtitle">Obciążenie autonomiczne w ciągu dnia</string>
+    <string name="stress_screen_subtitle">Jak zestresowany wydawał się Twój organizm w ciągu dnia, oceniony na podstawie tętna i zmienności rytmu serca.</string>
     <string name="stress_timeline_caption_day">Linia pokazuje wskaźnik 0–3 dla każdej godziny czuwania, oceniany względem Twoich dzisiejszych spokojnych godzin. Pasek poniżej dzieli dzień na okresy niskiego, umiarkowanego i wysokiego stresu.</string>
     <string name="stress_timeline_caption_personal">Linia pokazuje wskaźnik 0–3 dla każdej godziny czuwania, oceniany względem Twojej osobistej dziennej linii bazowej (typowego przebiegu Twoich dni). Pasek poniżej dzieli dzień na okresy niskiego, umiarkowanego i wysokiego stresu.</string>
     <plurals name="stress_hours_excluded_moving">
@@ -2876,4 +2876,10 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="compare_screen_subtitle">Umieść od dwóch do czterech pomiarów na jednym wykresie, aby sprawdzić, czy rosną i spadają razem.</string>
+    <string name="insights_screen_subtitle">Czy nawyki, które zapisujesz, takie jak alkohol czy późne posiłki, idą w parze z lepszymi lub gorszymi wynikami, i które pomiary zmieniają się razem.</string>
+    <string name="live_screen_subtitle">Twoje tętno i inne pomiary w tej chwili, jak dobrze opaska je odczytuje, oraz przyciski do nagrywania tego, co wysyła.</string>
+    <string name="sleep_screen_subtitle">Jak długo i jak dobrze spałeś, noc po nocy.</string>
+    <string name="workouts_screen_subtitle">Wszystkie Twoje treningi w jednym miejscu, zarejestrowane przez opaskę lub zaimportowane.</string>
+    <string name="intelligence_screen_subtitle">Twoja Energia, Wysiłek i Odpoczynek dla każdego dnia, wyliczane przez sam NOOP na tym urządzeniu. Nic nie jest wysyłane do sieci.</string>
 </resources>

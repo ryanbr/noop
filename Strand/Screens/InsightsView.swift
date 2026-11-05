@@ -209,7 +209,7 @@ struct InsightsView: View {
     @State private var currentDayKey = Repository.localDayKey(Date())
 
     var body: some View {
-        ScreenScaffold(title: "Insights", subtitle: "Interrogate what affects what.",
+        ScreenScaffold(title: "Insights", subtitle: "Whether the habits you log, like alcohol or late meals, go with better or worse scores, and which readings move together.",
                        // PERF (scroll): lazy column, byte-identical layout (LazyVStack == eager VStack
                        // alignment/spacing/header). The content is one inner eager VStack, so any nested
                        // staggered reveals are unchanged; this only defers building that stack on scroll-in.
