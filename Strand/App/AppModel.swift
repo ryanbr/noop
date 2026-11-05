@@ -108,7 +108,7 @@ final class AppModel: ObservableObject {
     let gpsRecorder = GpsWorkoutRecorder()
     /// True while the active workout is a GPS-type session (drives the End-time route persist). Mirrors
     /// Android's `ActiveWorkout.gpsEnabled`.
-    private var activeWorkoutIsGps = false
+    private(set) var activeWorkoutIsGps = false
 
     /// A manual workout in progress. `samples` accumulate from the smoothed live `bpm`; `liveStrain`
     /// is recomputed as the window grows so the active card can show strain building in real time.

@@ -142,6 +142,15 @@ enum UnitPrefs {
             ? true : UserDefaults.standard.bool(forKey: liftLiveActivityKey)
     }
 
+    /// The live-tracked workout Live Activity's own switch (Settings → Live notifications): time, distance, pace and
+    /// heart rate on the Lock Screen while a workout runs. Separate from the live-HR switch so either can be off
+    /// without the other. Defaults ON, like the other three.
+    static let workoutLiveActivityKey = "liveActivity.workout.enabled"
+    static func workoutLiveActivityEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: workoutLiveActivityKey) == nil
+            ? true : UserDefaults.standard.bool(forKey: workoutLiveActivityKey)
+    }
+
     /// Resolve temperature, following body measurements when no explicit override is set.
     static func resolveTemperature(system: UnitSystem, override raw: String) -> TemperatureUnit {
         if let explicit = TemperatureUnit(rawValue: raw) { return explicit }
