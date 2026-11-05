@@ -57,6 +57,19 @@ class SleepImportedFiguresTest {
     }
 
     @Test
+    fun hoursVsNeededUsesTheNormativeNeedWithoutAnImport() {
+        // A steady 6.5h sleeper. The tile divides by the SAME need the debt ledger, debt tile and Rest
+        // score use (RestScorer.personalizedNeedHours: 8h adult floor here), not the 7.5h-floored mean,
+        // which read 86.7% while the ledger beside it counted every night 1.5h short. Twin: iOS
+        // SleepNeedOneSourceTests.testAShortSleeperIsMeasuredAgainstTheNormativeNeed.
+        val days = (1..10).map { day("2026-06-%02d".format(it), 390.0) }
+        val m = buildSleepModel(days, session = null, imported = ImportedSleepSeries(), todayKey = "2026-06-11")!!
+        val need = RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { min -> min / 60.0 } }, null) * 60.0
+        assertEquals(480.0, need, 1e-9)
+        assertEquals(390.0 / 480.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
+    }
+
+    @Test
     fun uncoveredDaysUseTheRestComposite() {
         // Imported covers only day 1; day 2 (the latest) must use the REAL Rest composite
         // (RestScorer.restFromDaily) — the SAME single source of truth the Today Rest score,

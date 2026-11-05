@@ -367,21 +367,16 @@ extension SleepModel {
         mean(days.compactMap { $0[keyPath: key] }.filter { $0 > 0 })
     }
 
-    /// The personal sleep need (minutes): mean asleep, but never below a 7.5h floor so
-    /// debt/performance read sensibly even for a chronically short sleeper.
-    static func sleepNeedMin(days: [DailyMetric]) -> Double {
-        Swift.max(450, typicalTotalMin(days: days) ?? 450)   // 450 min = 7.5h
-    }
-
     /// The NORMATIVE per-user sleep need (minutes) the DEBT surfaces measure against — the
     /// population-anchored, age-floored, upper-quartile `personalizedNeedHours`, the SAME estimator
     /// Rest/Intelligence score against. Deliberately NOT the descriptive `sleepNeedMin` (mean total
     /// sleep): the mean drifts DOWN toward a chronic under-sleeper's own deficit and quietly erases
     /// their debt, whereas the upper-quartile floored at the ~8 h adult target only adjusts UP for
     /// genuine long sleepers. Age isn't plumbed to this screen (age: nil → adult target); wiring it
-    /// would only raise it for under-18s. One need across every debt surface, agreeing with the engine.
-    /// (#242; need-unification from #464 by @vishk23. The descriptive `sleepNeedMin` still drives the
-    /// non-debt "hours vs needed" performance tile.)
+    /// would only raise it for under-18s. One need across every surface that states a need: the debt
+    /// tile, the ledger, the "hours vs needed" tile and Coupled's "slept / needed" line, agreeing with the
+    /// engine. (#242; need-unification from #464 by @vishk23. Hours vs needed used to divide by the
+    /// descriptive mean instead, so the same screen measured one night against two different needs.)
     static func debtNeedMin(days: [DailyMetric]) -> Double {
         AnalyticsEngine.Rest.personalizedNeedHours(
             nightlyHours: days.compactMap { $0.totalSleepMin.map { $0 / 60.0 } },
@@ -466,11 +461,13 @@ extension SleepModel {
         return (scores.last, nil, mean(scores), scores)
     }
 
-    /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the
-    /// APPROXIMATE personal-mean need.
+    /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the NORMATIVE
+    /// need (`debtNeedMin`) the debt tile, the ledger and the Rest score measure against. It divided by the
+    /// wearer's own mean sleep (floored at 7.5h) before, which drifts down with a chronic deficit: a
+    /// steady 6.5h sleeper read 87% of need here while the ledger beside it counted 1.5h a night of debt.
     static func hoursVsNeededSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures]) -> Metric {
         let imported = importedSleep
-        let fallbackNeed = sleepNeedMin(days: days)
+        let fallbackNeed = debtNeedMin(days: days)
         return metric(days: days) { d in
             guard let asleep = d.totalSleepMin, asleep > 0 else { return nil }
             let need = imported[d.day]?.needMin ?? fallbackNeed
