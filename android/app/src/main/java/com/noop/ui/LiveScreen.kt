@@ -217,8 +217,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     }
 
     LazyScreenScaffold(
-        title = uiString(R.string.l10n_live_screen_live_body_console_54838e06),
-        subtitle = "Current physiology, strap trust, and session controls",
+        title = uiString(R.string.nav_live),
+        subtitle = uiString(R.string.live_screen_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // behind the header + hero and the cards float over the flat canvas below. Reuses the shared
         // LiquidScreenSky() slot verbatim; when the day-cycle background is off, the scaffold paints the

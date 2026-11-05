@@ -73,7 +73,7 @@ struct StressView: View {
     @State private var modelSignature: StressInputs?
 
     var body: some View {
-        ScreenScaffold(title: "Stress", subtitle: "Autonomic load across your waking day",
+        ScreenScaffold(title: "Stress", subtitle: "How stressed your body seemed while you were awake, judged from your heart rate and heart-rate variability.",
                        // PERF (scroll): lazy column — byte-identical layout (LazyVStack == eager VStack
                        // alignment/spacing/header). The content is one inner eager VStack, so the staggered
                        // section reveal is unchanged; this only defers building that stack until it scrolls in.

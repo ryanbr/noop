@@ -263,7 +263,7 @@ fun WorkoutsScreen(vm: AppViewModel) {
     val skyBehindCards = remember { NoopPrefs.skyBehindCards(skyCtx) }
     LazyScreenScaffold(
         title = uiString(R.string.l10n_workouts_screen_workouts_ccb58b22),
-        subtitle = "Every session, threaded together.",
+        subtitle = uiString(R.string.workouts_screen_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + top rows (bled full-width up behind the status bar via
         // the scaffold's topBackground plumbing), and the cards float OVER it on the flat surface below. The

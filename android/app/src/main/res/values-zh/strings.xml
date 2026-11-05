@@ -90,7 +90,7 @@
     <string name="terms_attest_liability">在法律允许的最大范围内，对于因我使用 NOOP 而引起的任何损失或损害，我不会追究 NOOP 项目或其代码贡献者的责任。</string>
     <string name="terms_checkbox">我已阅读并接受上述条款，我正在使用我个人的设备和数据，风险由我自己承担。</string>
     <string name="terms_accept">接受并继续</string>
-    <string name="trends_subtitle">时间长河中，你身体的轨迹。</string>
+    <string name="trends_subtitle">你的分数和身体读数在几天、几周和几个月里的变化。</string>
     <string name="trends_trailing">近</string>
     <string name="trends_trailing_days">近 %1$d 天</string>
     <string name="trends_all_history">全部历史</string>
@@ -125,7 +125,7 @@
     <string name="trends_not_enough_data">该时间段数据不足。</string>
     <string name="trends_empty_title">趋势图需要历史数据</string>
     <string name="trends_empty_body">趋势图需要历史数据才能生成。在“数据源”中导入您的 WHOOP 导出数据，即可瞬间解锁以周、月、年为单位的宏观视图。</string>
-    <string name="explore_subtitle">每一个体征指标，一触即达。</string>
+    <string name="explore_subtitle">NOOP 保存的每项读数，按类型分组。点按任意一项查看其详细历史。</string>
     <string name="explore_import_title">请先导入您的历史数据</string>
     <string name="explore_import_body">在“数据源”中导入 WHOOP 导出包，只需大约一分钟，即可点亮这里的所有数据探索指标。</string>
     <string name="deep_timeline_title">深度时间轴</string>
@@ -1881,7 +1881,7 @@
     <string name="recording_chip_detail_connected_no_data">本次连接尚无实时心率或已同步的历史记录。</string>
     <string name="score_state_title_calibrating">校准中</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">早晨恢复</string>
-    <string name="stress_screen_subtitle">清醒时段的自主神经负荷</string>
+    <string name="stress_screen_subtitle">清醒时你的身体看起来有多大压力，依据你的心率和心率变异性判断。</string>
     <string name="stress_timeline_caption_day">折线显示每个清醒小时的 0–3 指标，并以您今天自己的平静时段为基准评分。下方的条形将您的一天划分为低、中、高压力时段。</string>
     <string name="stress_timeline_caption_personal">折线显示每个清醒小时的 0–3 指标，并以您的个人日间基线（您平时一天的状态）为基准评分。下方的条形将您的一天划分为低、中、高压力时段。</string>
     <plurals name="stress_hours_excluded_moving">
@@ -2830,4 +2830,10 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="compare_screen_subtitle">把两到四项读数放在同一张图上，看看它们是否同升同降。</string>
+    <string name="insights_screen_subtitle">你记录的习惯（比如饮酒或吃得晚）是否伴随更好或更差的分数，以及哪些读数会一起变化。</string>
+    <string name="live_screen_subtitle">你此刻的心率和其他读数、手环读取它们的准确程度，以及用于录制手环传来数据的控制。</string>
+    <string name="sleep_screen_subtitle">你每晚睡了多久、睡得怎么样。</string>
+    <string name="workouts_screen_subtitle">你所有的训练都在这里，无论是手环记录的还是导入的。</string>
+    <string name="intelligence_screen_subtitle">你每天的充能、负荷和恢复，由 NOOP 在本设备上自行计算。不会上传任何数据。</string>
 </resources>

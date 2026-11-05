@@ -476,7 +476,7 @@ fun CompareScreen(vm: AppViewModel) {
 
     LazyScreenScaffold(
         title = uiString(R.string.l10n_compare_screen_compare_8d105cf4),
-        subtitle = "Overlay signals, draw conclusions.",
+        subtitle = uiString(R.string.compare_screen_subtitle),
         // Liquid sky backdrop (LiquidScreenSky.kt) in the scaffold's topBackground slot, gated on the
         // day-cycle preference — the same pilot plumbing the liquid Today uses.
         topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),

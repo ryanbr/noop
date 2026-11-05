@@ -103,7 +103,7 @@
 
     <!-- Trends / Explore / Deep Timeline , see the English values/strings.xml comment for scope.
          Wording matches the existing iOS/macOS German catalog entries where one exists. -->
-    <string name="trends_subtitle">Der rote Faden deiner Zeit.</string>
+    <string name="trends_subtitle">Wie sich deine Werte und Körpermessungen über Tage, Wochen und Monate verändert haben.</string>
     <string name="trends_trailing">Letzte</string>
     <string name="trends_trailing_days">Letzte %1$d Tage</string>
     <string name="trends_all_history">Gesamter Verlauf</string>
@@ -140,7 +140,7 @@
     <string name="trends_empty_title">Trends brauchen Verlauf zum Zeichnen</string>
     <string name="trends_empty_body">Trends brauchen Verlauf zum Zeichnen. Importiere deinen WHOOP-Export in den Datenquellen, um Wochen, Monate und Jahre sofort zu sehen.</string>
 
-    <string name="explore_subtitle">Jedes Signal, nur einen Tipp entfernt.</string>
+    <string name="explore_subtitle">Jeder Messwert, den NOOP speichert, nach Art gruppiert. Tippe auf einen, um seinen Verlauf im Detail zu sehen.</string>
     <string name="explore_import_title">Importiere zuerst deine Historie</string>
     <string name="explore_import_body">Importiere zuerst deine Historie. Ein WHOOP-Export unter Datenquellen füllt in etwa einer Minute jede Metrik, die du hier erkunden kannst.</string>
     <string name="deep_timeline_title">Deep Timeline</string>
@@ -1991,7 +1991,7 @@
     <string name="recording_chip_detail_connected_no_data">Noch keine Live-Herzfrequenz und kein synchronisierter Verlauf in dieser Sitzung.</string>
     <string name="score_state_title_calibrating">Kalibrierung</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wird morgens fortgesetzt</string>
-    <string name="stress_screen_subtitle">Autonome Belastung im Verlauf deines wachen Tages</string>
+    <string name="stress_screen_subtitle">Wie gestresst dein Körper im Wachzustand wirkte, beurteilt anhand deiner Herzfrequenz und Herzfrequenzvariabilität.</string>
     <string name="stress_timeline_caption_day">Die Linie zeigt den 0–3-Näherungswert jeder Wachstunde, bewertet anhand deiner eigenen ruhigen Stunden heute. Der Balken darunter teilt deinen Tag in ruhige, mäßige und hohe Stresszeiten.</string>
     <string name="stress_timeline_caption_personal">Die Linie zeigt den 0–3-Näherungswert jeder Wachstunde, bewertet anhand deiner persönlichen Tages-Baseline (wie deine Tage normalerweise verlaufen). Der Balken darunter teilt deinen Tag in ruhige, mäßige und hohe Stresszeiten.</string>
     <plurals name="stress_hours_excluded_moving">
@@ -2873,4 +2873,10 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="compare_screen_subtitle">Lege zwei bis vier Messwerte in ein Diagramm, um zu sehen, ob sie gemeinsam steigen und fallen.</string>
+    <string name="insights_screen_subtitle">Ob die Gewohnheiten, die du einträgst, etwa Alkohol oder späte Mahlzeiten, mit besseren oder schlechteren Werten einhergehen, und welche Messwerte sich gemeinsam bewegen.</string>
+    <string name="live_screen_subtitle">Deine Herzfrequenz und andere Messwerte genau jetzt, wie gut das Band sie erfasst, und Steuerungen, um aufzuzeichnen, was es sendet.</string>
+    <string name="sleep_screen_subtitle">Wie lange und wie gut du geschlafen hast, Nacht für Nacht.</string>
+    <string name="workouts_screen_subtitle">Alle deine Trainings an einem Ort, vom Band aufgezeichnet oder importiert.</string>
+    <string name="intelligence_screen_subtitle">Deine Ladung, Anstrengung und Ruhe für jeden Tag, von NOOP selbst auf diesem Gerät berechnet. Nichts wird online gesendet.</string>
 </resources>

@@ -28,7 +28,7 @@ struct IntelligenceView: View {
         // imported history, an eager VStack built every card up-front on the main thread and froze
         // the app when ALL was tapped (#345); LazyVStack only materialises what's on screen.
         ScreenScaffold(title: "Intelligence",
-                       subtitle: "NOOP scores your charge, effort and rest itself: on-device, no cloud.",
+                       subtitle: "Your Charge, Effort and Rest for each day, worked out by NOOP itself on this device. Nothing is sent online.",
                        lazy: true,
                        // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
                        // tabs carry, so Intelligence sits in one atmosphere. Static + non-interactive; the
