@@ -299,6 +299,18 @@ struct ChargeBreakdownSection: View {
     let confidence: ScoreConfidence
     var skinTempRel: SkinTempRelative? = nil
 
+    /// The label `RecoveryScorer.chargeDrivers` gives its skin-temperature row, pinned against the scorer's
+    /// own output by `ChargeBreakdownSkinTempOnceTests`.
+    static let skinTempDriverLabel = "Skin temperature"
+
+    /// Whether the separate relative skin-temperature row adds anything. `RecoveryScorer.chargeDrivers`
+    /// lists a skin-temperature driver for every night that carries a deviation, read from the same
+    /// `skinTempDevC` the callers pass as `skinTempRel`, so drawing `SkinTempDeviationRow` as well printed one
+    /// reading twice ("two readouts of one fact", AGENTS.md). Android's sheet draws the driver row only.
+    static func showsSeparateSkinTempRow(drivers: [ChargeDriver]) -> Bool {
+        !drivers.contains { $0.label == skinTempDriverLabel }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
             Divider().overlay(StrandPalette.hairline)
@@ -314,8 +326,9 @@ struct ChargeBreakdownSection: View {
                 }
             }
             // A5 , the night's relative skin-temp marker, tagged REL., shown as a deviation from the
-            // personal normal rather than a fake clinical absolute. Only when the night carries one.
-            if let rel = skinTempRel {
+            // personal normal rather than a fake clinical absolute. Only when the night carries one AND no
+            // driver row above already reports it.
+            if let rel = skinTempRel, Self.showsSeparateSkinTempRow(drivers: drivers) {
                 SkinTempDeviationRow(rel: rel)
                     .padding(.top, NoopMetrics.space1)
             }

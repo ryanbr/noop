@@ -296,7 +296,7 @@ struct IntelligenceView: View {
                 // A1: "What shaped it" , one row per engine-supplied Charge driver. Gated on a non-empty
                 // list so a cold-start / calibrating night (no real contributions to attribute) shows
                 // nothing here rather than a fake breakdown. A5's relative skin-temp marker rides at the
-                // foot when the night carries one.
+                // foot only when no driver row already reports the night's skin temperature.
                 if !d.drivers.isEmpty {
                     ChargeBreakdownSection(drivers: d.drivers,
                                            confidence: d.confidence,
