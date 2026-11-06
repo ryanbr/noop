@@ -2455,6 +2455,7 @@
     <string name="today_driver_value_percent">%1$d%%</string>
     <string name="today_driver_value_br_min">%1$s resp./min</string>
     <string name="today_driver_value_temp_deviation">%1$s °C face à referência</string>
+    <string name="today_driver_value_temp_deviation_fahrenheit">%1$s °F face à referência</string>
     <string name="today_driver_baseline_ms">referência de %1$d ms</string>
     <string name="today_driver_baseline_bpm">referência de %1$d bpm</string>
     <string name="today_driver_baseline_br_min">referência de %1$s resp./min</string>

@@ -1,6 +1,8 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ vs your normal": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ vs your normal"}}, "de": {"stringUnit": {"state": "translated", "value": "%@ vs. dein Normalwert"}}, "es": {"stringUnit": {"state": "translated", "value": "%@ vs tu normal"}}, "fr": {"stringUnit": {"state": "translated", "value": "%@ vs votre normale"}}, "it": {"stringUnit": {"state": "translated", "value": "%@ rispetto al tuo normale"}}, "pl": {"stringUnit": {"state": "translated", "value": "%@ względem Twojej normy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ vs o teu normal"}}, "ru": {"stringUnit": {"state": "translated", "value": "%@ от вашей нормы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@，相较你的正常水平"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@，相對你的正常值"}}}},
+    "%@ vs baseline": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "%@ vs baseline"}}, "de": {"stringUnit": {"state": "translated", "value": "%@ gegenüber Basiswert"}}, "es": {"stringUnit": {"state": "translated", "value": "%@ frente a la referencia"}}, "fr": {"stringUnit": {"state": "translated", "value": "%@ par rapport à la référence"}}, "it": {"stringUnit": {"state": "translated", "value": "%@ rispetto alla linea di base"}}, "pl": {"stringUnit": {"state": "translated", "value": "%@ względem bazy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ face à referência"}}, "ru": {"stringUnit": {"state": "translated", "value": "%@ относительно нормы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "相对基线 %@"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "相對基線 %@"}}}},
     "Move, relative to tonight": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Move, relative to tonight"}}, "de": {"stringUnit": {"state": "translated", "value": "Bewegung, relativ zu dieser Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "Movimiento, en relación con esta noche"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mouvement, par rapport à cette nuit"}}, "it": {"stringUnit": {"state": "translated", "value": "Movimento, rispetto a questa notte"}}, "pl": {"stringUnit": {"state": "translated", "value": "Ruch, w odniesieniu do tej nocy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Movimento, em relação a esta noite"}}, "ru": {"stringUnit": {"state": "translated", "value": "Движение, относительно этой ночи"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "活动，相对于今晚"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "活動，相對於今晚"}}}},
     "Route and GPS distance, without the heart-rate and calorie summary": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Route and GPS distance, without the heart-rate and calorie summary"}}, "de": {"stringUnit": {"state": "translated", "value": "Route und GPS-Distanz, ohne die Herzfrequenz- und Kalorienübersicht"}}, "es": {"stringUnit": {"state": "translated", "value": "Ruta y distancia GPS, sin el resumen de frecuencia cardiaca y calorías"}}, "fr": {"stringUnit": {"state": "translated", "value": "Itinéraire et distance GPS, sans le récapitulatif de fréquence cardiaque et de calories"}}, "it": {"stringUnit": {"state": "translated", "value": "Percorso e distanza GPS, senza il riepilogo di frequenza cardiaca e calorie"}}, "pl": {"stringUnit": {"state": "translated", "value": "Trasa i dystans GPS, bez podsumowania tętna i kalorii"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Rota e distância GPS, sem o resumo de frequência cardíaca e calorias"}}, "ru": {"stringUnit": {"state": "translated", "value": "Маршрут и GPS-дистанция, без сводки пульса и калорий"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "路线和 GPS 距离，不含心率和卡路里摘要"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "路線和 GPS 距離，不含心率和卡路里摘要"}}}},
     "Export Workout Route": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Export Workout Route"}}, "de": {"stringUnit": {"state": "translated", "value": "Trainingsroute exportieren"}}, "es": {"stringUnit": {"state": "translated", "value": "Exportar ruta del entrenamiento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Exporter l’itinéraire de la séance"}}, "it": {"stringUnit": {"state": "translated", "value": "Esporta il percorso dell’allenamento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Eksportuj trasę treningu"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Exportar rota do treino"}}, "ru": {"stringUnit": {"state": "translated", "value": "Экспортировать маршрут тренировки"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出运动路线"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出運動路線"}}}},
@@ -7878,70 +7880,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@%@"
-          }
-        }
-      }
-    },
-    "%@%@ C vs your normal": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@%2$@ C vs. dein Normalwert"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@%2$@ C vs your normal"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@%@ C vs tu normal"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@%2$@ C vs votre normale"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@%@ C rispetto al tuo normale"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@%2$@ C vs o teu normal"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@%2$@ °C от вашей нормы"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@%@ C，相较你的正常水平"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@%@ C，相對你的正常值"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@%2$@ C kontra normalny"
           }
         }
       }

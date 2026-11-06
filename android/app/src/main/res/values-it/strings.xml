@@ -2527,7 +2527,8 @@
     <string name="today_driver_value_bpm">%1$d bpm</string>
     <string name="today_driver_value_percent">%1$d%%</string>
     <string name="today_driver_value_br_min">%1$s resp/min</string>
-    <string name="today_driver_value_temp_deviation">%1$s C rispetto alla linea di base</string>
+    <string name="today_driver_value_temp_deviation">%1$s °C rispetto alla linea di base</string>
+    <string name="today_driver_value_temp_deviation_fahrenheit">%1$s °F rispetto alla linea di base</string>
     <string name="today_driver_baseline_ms">Linea di base %1$d ms</string>
     <string name="today_driver_baseline_bpm">Linea di base %1$d bpm</string>
     <string name="today_driver_baseline_br_min">Linea di base %1$s resp/min</string>

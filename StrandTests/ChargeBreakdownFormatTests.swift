@@ -116,13 +116,64 @@ final class ChargeBreakdownFormatTests: XCTestCase {
     func testSkinTempDeviationLabelSignsAndRoundsToOneDecimal() {
         XCTAssertEqual(
             ChargeBreakdownFormat.skinTempDeviationLabel(SkinTempRelative(deviationC: 0.34, tier: .warmer)),
-            "+0.3 C vs your normal")
+            "+0.3 °C vs your normal")
         XCTAssertEqual(
             ChargeBreakdownFormat.skinTempDeviationLabel(SkinTempRelative(deviationC: -0.42, tier: .cooler)),
-            "-0.4 C vs your normal")
+            "-0.4 °C vs your normal")
         XCTAssertEqual(
             ChargeBreakdownFormat.skinTempDeviationLabel(SkinTempRelative(deviationC: 0.0, tier: .typical)),
-            "+0.0 C vs your normal")
+            "+0.0 °C vs your normal")
+    }
+
+    /// Anything that rounds to zero prints "+0.0", as on Android. A negative zero once printed "+-0.0" (a
+    /// hand-built sign) and Foundation's locale formatter prints "-+0.0" for it.
+    func testSkinTempDeviationFigureZeroes() {
+        XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(-0.0, unit: .celsius), "+0.0 °C")
+        XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(0.0, unit: .celsius), "+0.0 °C")
+        XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(-0.04, unit: .celsius), "+0.0 °C")
+    }
+
+    /// Ties round half away from zero on both platforms (Foundation alone printed 0.25 as "+0.2"; Java as
+    /// "+0.3"). The same inputs and outputs are pinned in Kotlin's `ChargeDriverTempDeviationTest`.
+    func testSkinTempDeviationFigureRoundsTiesAwayFromZero() {
+        let cases: [(Double, TemperatureUnit, String)] = [
+            (0.25, .celsius, "+0.3 °C"), (-0.25, .celsius, "-0.3 °C"), (0.05, .celsius, "+0.1 °C"),
+            (-0.05, .celsius, "-0.1 °C"), (0.15, .celsius, "+0.2 °C"), (1.35, .celsius, "+1.4 °C"),
+        ]
+        for (dev, unit, expected) in cases {
+            XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(dev, unit: unit), expected, "\(dev)")
+        }
+    }
+
+    /// A Fahrenheit reader gets the deviation in °F: a difference scales by 9/5 with no +32 offset, from
+    /// the unrounded figure (0.44 °C is 0.792 °F, so +0.8, not the +0.7 a rounded +0.4 would give).
+    func testSkinTempDeviationFollowsTheTemperatureUnit() {
+        XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(0.44, unit: .fahrenheit), "+0.8 °F")
+        XCTAssertEqual(ChargeBreakdownFormat.skinTempDeviationFigure(-0.3, unit: .fahrenheit), "-0.5 °F")
+        XCTAssertEqual(
+            ChargeBreakdownFormat.skinTempDeviationLabel(SkinTempRelative(deviationC: 0.5, tier: .warmer), unit: .fahrenheit),
+            "+0.9 °F vs your normal")
+    }
+
+    /// The skin-temperature driver row shows the reader's unit; its points and verdict are the engine's, and
+    /// every other driver passes through untouched.
+    func testDisplayDriverConvertsOnlyTheSkinTemperatureRow() {
+        let skin = RecoveryScorer.chargeDrivers(
+            hrv: 60, rhr: 58, resp: nil,
+            hrvBaseline: BaselineState(baseline: 60, spread: 10, nValid: 30, nightsSinceUpdate: 0, status: .trusted),
+            rhrBaseline: nil, respBaseline: nil, sleepPerf: nil, skinTempDev: 0.44)
+            .first { $0.label == "Skin temperature" }!
+        XCTAssertEqual(skin.valueText, "+0.4 C vs baseline", "The engine text stays Celsius by contract")
+        let f = ChargeBreakdownFormat.displayDriver(skin, skinTempDevC: 0.44, unit: .fahrenheit)
+        XCTAssertEqual(f.valueText, "+0.8 °F vs baseline")
+        XCTAssertEqual(f.deltaPoints, skin.deltaPoints)
+        XCTAssertEqual(f.verdict, skin.verdict)
+        XCTAssertEqual(ChargeBreakdownFormat.displayDriver(skin, skinTempDevC: 0.44, unit: .celsius).valueText,
+                       "+0.4 °C vs baseline", "Celsius keeps the engine's figure and gains the degree sign")
+        XCTAssertEqual(ChargeBreakdownFormat.displayDriver(skin, skinTempDevC: nil, unit: .fahrenheit), skin)
+        let hrv = ChargeDriver(label: "Heart rate variability", deltaPoints: 3, valueText: "72 ms",
+                               baselineText: "64 ms baseline", verdict: "above baseline, supporting recovery")
+        XCTAssertEqual(ChargeBreakdownFormat.displayDriver(hrv, skinTempDevC: 0.44, unit: .fahrenheit), hrv)
     }
 
     func testSkinTempTierWord() {

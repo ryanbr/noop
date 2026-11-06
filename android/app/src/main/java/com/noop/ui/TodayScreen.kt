@@ -5551,10 +5551,26 @@ private fun ChargeConfidencePill(tier: ScoreConfidence) {
     StatePill(title = label, tone = tone)
 }
 
+/**
+ * The Charge breakdown's skin-temperature figure in the reader's unit: the string resource to format and
+ * the signed number for it. The engine's deviation is Celsius by contract; a difference converts to
+ * Fahrenheit by 9/5 with no +32 offset, from the unrounded value. Before this the row printed Celsius to a
+ * Fahrenheit reader. Swift twin: `ChargeBreakdownFormat.skinTempDeviationFigure`.
+ */
+internal fun chargeDriverTempDeviation(valueC: Double, fahrenheit: Boolean, locale: Locale): Pair<Int, String> {
+    // Rounded once, half away from zero (the shared display rule), so both platforms print the same digit
+    // at a tie; Java's formatter alone rounds 0.25 up and Foundation's rounds it down.
+    val shown = RecoveryDrivers.displayRounded(if (fahrenheit) valueC * 9.0 / 5.0 else valueC, 1)
+    val res = if (fahrenheit) R.string.today_driver_value_temp_deviation_fahrenheit
+              else R.string.today_driver_value_temp_deviation
+    return res to String.format(locale, "%+.1f", shown)
+}
+
 /** One "What shaped it" driver row: an up/down delta chip (signed points, green up / red down),
  *  the label + verdict, and the value over its baseline. Mirrors the iOS driver row layout. */
 @Composable
 private fun DriverRow(driver: ChargeDriver) {
+    val fahrenheit = UnitPrefs.temperature(LocalContext.current) == TemperatureUnit.FAHRENHEIT
     val positive = driver.deltaPoints >= 0
     // A zero delta reads neutral (no green/red), not a misleading "good".
     val tone = when {
@@ -5578,10 +5594,8 @@ private fun DriverRow(driver: ChargeDriver) {
             R.string.today_driver_value_br_min,
             String.format(Locale.getDefault(), "%.1f", RecoveryDrivers.displayRounded(driver.value, 1)),
         )
-        ChargeDriverUnit.CELSIUS_DEVIATION -> uiString(
-            R.string.today_driver_value_temp_deviation,
-            String.format(Locale.getDefault(), "%+.1f", driver.value),
-        )
+        ChargeDriverUnit.CELSIUS_DEVIATION -> chargeDriverTempDeviation(driver.value, fahrenheit, Locale.getDefault())
+            .let { (res, number) -> uiString(res, number) }
     }
     val baselineText = driver.baseline?.let { baseline -> when (driver.unit) {
         ChargeDriverUnit.MILLISECONDS -> uiString(R.string.today_driver_baseline_ms, baseline.roundToInt())

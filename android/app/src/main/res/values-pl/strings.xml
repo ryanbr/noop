@@ -2473,6 +2473,7 @@
     <string name="today_driver_value_percent">%1$d%%</string>
     <string name="today_driver_value_br_min">%1$s oddechów/min</string>
     <string name="today_driver_value_temp_deviation">%1$s °C względem bazy</string>
+    <string name="today_driver_value_temp_deviation_fahrenheit">%1$s °F względem bazy</string>
     <string name="today_driver_baseline_ms">baza %1$d ms</string>
     <string name="today_driver_baseline_bpm">baza %1$d ud./min</string>
     <string name="today_driver_baseline_br_min">baza %1$s oddechów/min</string>

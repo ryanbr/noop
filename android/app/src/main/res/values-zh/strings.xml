@@ -2377,6 +2377,7 @@
     <string name="today_driver_value_percent">%1$d%%</string>
     <string name="today_driver_value_br_min">%1$s 次呼吸/分</string>
     <string name="today_driver_value_temp_deviation">相对基线 %1$s°C</string>
+    <string name="today_driver_value_temp_deviation_fahrenheit">相对基线 %1$s°F</string>
     <string name="today_driver_baseline_ms">基线 %1$d 毫秒</string>
     <string name="today_driver_baseline_bpm">基线 %1$d 次/分</string>
     <string name="today_driver_baseline_br_min">基线 %1$s 次呼吸/分</string>
