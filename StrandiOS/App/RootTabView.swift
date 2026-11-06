@@ -69,10 +69,10 @@ struct RootTabView: View {
     /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = false
 
-    /// WHOOP-style Home uses the established metric-first dashboard. Keep Liquid Today available
-    /// behind the existing preference for users who explicitly select it in Appearance settings.
+    /// The metric-first dashboard is the default Home. The alternate liquid dashboard remains
+    /// available when the user explicitly enables it in Appearance settings.
     @ViewBuilder private var todayTabRoot: some View {
-        if liquidTodayEnabled { TodayView() } else { LiquidTodayView() }
+        if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
     }
 
     /// Native tab selection binding. SwiftUI sends taps on the already-selected item through the
