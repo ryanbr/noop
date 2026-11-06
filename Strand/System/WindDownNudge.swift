@@ -18,7 +18,7 @@ enum WindDownNudge {
 
     private enum K {
         static let enabled = "windDown.enabled"
-        static let sleepNeed = "windDown.sleepNeedMinutes"   // default 8h
+        static let sleepNeed = "windDown.sleepNeedMinutes"   // the Sleep tab's need, kept in step; 8h until then
         static let lead = "windDown.leadMinutes"             // default 30m
         static let wake = "windDown.wakeMinutes"             // earliest wake, minutes since midnight
         // PR#554 (MumiZed) — per-day wake overrides. A JSON map of {weekday(1=Sun…7=Sat): wakeMinutes}.
@@ -29,9 +29,47 @@ enum WindDownNudge {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
 
+    /// The sleep need the nudge is timed from, in minutes: the SAME need the Sleep tab states and measures
+    /// sleep debt against (`SleepModel.debtNeedMin`), kept in step by `adoptSleepNeed` whenever the sleep
+    /// history changes. Stored rather than recomputed here because the scheduler has no repository and
+    /// the notification centre keeps the trigger long after this process is gone. 8 h until the first
+    /// history arrives, which is also that estimator's own cold-start default.
+    ///
+    /// It used to be a fixed 8 h that nothing ever wrote, while the Sleep tab, the Rest score and the debt
+    /// card all use the personal need (the upper-quartile night, never below 8 h): a long sleeper whose
+    /// Sleep tab said "8h 40m needed" was reminded as if they needed 8 h, and this screen's own copy named
+    /// a need no other screen stated.
     static var sleepNeedMinutes: Int {
         let v = UserDefaults.standard.object(forKey: K.sleepNeed) as? Int ?? 8 * 60
         return min(max(v, 5 * 60), 11 * 60)
+    }
+
+    /// The stored need for a normative need in minutes: rounded to the nearest minute (half away from
+    /// zero) and clamped to the 5–11 h the store accepts. Pure. Kotlin twin: `WindDownStore.needMinutes`.
+    nonisolated static func needMinutes(fromNormativeNeedMin normativeNeedMin: Double) -> Int {
+        guard normativeNeedMin.isFinite else { return 8 * 60 }
+        // Clamp BEFORE converting: `Int(_:)` traps on a Double outside Int's range.
+        return Int(min(max(normativeNeedMin, Double(5 * 60)), Double(11 * 60)).rounded())
+    }
+
+    /// Keep the nudge's need equal to the Sleep tab's. Writes only when the rounded value changes (it moves
+    /// on a timescale of weeks), and reschedules only then and only while the nudge is on, so a routine
+    /// history republish costs one comparison. Returns whether the stored need changed.
+    @discardableResult
+    static func adoptSleepNeed(normativeNeedMin: Double) -> Bool {
+        let minutes = needMinutes(fromNormativeNeedMin: normativeNeedMin)
+        guard UserDefaults.standard.object(forKey: K.sleepNeed) as? Int != minutes else { return false }
+        UserDefaults.standard.set(minutes, forKey: K.sleepNeed)
+        if isEnabled { schedule() }
+        return true
+    }
+
+    /// How long before the wake time the nudge fires (need + lead), as whole hours and remaining minutes,
+    /// for the Alarms copy. The copy used to print the need's whole hours beside the lead's minutes, which
+    /// only added up while the need was a whole number of hours.
+    static var offsetHoursMinutes: (hours: Int, minutes: Int) {
+        let total = sleepNeedMinutes + leadMinutes
+        return (total / 60, total % 60)
     }
 
     static var leadMinutes: Int {
