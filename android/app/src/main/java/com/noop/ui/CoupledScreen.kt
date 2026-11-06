@@ -658,14 +658,13 @@ internal fun strainBandWord(fraction: Double): String = when {
 }
 
 /**
- * The night's need (minutes): the imported per-day figure when the export carried one, else the shared
- * >= 7.5h personal-mean floor (matches SleepScreen needMin / SleepView.sleepNeedMin).
+ * The night's need (minutes): the imported per-day figure when the export carried one, else the normative
+ * need the Sleep tab's debt and "hours vs needed" use (`RestScorer.personalizedNeedHours`, the iOS
+ * `SleepModel.debtNeedMin` twin), so both screens state the same need for the same night.
  */
 private fun sleepNeedForDay(day: DailyMetric?, days: List<DailyMetric>, importedNeed: Map<String, Double>): Double {
     day?.day?.let { key -> importedNeed[key]?.takeIf { it > 0 }?.let { return it } }
-    val banked = days.mapNotNull { it.totalSleepMin }.filter { it > 0 }
-    val mean = if (banked.isEmpty()) null else banked.sum() / banked.size
-    return maxOf(450.0, mean ?: 450.0) // 450 min = 7.5h
+    return RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
 }
 
 /**

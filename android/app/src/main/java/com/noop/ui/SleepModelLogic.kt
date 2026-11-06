@@ -185,14 +185,12 @@ internal fun buildSleepModel(
     val typicalRemMin = mean(days.mapNotNull { it.remMin }.filter { it > 0.0 })
     val typicalLightMin = mean(days.mapNotNull { it.lightMin }.filter { it > 0.0 })
 
-    // Personal sleep need (minutes): mean asleep, floored at 7.5h (450 min).
-    val needMin = max(450.0, typicalTotalMin ?: 450.0)
-    // #242: NORMATIVE need (min) the DEBT surfaces measure against — population-anchored, age-floored,
-    // upper-quartile personalizedNeedHours (the SAME estimator Rest/Intelligence score against), NOT the
-    // descriptive `needMin` mean which drifts toward a chronic under-sleeper's own deficit and quietly
-    // erases their debt. Age isn't plumbed here (null → adult target). One need across the debt tile +
-    // ledger + trend, agreeing with the engine. Need-unification from #464 by @vishk23; the descriptive
-    // `needMin` still drives the "hours vs needed" performance tile.
+    // #242: NORMATIVE need (min) — population-anchored, age-floored, upper-quartile personalizedNeedHours
+    // (the SAME estimator Rest/Intelligence score against), NOT the descriptive mean asleep, which drifts
+    // toward a chronic under-sleeper's own deficit and quietly erases their debt. Age isn't plumbed here
+    // (null → adult target). One need across every surface that states one: the debt tile, ledger, trend,
+    // the "hours vs needed" tile and Coupled's "slept / needed" line, agreeing with the engine.
+    // Need-unification from #464 by @vishk23; hours vs needed divided by the mean (floored at 7.5h) before.
     val debtNeedMin = RestScorer.personalizedNeedHours(
         days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
 
@@ -223,7 +221,7 @@ internal fun buildSleepModel(
         }
     }
     val hoursVsNeeded = metric(days, todayKey) { d ->
-        val need = imported.needMin[d.day] ?: needMin   // imported need wins per day
+        val need = imported.needMin[d.day] ?: debtNeedMin   // imported need wins per day
         d.totalSleepMin?.takeIf { it > 0.0 && need > 0.0 }?.let { it / need * 100.0 }
     }
     val restorative = metric(days, todayKey) { d ->

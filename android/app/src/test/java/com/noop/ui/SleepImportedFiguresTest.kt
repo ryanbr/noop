@@ -57,6 +57,19 @@ class SleepImportedFiguresTest {
     }
 
     @Test
+    fun hoursVsNeededUsesTheNormativeNeedWithoutAnImport() {
+        // A steady 6.5h sleeper. The tile divides by the SAME need the debt ledger, debt tile and Rest
+        // score use (RestScorer.personalizedNeedHours: 8h adult floor here), not the 7.5h-floored mean,
+        // which read 86.7% while the ledger beside it counted every night 1.5h short. Twin: iOS
+        // SleepNeedOneSourceTests.testAShortSleeperIsMeasuredAgainstTheNormativeNeed.
+        val days = (1..10).map { day("2026-06-%02d".format(it), 390.0) }
+        val m = buildSleepModel(days, session = null, imported = ImportedSleepSeries(), todayKey = "2026-06-11")!!
+        val need = RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { min -> min / 60.0 } }, null) * 60.0
+        assertEquals(480.0, need, 1e-9)
+        assertEquals(390.0 / 480.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
+    }
+
+    @Test
     fun uncoveredDaysUseTheRestComposite() {
         // Imported covers only day 1; day 2 (the latest) must use the REAL Rest composite
         // (RestScorer.restFromDaily) — the SAME single source of truth the Today Rest score,
@@ -134,9 +147,11 @@ class SleepImportedFiguresTest {
             deviceId = "my-whoop", startTs = 1780351200L, endTs = 1780387200L, efficiency = 90.0,
         )
         val m = buildSleepModel(days, session = session, todayKey = pinnedToday)!!
-        // hours-vs-needed (DESCRIPTIVE) still uses the mean need = max(450, mean[420,410]=415) = 450,
-        // and reads ASLEEP 410, not the 600-min in-bed window.
-        assertEquals(410.0 / 450.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
+        // hours-vs-needed reads ASLEEP 410, not the 600-min in-bed window, against the SAME normative need
+        // the debt tile and ledger use: only 2 nights < the 7-night minimum, so personalizedNeedHours
+        // cold-starts to the 8 h population target = 480. (It divided by the 7.5h-floored mean, 450, before
+        // the need was unified; the asleep-not-in-bed point this test pins is unchanged.)
+        assertEquals(410.0 / 480.0 * 100.0, m.hoursVsNeeded.latest!!, 1e-9)
         // Debt tile reads ASLEEP too, but against the NORMATIVE need now (#242): only 2 nights < the
         // 7-night minimum, so personalizedNeedHours cold-starts to the 8 h population target = 480, and
         // The carried target is 0.55 × (480 + 33 − 410) = 56.65, surfaced at the shared
