@@ -242,6 +242,10 @@ internal fun buildSleepModel(
         val series = days.mapNotNull { localDebtByDay[it.day] }
         Metric(series.lastOrNull(), null, mean(series), series)
     }
+    // An imported value wins verbatim for its day only, so the latest debt day's import decides whose
+    // figure the tile shows. Swift twin: `SleepModel.debtLatestIsImported`.
+    val sleepDebtFromWhoop = days.lastOrNull { localDebtByDay[it.day] != null }
+        ?.let { imported.debtMin[it.day] != null } ?: false
 
     // Trend set = the most-recent nights with data (asleep totals, full history — latest-anchored,
     // not the browsed night). Mirrors iOS's trailing trend over repo.days.
@@ -292,6 +296,7 @@ internal fun buildSleepModel(
         restorative = restorative,
         respiratory = respiratory,
         sleepDebt = sleepDebt,
+        sleepDebtFromWhoop = sleepDebtFromWhoop,
         typicalTotalMin = typicalTotalMin,
         typicalDeepMin = typicalDeepMin,
         typicalRemMin = typicalRemMin,

@@ -41,7 +41,7 @@ struct NightDetailCard: View {
             StatTile(
                 label: "Sleep Debt",
                 value: debt.latest.map { durationText($0) } ?? "—",
-                caption: nightDetailDebtCaption(debt.latest),
+                caption: nightDetailDebtCaption(debt.latest, fromWhoop: model.sleepDebtFromWhoop),
                 accent: nightDetailDebtColor(debt.latest),
                 sparkline: spark(debt.series),
                 sparkColor: StrandPalette.metricRose)
@@ -110,7 +110,7 @@ struct NightDetailCard: View {
                 StatTile(
                     label: "Sleep Debt",
                     value: debt.latest.map { durationText($0) } ?? "—",
-                    caption: nightDetailDebtCaption(debt.latest),
+                    caption: nightDetailDebtCaption(debt.latest, fromWhoop: model.sleepDebtFromWhoop),
                     accent: nightDetailDebtColor(debt.latest),
                     sparkline: spark(debt.series),
                     sparkColor: StrandPalette.metricRose)
@@ -165,8 +165,11 @@ struct NightDetailCard: View {
     }
 }
 
-func nightDetailDebtCaption(_ debt: Double?) -> String {
+func nightDetailDebtCaption(_ debt: Double?, fromWhoop: Bool = false) -> String {
     guard let debt else { return String(localized: "vs need") }
+    // WHOOP's exported figure for the night, shown verbatim: say so, because the debt ledger on the same tab
+    // is always NOOP's own and the two can differ.
+    if fromWhoop { return String(localized: "From WHOOP") }
     return debt < SleepDebt.onTargetBandMin ? String(localized: "On target") : String(localized: "Below need")
 }
 

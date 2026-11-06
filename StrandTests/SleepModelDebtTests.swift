@@ -26,4 +26,30 @@ final class SleepModelDebtTests: XCTestCase {
             days: days, importedSleep: imported, napSleepMinByDay: [:])
         XCTAssertEqual(metric.latest ?? -1, 17.25, accuracy: 1e-9)
     }
+
+    /// The tile's latest value is WHOOP's exported figure for its night: the model says so, so the tile can
+    /// label it (the debt ledger on the same tab is always NOOP's own, and the two can differ).
+    func testImportedLatestIsMarkedAsWhoops() {
+        let days = [day("2026-06-01", sleep: 360), day("2026-06-02", sleep: 480)]
+        let imported = ["2026-06-02": ImportedSleepFigures(
+            performancePct: nil, consistencyPct: nil, needMin: nil, debtMin: 17.25)]
+        let metric = SleepModel.sleepDebtSeries(days: days, importedSleep: imported, napSleepMinByDay: [:])
+        XCTAssertEqual(metric.latestDay, "2026-06-02")
+        XCTAssertTrue(SleepModel.debtLatestIsImported(metric, importedSleep: imported))
+        XCTAssertEqual(nightDetailDebtCaption(metric.latest, fromWhoop: true), String(localized: "From WHOOP"))
+    }
+
+    /// An older imported night does not label a latest value NOOP computed itself.
+    func testLocalLatestIsNotMarkedEvenAfterAnImportedNight() {
+        let days = [day("2026-06-01", sleep: 360), day("2026-06-02", sleep: 480)]
+        let imported = ["2026-06-01": ImportedSleepFigures(
+            performancePct: nil, consistencyPct: nil, needMin: nil, debtMin: 90)]
+        let metric = SleepModel.sleepDebtSeries(days: days, importedSleep: imported, napSleepMinByDay: [:])
+        XCTAssertEqual(metric.latestDay, "2026-06-02")
+        XCTAssertFalse(SleepModel.debtLatestIsImported(metric, importedSleep: imported))
+        XCTAssertFalse(SleepModel.debtLatestIsImported(
+            SleepModel.sleepDebtSeries(days: [], importedSleep: [:], napSleepMinByDay: [:]), importedSleep: imported))
+        XCTAssertEqual(nightDetailDebtCaption(nil, fromWhoop: true), String(localized: "vs need"),
+                       "No figure, no source claim")
+    }
 }

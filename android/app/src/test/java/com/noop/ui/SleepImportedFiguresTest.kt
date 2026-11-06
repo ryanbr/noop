@@ -4,6 +4,7 @@ import com.noop.analytics.RestScorer
 import com.noop.data.DailyMetric
 import com.noop.data.SleepSession
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -46,6 +47,15 @@ class SleepImportedFiguresTest {
         val imported = ImportedSleepSeries(debtMin = mapOf("2026-06-02" to 60.0))
         val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
         assertEquals(60.0, m.sleepDebt.latest!!, 1e-9)
+        assertTrue("the tile names WHOOP as the source of its latest figure", m.sleepDebtFromWhoop)
+    }
+
+    @Test
+    fun anOlderImportDoesNotLabelALocalLatestDebt() {
+        val days = listOf(day("2026-06-01", 420.0), day("2026-06-02", 410.0))
+        val imported = ImportedSleepSeries(debtMin = mapOf("2026-06-01" to 60.0))
+        val m = buildSleepModel(days, session = null, imported = imported, todayKey = pinnedToday)!!
+        assertFalse("the latest debt is NOOP's own ledger", m.sleepDebtFromWhoop)
     }
 
     @Test
