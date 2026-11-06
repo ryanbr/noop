@@ -2390,6 +2390,7 @@
     <string name="today_driver_value_bpm">%1$d уд/мин</string>
     <string name="today_driver_value_br_min">%1$s вд/мин</string>
     <string name="today_driver_value_temp_deviation">%1$s °C относительно нормы</string>
+    <string name="today_driver_value_temp_deviation_fahrenheit">%1$s °F относительно нормы</string>
     <string name="today_driver_baseline_ms">норма %1$d мс</string>
     <string name="today_driver_baseline_bpm">норма %1$d уд/мин</string>
     <string name="today_driver_baseline_br_min">норма %1$s вд/мин</string>

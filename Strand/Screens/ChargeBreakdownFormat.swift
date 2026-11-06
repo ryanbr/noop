@@ -163,12 +163,42 @@ enum ChargeBreakdownFormat {
 
     // MARK: - Relative skin-temp label (A5)
 
-    /// The relative skin-temp read-out, e.g. "+0.3 C vs your normal" / "-0.4 C vs your normal".
+    /// A signed skin-temperature deviation in the reader's unit, e.g. "+0.3 °C" / "-0.7 °F". A difference
+    /// converts to °F by 9/5 with no +32 offset (`UnitFormatter.celsiusDeltaToFahrenheit`), from the unrounded
+    /// figure. Pure; Kotlin twin `chargeDriverTempDeviation` (TodayScreen.kt).
+    ///
+    /// Rounded once, explicitly, half away from zero (the shared Swift/Kotlin display rule, as
+    /// `RecoveryScorer.displayRounded` applies to breathing), because Foundation's locale formatter rounds a
+    /// tie the other way from Java's (0.25 printed "+0.2" here and "+0.3" on Android). Anything that rounds
+    /// to zero prints "+0.0", as Kotlin's `displayRounded` (which never yields a negative zero) does; that
+    /// formatter prints "-+0.0" for a negative zero, and a hand-built "+" printed "+-0.0".
+    static func skinTempDeviationFigure(_ deviationC: Double, unit: TemperatureUnit) -> String {
+        let raw = unit == .fahrenheit ? UnitFormatter.celsiusDeltaToFahrenheit(deviationC) : deviationC
+        let shown = (raw * 10).rounded(.toNearestOrAwayFromZero) / 10
+        let number = shown == 0
+            ? "+0.0"
+            : String(format: "%+.1f", locale: Locale(identifier: "en_US_POSIX"), shown)
+        return number + " " + UnitFormatter.temperatureUnit(unit)
+    }
+
+    /// The relative skin-temp read-out, e.g. "+0.3 °C vs your normal" / "-0.7 °F vs your normal".
     /// Built from the engine's signed deviation; one decimal, explicit sign, never a fake absolute.
     /// Pure + unit-tested.
-    static func skinTempDeviationLabel(_ rel: SkinTempRelative) -> String {
-        let sign = rel.deviationC >= 0 ? "+" : ""
-        return String(localized: "\(sign)\(String(format: "%.1f", rel.deviationC)) C vs your normal")
+    static func skinTempDeviationLabel(_ rel: SkinTempRelative, unit: TemperatureUnit = .celsius) -> String {
+        let figure = skinTempDeviationFigure(rel.deviationC, unit: unit)
+        return String(localized: "\(figure) vs your normal")
+    }
+
+    /// The driver as the breakdown shows it: the skin-temperature row's figure in the reader's unit, from the
+    /// night's raw deviation. The engine's text ("+0.4 C vs baseline") is Celsius-only by contract (pinned
+    /// byte-for-byte with Kotlin), so a Fahrenheit reader saw Celsius. Every other driver passes through
+    /// unchanged, and so does this one when the raw deviation is not supplied. Pure.
+    static func displayDriver(_ driver: ChargeDriver, skinTempDevC: Double?, unit: TemperatureUnit) -> ChargeDriver {
+        guard driver.label == "Skin temperature", let dev = skinTempDevC else { return driver }
+        let figure = skinTempDeviationFigure(dev, unit: unit)
+        return ChargeDriver(label: driver.label, deltaPoints: driver.deltaPoints,
+                            valueText: String(localized: "\(figure) vs baseline"),
+                            baselineText: driver.baselineText, verdict: driver.verdict)
     }
 
     /// The plain-English tier word for the relative skin-temp marker. Pure.
@@ -299,6 +329,13 @@ struct ChargeBreakdownSection: View {
     let confidence: ScoreConfidence
     var skinTempRel: SkinTempRelative? = nil
 
+    // The reader's temperature unit, resolved the way every other temperature read-out resolves it.
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
+    private var temperatureUnit: TemperatureUnit {
+        UnitPrefs.resolveTemperature(system: UnitSystem(rawValue: unitSystemRaw) ?? .metric, override: temperatureRaw)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
             Divider().overlay(StrandPalette.hairline)
@@ -309,14 +346,17 @@ struct ChargeBreakdownSection: View {
             }
             VStack(spacing: NoopMetrics.rowSpacing) {
                 let maxMag = drivers.map { abs($0.deltaPoints) }.max() ?? 1
+                // Every caller builds `skinTempRel` from the same row's deviation the drivers were scored on.
                 ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
-                    ChargeDriverRow(driver: driver, maxMagnitude: maxMag)
+                    ChargeDriverRow(driver: ChargeBreakdownFormat.displayDriver(
+                                        driver, skinTempDevC: skinTempRel?.deviationC, unit: temperatureUnit),
+                                    maxMagnitude: maxMag)
                 }
             }
             // A5 , the night's relative skin-temp marker, tagged REL., shown as a deviation from the
             // personal normal rather than a fake clinical absolute. Only when the night carries one.
             if let rel = skinTempRel {
-                SkinTempDeviationRow(rel: rel)
+                SkinTempDeviationRow(rel: rel, unit: temperatureUnit)
                     .padding(.top, NoopMetrics.space1)
             }
         }
@@ -377,13 +417,14 @@ struct ChargeDriverRow: View {
     }
 }
 
-/// A5 , the relative skin-temp deviation row: "Skin temperature · +0.3 C vs your normal" with a REL.
+/// A5 , the relative skin-temp deviation row: "Skin temperature · +0.3 °C vs your normal" with a REL.
 /// tag pill (the relative tier is reliable presentation, never a clinical absolute). Tinted amber to
 /// match the skin-temp accent used in the Charge model explainer.
 struct SkinTempDeviationRow: View {
     let rel: SkinTempRelative
+    var unit: TemperatureUnit = .celsius
 
-    private var deviationText: String { ChargeBreakdownFormat.skinTempDeviationLabel(rel) }
+    private var deviationText: String { ChargeBreakdownFormat.skinTempDeviationLabel(rel, unit: unit) }
     private var tierWord: String { ChargeBreakdownFormat.skinTempTierWord(rel.tier) }
 
     var body: some View {
