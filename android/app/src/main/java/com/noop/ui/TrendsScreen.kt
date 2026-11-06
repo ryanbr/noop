@@ -195,23 +195,10 @@ fun TrendsScreen(vm: AppViewModel) {
             }
         }
 
-        // --- Week in review , the Charge / Effort / Rest trio in NOOP's pip language (PipBar +
-        // CountUpText), mirroring the iOS TrendsView.weekInReview card. White count-up numbers over
-        // segmented count-up bars; self-hides when none of the three carry a window mean. ---
-        item {
-            WeekInReviewCard(
-                charge = recovery,
-                effort = strain,
-                rest = rest,
-                effortScale = effortScale,
-                modifier = Modifier.staggeredAppear(index = 1),
-            )
-        }
-
         // --- Range control ---
         item {
             Column(
-                modifier = Modifier.staggeredAppear(index = 2),
+                modifier = Modifier.staggeredAppear(index = 1),
                 verticalArrangement = Arrangement.spacedBy(Metrics.space8),
             ) {
                 Row(
@@ -233,6 +220,21 @@ fun TrendsScreen(vm: AppViewModel) {
                     color = if (recovery.widened) Palette.statusWarning else Palette.textTertiary,
                 )
             }
+        }
+
+        // --- The Charge / Effort / Rest averages over the range selected just above, in NOOP's pip
+        // language (PipBar + CountUpText), mirroring the iOS TrendsView.weekInReview card. It sits BELOW the
+        // range control and is titled "Average" because it averages that window (3M by default): titled
+        // "Week in review" above the control, it read as a second, different figure for the week the
+        // digest at the top already summarises. Self-hides when none of the three carry a window mean. ---
+        item {
+            WeekInReviewCard(
+                charge = recovery,
+                effort = strain,
+                rest = rest,
+                effortScale = effortScale,
+                modifier = Modifier.staggeredAppear(index = 2),
+            )
         }
 
         // --- Hero , charge over time. Charge (green) world: domain card wash, a crisp flat line with a
@@ -491,7 +493,7 @@ private fun WeekInReviewCard(
 
     NoopCard(modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionHeader(stringResource(R.string.trends_week_in_review), overline = stringResource(R.string.trends_charge_effort_rest))
+            SectionHeader(stringResource(R.string.explore_average), overline = stringResource(R.string.trends_charge_effort_rest))
             if (chargeAvg != null) {
                 PipScoreRow(
                     label = stringResource(R.string.trends_charge), value = chargeAvg, range = 0f..100f,
