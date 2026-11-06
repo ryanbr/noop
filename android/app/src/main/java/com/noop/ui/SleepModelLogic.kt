@@ -106,6 +106,16 @@ internal fun sleepDurationTrend(days: List<DailyMetric>): Pair<List<Double>, Lis
 }
 
 /**
+ * The NORMATIVE nightly sleep need (minutes) the Sleep screen's debt surfaces measure against: the engine's
+ * population-anchored, upper-quartile [RestScorer.personalizedNeedHours] over the nights' asleep totals, age
+ * not plumbed (null → adult target). One function so the Sleep screen and the wind-down nudge
+ * ([com.noop.alarm.WindDownStore.adoptSleepNeed]) cannot state two needs. Twin of Swift
+ * `SleepModel.debtNeedMin(days:)`.
+ */
+internal fun debtNeedMin(days: List<DailyMetric>): Double =
+    RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
+
+/**
  * Build the whole model from the cached daily metrics + the latest sleep session + the
  * export-verbatim sleep figures. Returns null when there is no usable latest night (no
  * stage minutes), which renders the empty state. All series are computed in one pass-set
@@ -193,8 +203,7 @@ internal fun buildSleepModel(
     // erases their debt. Age isn't plumbed here (null → adult target). One need across the debt tile +
     // ledger + trend, agreeing with the engine. Need-unification from #464 by @vishk23; the descriptive
     // `needMin` still drives the "hours vs needed" performance tile.
-    val debtNeedMin = RestScorer.personalizedNeedHours(
-        days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
+    val debtNeedMin = com.noop.ui.debtNeedMin(days)
 
     // Per-tile metrics — each a full pass over the FULL day history (asleep totals, no in-bed
     // substitution), latest = the most-recent day. Mirrors iOS SleepView, where every tile series

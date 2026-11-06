@@ -1083,6 +1083,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         target21 = optimalStrainRange(todayRow.recovery)?.low,
                     )
                 }
+                // The wind-down nudge is timed from the sleep need the Sleep screen states, from the same rows
+                // (Swift twin: AppModel's repo.$days sink). An empty emission (still loading) is skipped so it
+                // cannot reset a learned need to the cold-start 8 h and back; the store writes, and the nudge
+                // re-schedules, only when the rounded need actually moves and the nudge is on.
+                if (days.isNotEmpty() && windDownStore.adoptSleepNeed(debtNeedMin(days)) && windDownStore.enabled) {
+                    WindDownScheduler.schedule(
+                        appContext, windDownStore, phoneAlarmStore.targetMinutes, phoneAlarmStore.targetOverrides,
+                    )
+                }
                 // v5 skin-temp suite: run the Cycle / Body-clock / Illness-heads-up engines over the same
                 // cached history and publish their RESULTS for the Health hub. The richer IllnessSignalEngine
                 // here is the v5 replacement for AppModel.evaluateIllness's body (the macOS Result analogue);

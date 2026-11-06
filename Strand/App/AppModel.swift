@@ -362,6 +362,12 @@ final class AppModel: ObservableObject {
             self?.evaluateStrainTarget()
             // Keep the battery night-guard's learned bedtime warm off the same signal (throttled inside).
             self?.refreshHabitualMidsleep()
+            // The wind-down nudge is timed from the sleep need the Sleep tab states, from the same rows.
+            // An empty history (a launch before the first load) is skipped so it cannot reset a learned
+            // need to the cold-start 8 h and back. Writes and reschedules only when the need moves.
+            if !days.isEmpty {
+                WindDownNudge.adoptSleepNeed(normativeNeedMin: SleepModel.debtNeedMin(days: days))
+            }
         }.store(in: &hrCancellables)
         // Re-arm the strap's firmware alarm once the connection has SETTLED — not the instant it (re)bonds.
         // A smart-alarm time changed while the strap was away never reached it , the send is gated on bond

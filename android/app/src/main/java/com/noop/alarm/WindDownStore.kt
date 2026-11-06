@@ -18,10 +18,31 @@ class WindDownStore(private val prefs: SharedPreferences) {
         get() = prefs.getBoolean(KEY_ENABLED, false)
         set(v) = prefs.edit().putBoolean(KEY_ENABLED, v).apply()
 
-    /** Typical sleep need in minutes (default 8 h). Used to back-compute the nudge from the wake time. */
+    /**
+     * The sleep need (minutes) the nudge is back-computed from: the SAME need the Sleep screen states and
+     * measures sleep debt against ([com.noop.ui.debtNeedMin]), kept in step by [adoptSleepNeed]
+     * whenever the sleep history changes. Stored because the boot receiver re-schedules without the
+     * database. 8 h until the first history arrives, which is also that estimator's own cold-start default.
+     *
+     * It used to be a fixed 8 h nothing ever wrote, while the help text promised "your usual sleep need"
+     * and every other surface used the personal one (the upper-quartile night, never below 8 h). Twin of
+     * Swift `WindDownNudge.sleepNeedMinutes`.
+     */
     var sleepNeedMinutes: Int
         get() = prefs.getInt(KEY_SLEEP_NEED, DEFAULT_SLEEP_NEED).coerceIn(SLEEP_MIN, SLEEP_MAX)
         set(v) = prefs.edit().putInt(KEY_SLEEP_NEED, v.coerceIn(SLEEP_MIN, SLEEP_MAX)).apply()
+
+    /**
+     * Keep the nudge's need equal to the Sleep screen's. Writes only when the rounded value changes (it moves
+     * on a timescale of weeks) and returns whether it did, so the caller re-schedules only then. Twin of
+     * Swift `WindDownNudge.adoptSleepNeed`, which re-schedules itself.
+     */
+    fun adoptSleepNeed(normativeNeedMin: Double): Boolean {
+        val minutes = needMinutes(normativeNeedMin)
+        if (prefs.contains(KEY_SLEEP_NEED) && prefs.getInt(KEY_SLEEP_NEED, DEFAULT_SLEEP_NEED) == minutes) return false
+        sleepNeedMinutes = minutes
+        return true
+    }
 
     /** Lead time (minutes) before bed to nudge, so winding down actually finishes by lights-out. */
     var leadMinutes: Int
@@ -56,6 +77,17 @@ class WindDownStore(private val prefs: SharedPreferences) {
     }
 
     companion object {
+        /**
+         * The stored need for a normative need in minutes: rounded to the nearest minute (half away from
+         * zero, the Swift `.rounded()` rule; the input is never negative) and clamped to the store's 5–11 h.
+         * A non-finite input keeps the 8 h default. Pure. Twin of Swift `WindDownNudge.needMinutes`.
+         */
+        fun needMinutes(normativeNeedMin: Double): Int {
+            if (!normativeNeedMin.isFinite()) return DEFAULT_SLEEP_NEED
+            // Clamp BEFORE rounding: Math.round of a huge value saturates to Long.MAX_VALUE, whose Int is -1.
+            return Math.round(normativeNeedMin.coerceIn(SLEEP_MIN.toDouble(), SLEEP_MAX.toDouble())).toInt()
+        }
+
         /** Pure form of [nudgeDayShift], so the day arithmetic is testable without a Context. */
         fun nudgeDayShift(wakeMinutes: Int, sleepNeedMinutes: Int, leadMinutes: Int): Int =
             Math.floorDiv(wakeMinutes - sleepNeedMinutes - leadMinutes, 24 * 60)
