@@ -189,59 +189,43 @@ public enum StrandPalette {
         .init(color: Color(light: "#CB3A2F", dark: "#E5483B"), location: 1.0),
     ]
 
-    // MARK: Recovery / Charge gradient — the gold "Charge" colour world.
-    // A single warm metal ramp: a deep bronze floor climbs through brand gold into a
-    // bright champagne peak — no green anywhere; depleted reads as dim gold, not coral.
-    // 0.00 bronze → 0.30 antique gold → 0.55 brand gold → 0.78 soft gold → 1.00 champagne.
-    public static let recovery000 = Color(light: "#C0392B", dark: "#E0463C") // depleted — WHOOP red
-    public static let recovery030 = Color(light: "#D9682A", dark: "#E8743C") // low — red-orange
-    public static let recovery055 = Color(light: "#C99A00", dark: "#F9DF4A") // moderate — WHOOP yellow
-    public static let recovery078 = Color(light: "#6FB23A", dark: "#8FD86A") // primed — yellow-green
-    public static let recovery100 = Color(light: "#0F9D62", dark: "#03E095") // peak — WHOOP green
+    // MARK: WHOOP score colours — value-based recovery, blue strain, slate sleep.
+    public static let recovery000 = Color(light: "#C0392B", dark: "#E0463C")
+    public static let recovery030 = Color(light: "#C0392B", dark: "#E0463C")
+    public static let recovery055 = Color(light: "#C99A00", dark: "#F9DF4A")
+    public static let recovery078 = Color(light: "#0F9D62", dark: "#03E095")
+    public static let recovery100 = Color(light: "#0F9D62", dark: "#03E095")
 
-    /// Ordered gradient stops for the recovery scale (Titanium gold ramp, or the Classic red→green).
     public static var recoveryStops: [Gradient.Stop] {
         isClassic ? cRecoveryStops : [
             .init(color: recovery000, location: 0.00),
-            .init(color: recovery030, location: 0.30),
-            .init(color: recovery055, location: 0.55),
-            .init(color: recovery078, location: 0.78),
+            .init(color: recovery030, location: 0.33),
+            .init(color: recovery055, location: 0.34),
+            .init(color: recovery055, location: 0.66),
+            .init(color: recovery078, location: 0.67),
             .init(color: recovery100, location: 1.00),
         ]
     }
-
-    /// The signature recovery gradient (bronze → champagne, or Classic red→green).
     public static var recoveryGradient: Gradient { Gradient(stops: recoveryStops) }
 
-    // MARK: Strain / Effort ramp — the amber "Effort" colour world.
-    // Deep ember → warm amber → bright amber → soft amber peak: heat/output, all in the
-    // Effort accent family rather than veering into magenta.
-    public static let strain000 = Color(light: "#7E460E", dark: "#9C5A14") // deep ember
-    public static let strain033 = Color(light: "#A4621B", dark: "#C2762A") // warm amber
-    public static let strain066 = Color(light: "#C2792E", dark: "#D98A3D") // bright amber
-    public static let strain100 = Color(light: "#D89240", dark: "#F0A85A") // soft amber peak
+    public static let strain000 = Color(light: "#397FC4", dark: "#4090E0")
+    public static let strain033 = Color(light: "#397FC4", dark: "#4090E0")
+    public static let strain066 = Color(light: "#397FC4", dark: "#4090E0")
+    public static let strain100 = Color(light: "#397FC4", dark: "#4090E0")
 
     public static var strainStops: [Gradient.Stop] {
         isClassic ? cStrainStops : [
             .init(color: strain000, location: 0.00),
-            .init(color: strain033, location: 0.33),
-            .init(color: strain066, location: 0.66),
             .init(color: strain100, location: 1.00),
         ]
     }
-
-    /// The strain gradient (output / heat, or the Classic blue ramp).
     public static var strainGradient: Gradient { Gradient(stops: strainStops) }
 
-    // MARK: Sleep stages — the blue "Rest" colour world (Titanium); Classic adds a purple REM.
-    // WHOOP sleep-stage palette (adopted from ryanAtriumAi #988): four distinct hues per stage —
-    // Awake white-grey #CAC8CB, Light periwinkle #A7A4F4, SWS/Deep orchid-pink #FD96FD, REM purple
-    // #AE5BEF — because the previous three near-identical blues made a fragmented on-device
-    // hypnogram unreadable. Light-mode variants are the same hues darkened for contrast on white.
-    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#8E949E", dark: "#CAC8CB") }
-    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#7B78E0", dark: "#A7A4F4") }
-    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#C13EC1", dark: "#FD96FD") }
-    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#8E3BD6", dark: "#AE5BEF") }
+    // WHOOP stage colours: awake grey, light slate-blue, deep purple, REM lilac.
+    public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#8E949E", dark: "#C9CCD6") }
+    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#6483A0", dark: "#83A0B8") }
+    public static var sleepDeep: Color { isClassic ? cSleepDeep : Color(light: "#7653A8", dark: "#A06CE0") }
+    public static var sleepREM: Color { isClassic ? cSleepREM : Color(light: "#9474C8", dark: "#B69AE8") }
 
     // MARK: HR zones — Titanium cool→warm (no green), or the Classic grey→green→yellow→orange→red.
     public static var zone1: Color { isClassic ? cZone1 : Color(light: "#3A80D6", dark: "#4A90E2") }
