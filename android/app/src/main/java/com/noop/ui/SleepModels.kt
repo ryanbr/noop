@@ -78,6 +78,9 @@ internal data class SleepModel(
     val restorative: Metric,
     val respiratory: Metric,
     val sleepDebt: Metric,
+    /** True when [sleepDebt]'s latest value is WHOOP's exported figure for that night rather than NOOP's
+     *  ledger; the tile then says so. Swift twin: `SleepModel.sleepDebtFromWhoop`. */
+    val sleepDebtFromWhoop: Boolean,
     val typicalTotalMin: Double?,
     val typicalDeepMin: Double?,
     val typicalRemMin: Double?,

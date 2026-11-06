@@ -206,6 +206,10 @@ struct SleepModel {
     let restorative: Metric
     let respiratory: Metric
     let sleepDebt: Metric
+    /// True when `sleepDebt.latest` is WHOOP's own exported figure for that night (an imported value wins
+    /// verbatim for its day) rather than NOOP's ledger, so the tile can say whose number it is: the Sleep
+    /// tab's debt ledger always shows NOOP's own, and without a label the two read as one fact disagreeing.
+    let sleepDebtFromWhoop: Bool
 
     let typicalTotalMin: Double?
     let typicalDeepMin: Double?
@@ -503,12 +507,20 @@ extension SleepModel {
                 napSleepMin: napSleepMinByDay[d.day] ?? 0))
         }
         let importedDebt = importedSleep.compactMapValues(\.debtMin)
-        let series = SleepDebt.debtSeries(
+        let rows = SleepDebt.debtSeries(
             series: credited,
             needHours: need / 60.0,
             importedDebtMin: importedDebt
-        ).map(\.value)
-        return (series.last, nil, mean(series), series)
+        )
+        let series = rows.map(\.value)
+        return (series.last, rows.last?.day, mean(series), series)
+    }
+
+    /// Whether a debt metric's latest value is WHOOP's exported figure for its day. `debtSeries` lets an
+    /// imported value win verbatim for that day only, so the latest day's import decides it. Pure.
+    static func debtLatestIsImported(_ debt: Metric, importedSleep: [String: ImportedSleepFigures]) -> Bool {
+        guard let day = debt.latestDay else { return false }
+        return importedSleep[day]?.debtMin != nil
     }
 
     // MARK: Trend points
@@ -566,6 +578,8 @@ extension SleepModel {
         }
 
         let napSleepMinByDay = napSleepMinutesByDay(navDays: dayGroups, habitualMidsleepSec: habitual)
+        let sleepDebt = sleepDebtSeries(days: inputs.days, importedSleep: inputs.importedSleep,
+                                        napSleepMinByDay: napSleepMinByDay)
         return SleepModel(
             night: night,
             intervals: night.intervals,
@@ -577,7 +591,8 @@ extension SleepModel {
             hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep),
             restorative: restorativeSeries(days: inputs.days),
             respiratory: respiratorySeries(days: inputs.days),
-            sleepDebt: sleepDebtSeries(days: inputs.days, importedSleep: inputs.importedSleep, napSleepMinByDay: napSleepMinByDay),
+            sleepDebt: sleepDebt,
+            sleepDebtFromWhoop: debtLatestIsImported(sleepDebt, importedSleep: inputs.importedSleep),
             typicalTotalMin: typicalTotalMin(days: inputs.days),
             typicalDeepMin: typicalStageMin(days: inputs.days, \.deepMin),
             typicalRemMin: typicalStageMin(days: inputs.days, \.remMin),

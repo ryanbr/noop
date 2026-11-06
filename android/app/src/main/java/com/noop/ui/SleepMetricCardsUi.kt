@@ -138,7 +138,10 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
         SparkTile(
             Modifier.fillMaxWidth(), "Sleep Debt",
             value = m.sleepDebt.latest?.let { durationText(it) } ?: "—",
-            caption = debtCaption(m.sleepDebt.latest),
+            // WHOOP's own figure for the night is shown verbatim; say so, because the debt ledger on the
+            // same tab is always NOOP's own and the two can differ.
+            caption = if (m.sleepDebtFromWhoop && m.sleepDebt.latest != null) uiString(R.string.sleep_debt_from_whoop)
+                      else debtCaption(m.sleepDebt.latest),
             accent = debtColor(m.sleepDebt.latest),
             spark = m.sleepDebt.series, sparkColor = Palette.metricRose,
             onClick = { onMetricClick("sleep_debt") },
