@@ -52,6 +52,7 @@ extension Repository {
 /// Loads only when explicitly enabled. Task identity follows the selected day and repository refresh.
 struct RollingStepsAverageCard: View {
     let day: String
+    var grid = false
     @EnvironmentObject private var repo: Repository
     @State private var result: RollingStepsAverage?
     @State private var resultDay: String?
@@ -76,6 +77,8 @@ struct RollingStepsAverageCard: View {
                     .foregroundStyle(StrandPalette.textTertiary)
             }
             .padding(14)
+            // Only the Tab (2-column) face fixes the height; the Normal row sizes to its content.
+            .frame(height: grid ? NoopMetrics.dashboardCardHeight : nil)
             .background(NoopPanelSurface(tint: StrandPalette.metricCyan, cornerRadius: 20))
         }
         .buttonStyle(.plain)

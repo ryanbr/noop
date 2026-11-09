@@ -11,6 +11,26 @@ final class TodayLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(TodayLayoutPrefs.decodeOrder("   "), TodaySection.defaultOrder)
     }
 
+    /// The user-edited Latest Workouts feed length bounds, pinned on both platforms.
+    func testWorkoutsCountBoundsArePinned() {
+        XCTAssertEqual(TodayLayoutPrefs.minWorkoutsCount, 1)
+        XCTAssertEqual(TodayLayoutPrefs.maxWorkoutsCount, 14)
+        XCTAssertEqual(TodayLayoutPrefs.defaultWorkoutsCount, 6)
+        XCTAssertEqual(TodayLayoutPrefs.clampedWorkoutsCount(0), 1)
+        XCTAssertEqual(TodayLayoutPrefs.clampedWorkoutsCount(15), 14)
+        XCTAssertEqual(TodayLayoutPrefs.clampedWorkoutsCount(5), 5)
+    }
+
+    /// The user-edited Latest Workouts feed window options, pinned on both platforms.
+    func testWorkoutsWindowOptionsArePinned() {
+        XCTAssertEqual(TodayLayoutPrefs.defaultWorkoutsWindowDays, 14)
+        XCTAssertEqual(TodayLayoutPrefs.workoutsWindowOptions, [14, 30, 365])
+        // The snap keeps every option and rejects everything else (the header can only name options).
+        XCTAssertEqual(TodayLayoutPrefs.snapWorkoutsWindowDays(45), 14)
+        XCTAssertEqual(TodayLayoutPrefs.snapWorkoutsWindowDays(30), 30)
+        XCTAssertEqual(TodayLayoutPrefs.snapWorkoutsWindowDays(365), 365)
+    }
+
     func testEncodeDecodeRoundTripsAReorderedList() {
         let reordered: [TodaySection] = [
             .heartRate, .hero, .yourCards, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals,
@@ -117,5 +137,36 @@ final class TodayLayoutPrefsTests: XCTestCase {
         var draft = EditableLayoutDraft(visible: [KeyMetric.hrv], hidden: KeyMetric.defaultOrder.filter { $0 != .hrv })
         draft.hide(.hrv)
         XCTAssertEqual(draft.visible, [.hrv])
+    }
+
+    /// Unset/empty fields mean EVERY chip is enabled (the historical default — existing users see no
+    /// change). Unknown tokens are ignored; an all-junk string degrades to the same default.
+    func testWorkoutFieldsUnsetMeansAllEnabled() {
+        // An unset default arrives as an empty string on Apple (the twin of the Kotlin `null` case).
+        XCTAssertEqual(TodayLayoutPrefs.decodeWorkoutFields(""), Set(WorkoutField.allCases))
+        XCTAssertEqual(TodayLayoutPrefs.decodeWorkoutFields("   "), Set(WorkoutField.allCases))
+        XCTAssertEqual(TodayLayoutPrefs.decodeWorkoutFields("nope,,zzz"), Set(WorkoutField.allCases))
+    }
+
+    /// The stored string is the deterministic canonical-order encoding — a Set toggle order can never
+    /// produce two spellings of the same chip set.
+    func testWorkoutFieldsEncodeIsCanonicalOrder() {
+        let fields: Set<WorkoutField> = [.calories, .strain, .duration]
+        XCTAssertEqual(TodayLayoutPrefs.encodeWorkoutFields(fields), "strain,duration,calories")
+        XCTAssertEqual(TodayLayoutPrefs.decodeWorkoutFields("strain,duration,calories"), fields)
+    }
+
+    /// A partial set round-trips; unknown tokens are dropped and duplicates collapsed.
+    func testWorkoutFieldsDecodeDropsUnknownAndDedupes() {
+        let decoded = TodayLayoutPrefs.decodeWorkoutFields("heartRate,BOGUS,heartRate,calories")
+        XCTAssertEqual(decoded, [WorkoutField.heartRate, .calories])
+    }
+
+    /// The four chip raw keys are the persisted identity — pinned byte-identical to Android.
+    func testWorkoutFieldRawKeysArePinned() {
+        XCTAssertEqual(
+            WorkoutField.allCases.map(\.rawValue),
+            ["strain", "duration", "heartRate", "calories"]
+        )
     }
 }

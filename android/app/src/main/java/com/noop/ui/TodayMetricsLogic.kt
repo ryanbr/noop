@@ -49,11 +49,16 @@ data class TodayFooterState(
     val hcWorkouts: Int? = null,
 )
 
-/** The Today "Last Workouts" contract: cross-source dedup, newest first, at most four. */
-internal fun lastWorkoutsFeed(rows: List<WorkoutRow>): List<WorkoutRow> =
+/** The Today "Last Workouts" contract: cross-source dedup, newest first, capped at [limit].
+ *  The cap is the user-edited feed length (Today Customise); [TodayLayoutPrefs.defaultWorkoutsCount]
+ *  preserves the historical four-row cap for anyone who never customised. */
+internal fun lastWorkoutsFeed(
+    rows: List<WorkoutRow>,
+    limit: Int = TodayLayoutPrefs.defaultWorkoutsCount,
+): List<WorkoutRow> =
     WorkoutEditing.dedupCrossSource(rows)
         .sortedByDescending { it.startTs }
-        .take(4)
+        .take(limit.coerceIn(TodayLayoutPrefs.minWorkoutsCount, TodayLayoutPrefs.maxWorkoutsCount))
 
 /** S5: the Key-Metric overflow cap, mirroring TodayView.metricsCollapsedCap (two columns, three rows). */
 internal const val METRICS_COLLAPSED_CAP = 6

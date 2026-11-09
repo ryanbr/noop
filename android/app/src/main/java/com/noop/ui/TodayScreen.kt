@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -47,6 +48,7 @@ import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.History
@@ -54,10 +56,13 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
@@ -518,8 +523,18 @@ fun TodayScreen(
     // #today-layout: the user-ordered below-hero section list + its editor dialog flag. Read once (prefs
     // aren't reactive) and re-read on the editor's save, exactly like enabledKeyMetrics above.
     var showLayoutEditor by remember { mutableStateOf(false) }
+    var showWorkoutsCountEditor by remember { mutableStateOf(false) }
     var sectionOrder by remember { mutableStateOf(TodayLayoutPrefs.order(context)) }
     var hiddenSections by remember { mutableStateOf(TodayLayoutPrefs.hidden(context)) }
+    // #today-layout: the user-edited Latest Workouts feed length — read once (prefs are not
+    // reactive) and refreshed on the editor's save, exactly like the section order above.
+    var workoutsCount by remember { mutableStateOf(TodayLayoutPrefs.workoutsCount(context)) }
+    // #today-layout: the user-edited Latest Workouts feed window (how far back the feed reaches),
+    // read once and refreshed on the editors save, the same live path as the feed length above.
+    var workoutsWindowDays by remember { mutableStateOf(TodayLayoutPrefs.workoutsWindowDays(context)) }
+    // #today-layout: the per-row chips (Effort / duration / heart rate / calories) the Latest
+    // Workouts feed renders — read once and refreshed through the same live path as the window above.
+    var workoutFields by remember { mutableStateOf(TodayLayoutPrefs.workoutFields(context)) }
     // #today-layout (hold-to-drag): the hoisted list state (the drag math needs layoutInfo + scrollBy) and
     // the live drag state. The frame loop below runs ONLY while a section is lifted: each frame it retries
     // the swap (so a card held still at a viewport edge keeps reordering as the list scrolls under it —
@@ -563,6 +578,8 @@ fun TodayScreen(
     // SharedPreferences isn't reactive, so it's mirrored into local state and re-read when the editor saves.
     var showDashboardEditor by remember { mutableStateOf(false) }
     var enabledDashboardCards by remember { mutableStateOf(DashboardCardPrefs.enabled(context)) }
+    // The "Your cards" section layout (Normal 1-column / Tab 2-column), re-read when the editor saves.
+    var dashboardLayout by remember { mutableStateOf(DashboardCardPrefs.layout(context)) }
     // #today-hosted-cards: the Trends/Sleep cards hosted in Today (empty/opt-in). Mirrored into local
     // state like the dashboard selection and re-read when the hosted-cards editor saves.
     var showHostedEditor by remember { mutableStateOf(false) }
@@ -1246,14 +1263,14 @@ fun TodayScreen(
     // Old imports stay in history, but they do not fill the Today trend tiles.
     val window = rememberTrendWindow(days, selectedDay, keyMetricsWindowDays, spo2CandidateByDay)
 
-    LaunchedEffect(days) {
+    LaunchedEffect(days, workoutsWindowDays) {
         // #849: this footer pass is the heavy one. It derives HR per imported workout from raw strap samples
         // (fillWorkoutHrFromStrap = potentially hundreds of raw-HR reads) and counts every workout / Apple /
         // Health-Connect row across ALL history. A bare Today re-mount (tab-away + return, or an Apple-Health
         // import that recreates the screen) re-fires this LaunchedEffect with the screen's `remember` state
         // reset, so it re-ran the full pass for byte-identical data every time: the lag users see returning
         // to Today after an import. The signature is `days` (a `data class` list, so its structural
-        // hashCode is a stable content signature) PLUS the 14-day cross-source workout union: `days`
+        // hashCode is a stable content signature) PLUS the windowed cross-source workout union: `days`
         // alone missed workouts imported without touching the Whoop day summaries (e.g. a Health
         // Connect session recorded today), so the "Last Workouts" feed stayed stale until the next
         // Whoop cycle bumped `days`. The union is a cheap windowed SELECT; only the heavy strap-HR
@@ -1261,8 +1278,10 @@ fun TodayScreen(
         // on the long-lived ViewModel, so it survives the re-mount that reset the screen state. A real
         // data change bumps the signature and re-runs, so no real update is dropped.
         val now = System.currentTimeMillis() / 1000
+        // #today-layout: the user-edited feed window (14 days by default) — the cutoff is the start
+        // of the day window-1 days back, so today counts as day one exactly like the 14-day default.
         val recentCutoff = LocalDate.now()
-            .minusDays(13)
+            .minusDays((workoutsWindowDays - 1).toLong())
             .atStartOfDay(ZoneId.systemDefault())
             .toEpochSecond()
         val recentUnion = viewModel.repo.workoutsAllSources(viewModel.deviceId, recentCutoff, now)
@@ -1291,6 +1310,11 @@ fun TodayScreen(
             recentWorkouts = viewModel.repo.fillWorkoutHrFromStrap(
                 recentUnion,
                 strapDeviceId = viewModel.deviceId,
+                // #961: same display-only Effort backfill the Workouts screen passes — without the
+                // profile a strap-native session saved with a null strain (sparse live HR at save)
+                // reads "—" here forever while the day total counted the bout.
+                strainMaxHR = profileStore.hrMax.toDouble(),
+                strainSex = profileStore.sex,
                 effortMethod = NoopPrefs.effortMethod(context),
             ),
             whoopDays = days.size,
@@ -1671,6 +1695,8 @@ fun TodayScreen(
                         (cycleOptInApplies(profileStore.sex) || cycleEnabled || periodStarts.isNotEmpty())
                 TodaySection.JOURNAL ->
                     selectedDayOffset == 0 && journalReminderOn
+                TodaySection.DATA_SOURCES ->
+                    true
                 TodaySection.ADDED_CARDS ->
                     selectedDayOffset == 0 && enabledHostedCards.isNotEmpty()
                 else -> true
@@ -1857,7 +1883,14 @@ fun TodayScreen(
                             modifier = Modifier.fillMaxWidth().staggeredAppear(stagger),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            TodayWorkoutsSection(footer.recentWorkouts, onSelect = { selectedWorkoutRow = it })
+                            TodayWorkoutsSection(
+                                footer.recentWorkouts,
+                                limit = workoutsCount,
+                                windowDays = workoutsWindowDays,
+                                fields = workoutFields,
+                                onSelect = { selectedWorkoutRow = it },
+                                onEditCount = { showWorkoutsCountEditor = true },
+                            )
                         }
                         // HEART RATE, the live HR thread / trend card. #991: header + card in a Column.
                         TodaySection.HEART_RATE -> Column(
@@ -1905,6 +1938,7 @@ fun TodayScreen(
                             onOpenCoach = onOpenCoach,
                             onCustomise = { showDashboardEditor = true },
                             spo2CandidateByDay = spo2CandidateByDay,
+                            layout = dashboardLayout,
                         )
                         TodaySection.MENSTRUAL_CYCLE -> MenstrualCycleHomeCard(
                             enabled = cycleEnabled,
@@ -1937,6 +1971,20 @@ fun TodayScreen(
                             days = days,
                             viewModel = viewModel,
                         )
+                        TodaySection.DATA_SOURCES -> Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            SectionHeader(uiString(R.string.today_section_data_sources), overline = uiString(R.string.today_provenance))
+                            TodaySourcesSection(
+                                footer = footer,
+                                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
+                                    liveSnap.batteryPct?.roundToInt() else null,
+                                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
+                                expanded = sourcesExpanded,
+                                onToggle = { sourcesExpanded = !sourcesExpanded },
+                            )
+                        }
                     }
                 }
             }
@@ -1948,24 +1996,7 @@ fun TodayScreen(
             item { AutoWorkoutNudgeCard(viewModel = viewModel, days = days) }
         }
         // Strap battery only while the link is up AND a real reading exists, a stale % from a
-        // dropped connection must not present as live (#159).
-        item {
-            TodaySourcesSection(
-                footer,
-                // NOT routed through LiveConsoleReadout.batteryPercent, which substitutes the RING's charge
-                // for a non-WHOOP active device. That is right for a readout that names the active device,
-                // and wrong here: this value lands in the SourceRow badged `today_source_whoop`, and it
-                // also feeds that row's `present` flag. Substituting would put the ring's number under a
-                // WHOOP label and assert a WHOOP source that is not there, which is worse than the stale
-                // reading being fixed. Nothing is the honest answer for a strap that is not active.
-                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
-                    liveSnap.batteryPct?.roundToInt() else null,
-                // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
-                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
-                expanded = sourcesExpanded,
-                onToggle = { sourcesExpanded = !sourcesExpanded },
-            )
-        }
+        // dropped connection must not present as live (#159). Rendered as the reorderable Data Sources section.
     }
         // Material3's PullToRefreshContainer draws its indicator circle even at rest (progress 0, not
         // refreshing), so an idle Today showed a permanent grey dot at the top (#582). Compose it only
@@ -2083,10 +2114,13 @@ fun TodayScreen(
     if (showDashboardEditor) {
         DashboardCardsEditorDialog(
             initial = enabledDashboardCards,
+            initialLayout = dashboardLayout,
             onDismiss = { showDashboardEditor = false },
-            onSave = { cards ->
+            onSave = { cards, layout ->
                 DashboardCardPrefs.setEnabled(context, cards)
+                DashboardCardPrefs.setLayout(context, layout)
                 enabledDashboardCards = cards
+                dashboardLayout = layout
                 showDashboardEditor = false
             },
         )
@@ -2109,6 +2143,29 @@ fun TodayScreen(
     // #today-layout: the section-order editor (reorder the below-hero sections). Saves the order and
     // re-reads it into local state so Today re-lays-out immediately and survives relaunch. Its "Edit added
     // cards" button hands off to the hosted-cards editor above (#today-hosted-cards).
+    // The compact "workouts shown" editor, opened from the pencil beside the "14 days" window label
+    // on the Latest Workouts header. Edits the same pref as the section-order editor.
+    if (showWorkoutsCountEditor) {
+        WorkoutsFeedEditorDialog(
+            initial = workoutsCount,
+            initialWindowDays = workoutsWindowDays,
+            initialFields = workoutFields,
+            onDismiss = { showWorkoutsCountEditor = false },
+            onCountChange = { count ->
+                TodayLayoutPrefs.setWorkoutsCount(context, count)
+                workoutsCount = count
+            },
+            onWindowChange = { days ->
+                TodayLayoutPrefs.setWorkoutsWindowDays(context, days)
+                workoutsWindowDays = days
+            },
+            onFieldsChange = { fields ->
+                TodayLayoutPrefs.setWorkoutFields(context, fields)
+                workoutFields = fields
+            },
+        )
+    }
+
     if (showLayoutEditor) {
         TodayLayoutEditorDialog(
             initialOrder = sectionOrder,
@@ -4171,6 +4228,7 @@ private fun YourCardsSection(
     onOpenCoach: (String?) -> Unit,
     onCustomise: () -> Unit,
     spo2CandidateByDay: Map<String, Double> = emptyMap(),
+    layout: DashboardLayout = DashboardLayout.TAB,
 ) {
     // #1331 parity: honor the °C/°F preference on the Skin Temp card, the way Health / Compare (and the
     // Swift twin) do. The classic dashboard hardcoded Celsius here alone, so a °F user saw °C on this
@@ -4202,71 +4260,102 @@ private fun YourCardsSection(
                     contentDescription = uiString(R.string.l10n_today_screen_customise_your_cards_2428d761),
                 )
             }
-            cards.forEach { card ->
-                DashboardCardRow(
+            // Resolve the card's data once, then render it per the user's layout choice: Normal is the
+            // original full-width row, Tab is the fixed-height grid tile — the same card, two faces.
+            val cardRow: @Composable (DashboardCard) -> Unit = { card ->
+                val cardValue = dashboardCardValue(
                     card = card,
-                    value = dashboardCardValue(
-                        card = card,
-                        stepsAverage30 = stepsAverage30.first,
-                        day = day,
-                        carriedDay = carriedDay,
-                        vitalsDay = vitalsDay,
-                        spo2Day = spo2Day,
-                        skinTempDay = skinTempDay,
-                        hrvDay = hrvDay,
-                        rhrDay = rhrDay,
-                        respDay = respDay,
-                        fahrenheit = fahrenheit,
-                        // #1846: the user's lead-with choice. Read at the call site, not defaulted inside —
-                        // a defaulted parameter no caller passes is a setting that silently does nothing.
-                        skinTempPreferred = com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
-                        stress = stress,
-                        fitnessAge = fitnessAge,
-                        vo2max = vo2max,
-                        vitality = vitality,
-                        importedStepsForDay = importedStepsForDay,
-                        estimatedStepsForDay = estimatedStepsForDay,
-                        caloriesForDay = caloriesForDay,
-                        hydrationTotalMl = hydrationTotalMl,
-                        hydrationGoalMl = hydrationGoalMl,
-                        spo2CandidateByDay = spo2CandidateByDay,
-                    ),
-                    // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
-                    fraction = dashboardCardFraction(
-                        card = card,
-                        stepsAverage30 = stepsAverage30.first,
-                        day = day,
-                        carriedDay = carriedDay,
-                        vitalsDay = vitalsDay,
-                        respDay = respDay,
-                        stress = stress,
-                        fitnessAge = fitnessAge,
-                        vo2max = vo2max,
-                        vitality = vitality,
-                        importedStepsForDay = importedStepsForDay,
-                        estimatedStepsForDay = estimatedStepsForDay,
-                    ),
-                    tint = dashboardCardTint(card),
-                    // #110: label the sleep row with its source + night (this section renders at offset 0
-                    // only, so it IS last night), so a WHOOP-imported figure is never silently shown as
-                    // "last night" with no provenance. iOS TodayView.sleepSourceSubtitle twin.
-                    subtitleOverride = if (card == DashboardCard.STEPS_AVERAGE_30)
-                        uiString(R.string.steps_average_coverage, stepsAverage30.second)
-                    else sleepSourceSubtitle(card, day),
-                    // #706/#684: every card now opens its OWN detail, matching iOS. The Stress card -> Stress;
-                    // the overnight vitals (HRV / Resting HR / Respiratory / SpO₂ / Skin Temp) + Fitness age /
-                    // Vitality / Steps / Calories -> each metric's focused trend (vital_detail/<key>, the iOS
-                    // metricDetail twin); Sleep -> Sleep; Hydration -> Hydration. Whole row is the button.
-                    onClick = dashboardCardDestination(
-                        card = card,
-                        onOpenStress = onOpenStress,
-                        onOpenMetric = onOpenMetric,
-                        onOpenSleep = onOpenSleep,
-                        onOpenHydration = onOpenHydration,
-                        onOpenCoupled = onOpenCoupled,
-                        onOpenCoach = { showCoachLauncher = true },
-                    ),
+                    stepsAverage30 = stepsAverage30.first,
+                    day = day,
+                    carriedDay = carriedDay,
+                    vitalsDay = vitalsDay,
+                    spo2Day = spo2Day,
+                    skinTempDay = skinTempDay,
+                    hrvDay = hrvDay,
+                    rhrDay = rhrDay,
+                    respDay = respDay,
+                    fahrenheit = fahrenheit,
+                    // #1846: the user's lead-with choice. Read at the call site, not defaulted inside —
+                    // a defaulted parameter no caller passes is a setting that silently does nothing.
+                    skinTempPreferred = com.noop.ui.UnitPrefs.skinTempPreferred(LocalContext.current),
+                    stress = stress,
+                    fitnessAge = fitnessAge,
+                    vo2max = vo2max,
+                    vitality = vitality,
+                    importedStepsForDay = importedStepsForDay,
+                    estimatedStepsForDay = estimatedStepsForDay,
+                    caloriesForDay = caloriesForDay,
+                    hydrationTotalMl = hydrationTotalMl,
+                    hydrationGoalMl = hydrationGoalMl,
+                    spo2CandidateByDay = spo2CandidateByDay,
                 )
+                // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
+                val cardFraction = dashboardCardFraction(
+                    card = card,
+                    stepsAverage30 = stepsAverage30.first,
+                    day = day,
+                    carriedDay = carriedDay,
+                    vitalsDay = vitalsDay,
+                    respDay = respDay,
+                    stress = stress,
+                    fitnessAge = fitnessAge,
+                    vo2max = vo2max,
+                    vitality = vitality,
+                    importedStepsForDay = importedStepsForDay,
+                    estimatedStepsForDay = estimatedStepsForDay,
+                )
+                // #110: label the sleep row with its source + night (this section renders at offset 0
+                // only, so it IS last night), so a WHOOP figure is never silently shown as
+                // "last night" with no provenance. iOS TodayView.sleepSourceSubtitle twin.
+                val cardSubtitle = if (card == DashboardCard.STEPS_AVERAGE_30)
+                    uiString(R.string.steps_average_coverage, stepsAverage30.second)
+                else sleepSourceSubtitle(card, day)
+                // #706/#684: every card now opens its OWN detail, matching iOS. The Stress card -> Stress;
+                // the overnight vitals (HRV / Resting HR / Respiratory / SpO₂ / Skin Temp) + Fitness age /
+                // Vitality / Steps / Calories -> each metric's focused trend (vital_detail/<key>, the iOS
+                // metricDetail twin); Sleep -> Sleep; Hydration -> Hydration. Whole row is the button.
+                val cardClick: () -> Unit = dashboardCardDestination(
+                    card = card,
+                    onOpenStress = onOpenStress,
+                    onOpenMetric = onOpenMetric,
+                    onOpenSleep = onOpenSleep,
+                    onOpenHydration = onOpenHydration,
+                    onOpenCoupled = onOpenCoupled,
+                    onOpenCoach = { showCoachLauncher = true },
+                )
+                if (layout == DashboardLayout.TAB) {
+                    DashboardCardGridTile(
+                        card = card,
+                        value = cardValue,
+                        fraction = cardFraction,
+                        tint = dashboardCardTint(card),
+                        subtitleOverride = cardSubtitle,
+                        onClick = cardClick,
+                    )
+                } else {
+                    DashboardCardRow(
+                        card = card,
+                        value = cardValue,
+                        fraction = cardFraction,
+                        tint = dashboardCardTint(card),
+                        subtitleOverride = cardSubtitle,
+                        onClick = cardClick,
+                    )
+                }
+            }
+            if (layout == DashboardLayout.TAB) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cards.chunked(2).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { card ->
+                                Box(modifier = Modifier.weight(1f)) { cardRow(card) }
+                            }
+                            if (row.size == 1) Box(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                cards.forEach { card -> cardRow(card) }
             }
         }
     }
@@ -4627,7 +4716,7 @@ private fun DashboardCardRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                subtitleOverride ?: uiString(card.subtitleRes),
+                subtitleOverride ?: card.subtitleRes?.let { uiString(it) } ?: "",
                 style = NoopType.caption,
                 color = Palette.textTertiary,
                 maxLines = 1,
@@ -4642,6 +4731,102 @@ private fun DashboardCardRow(
             maxLines = 1,
         )
         // iOS chevron = 12.
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Palette.textTertiary,
+            modifier = Modifier.size(12.dp),
+        )
+    }
+}
+
+/**
+ * The Tab (2-column) face of a "Your cards" card: the SAME data as [DashboardCardRow], but a fixed-height
+ * tile — title overline, the value on the middle line (a placeholder renders none), the description on the
+ * bottom — so half-width tiles stay even in the grid.
+ */
+@Composable
+private fun DashboardCardGridTile(
+    card: DashboardCard,
+    value: String,
+    fraction: Double?,
+    tint: Color,
+    // #110: a per-card dynamic subtitle (currently the sleep row's source + night); null keeps the
+    // card's static description.
+    subtitleOverride: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    // Middle line: a real value only — NO_DATA / the Stress calibrating state / the empty
+    // tap-through value (Coupled / Coach) render no number, the subtitle carries the state.
+    val hasValue = value.isNotEmpty() && value != NO_DATA && value != STRESS_CALIBRATING
+    val displayValue = localizedMetricValue(value)
+    val rowShape = RoundedCornerShape(20.dp)
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Fixed card height: every Tab tile is this tall, so a long subtitle wraps
+            // instead of stretching the tile taller than the neighbour's.
+            .height(Metrics.dashboardCardHeight)
+            .let { if (onClick != null) it.liquidPress(interaction) else it }
+            .clip(rowShape)
+            .frostedCardSurface(cornerRadius = 20.dp)
+            .let {
+                if (onClick != null) {
+                    it.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                } else it
+            }
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .semantics { contentDescription = uiString(R.string.l10n_today_screen_card_title_value_e4bb76b3, uiString(card.titleRes), displayValue) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val cardGaugeCtx = LocalContext.current
+        if (remember { NoopPrefs.todayRingGauges(cardGaugeCtx) }) {
+            GlowRing(
+                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+                value = 0.0,
+                color = tint,
+                diameter = 36.dp,
+                lineWidth = 3.dp,
+                showsLabel = false,
+            )
+        } else {
+            LiquidVessel(
+                value = fraction,
+                tint = tint,
+                animated = false,
+                modifier = Modifier.size(36.dp),
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            Text(
+                uiString(card.titleRes).uppercase(),
+                style = NoopType.overline.copy(fontSize = 11.sp, letterSpacing = 1.0.sp),
+                color = Palette.textPrimary,
+            )
+            if (hasValue) {
+                Text(
+                    displayValue,
+                    style = NoopType.number(17f),
+                    color = Palette.textPrimary,
+                )
+            }
+            // Null for a card that carries title + value only (the 30-day steps card).
+            val subtitle = subtitleOverride ?: card.subtitleRes?.let { uiString(it) }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    // One size down in the 2-column grid: the description sits on footnote (11sp) to keep
+                    // the half-width tile compact.
+                    style = NoopType.footnote,
+                    color = Palette.textTertiary,
+                )
+            }
+        }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
@@ -4937,11 +5122,13 @@ internal fun <T> EditableVisibilityRows(
 @Composable
 private fun DashboardCardsEditorDialog(
     initial: List<DashboardCard>,
+    initialLayout: DashboardLayout,
     onDismiss: () -> Unit,
-    onSave: (List<DashboardCard>) -> Unit,
+    onSave: (List<DashboardCard>, DashboardLayout) -> Unit,
 ) {
     val titles = DashboardCard.entries.associateWith { uiString(it.titleRes) }
     val shown = remember { mutableStateListOf<DashboardCard>().apply { addAll(initial) } }
+    var layout by remember { mutableStateOf(initialLayout) }
     val hidden = remember {
         mutableStateListOf<DashboardCard>().apply {
             addAll(DashboardCard.hiddenOptions(initial))
@@ -4972,6 +5159,22 @@ private fun DashboardCardsEditorDialog(
                     itemTitle = { titles.getValue(it) },
                 )
 
+                // The section layout (Normal 1-column / Tab 2-column). The SAME pill control the
+                // other Today editors use for their mode choices.
+                SegmentedPillControl(
+                    items = DashboardLayout.entries.toList(),
+                    selection = layout,
+                    label = { mode ->
+                        uiString(
+                            if (mode == DashboardLayout.NORMAL) R.string.dashboard_layout_normal
+                            else R.string.dashboard_layout_tab
+                        )
+                    },
+                    onSelect = { layout = it },
+                    adaptsToAvailableWidth = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = {
@@ -4979,12 +5182,13 @@ private fun DashboardCardsEditorDialog(
                             shown.addAll(DashboardCard.defaultSelection)
                             hidden.clear()
                             hidden.addAll(DashboardCard.hiddenOptions(shown))
+                            layout = DashboardLayout.TAB
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
                     ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
                     Spacer(Modifier.weight(1f))
                     Button(
-                        onClick = { onSave(shown.toList()) },
+                        onClick = { onSave(shown.toList(), layout) },
                         enabled = shown.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Palette.accent,
@@ -5318,8 +5522,146 @@ private fun TodayLayoutEditorDialog(
                     ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
                     Spacer(Modifier.weight(1f))
                     Button(
-                        onClick = { onSave(shown.toList() + hidden.toList(), hidden.toList()) },
+                        onClick = {
+                            onSave(shown.toList() + hidden.toList(), hidden.toList())
+                        },
                         enabled = shown.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Palette.accent,
+                            contentColor = Palette.surfaceBase,
+                        ),
+                    ) { Text(uiString(R.string.l10n_today_screen_done_e9b450d1), style = NoopType.captionNumber) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "Customize Workouts": the compact editor opened from the pencil in the Latest Workouts header
+ * (beside the window label). A titled block with a sub-text line, then the "Window" picker for
+ * how far back the feed reaches, then the "Workouts shown" stepper, then the per-row data chips
+ * (Effort / Duration / Heart rate / Calories) each togglable, and the same Reset / Done footer the
+ * Customize Today sheet uses. Every change saves immediately through
+ * TodayLayoutPrefs (the same prefs as the section-order editor), so the feed behind the dialog
+ * updates live and both editors stay in agreement; Reset reverts the count, the window, and the
+ * chips to their defaults through that same live path, and Done simply dismisses.
+ */
+@Composable
+private fun WorkoutsFeedEditorDialog(
+    initial: Int,
+    initialWindowDays: Int,
+    initialFields: Set<WorkoutField>,
+    onDismiss: () -> Unit,
+    onCountChange: (Int) -> Unit,
+    onWindowChange: (Int) -> Unit,
+    onFieldsChange: (Set<WorkoutField>) -> Unit,
+) {
+    var draft by remember {
+        mutableStateOf(initial.coerceIn(TodayLayoutPrefs.minWorkoutsCount, TodayLayoutPrefs.maxWorkoutsCount))
+    }
+    var windowDraft by remember { mutableStateOf(TodayLayoutPrefs.snapWorkoutsWindowDays(initialWindowDays)) }
+    var fieldsDraft by remember { mutableStateOf(initialFields) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(color = Palette.surfaceOverlay, shape = RoundedCornerShape(16.dp)) {
+            Column(
+                modifier = Modifier.width(320.dp).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.today_customize_workouts_title), style = NoopType.title2,
+                         color = Palette.textPrimary)
+                    Text(stringResource(R.string.today_customize_workouts_help), style = NoopType.subhead,
+                         color = Palette.textSecondary)
+                }
+                // #today-layout: how far back the feed reaches — above the count, and the SAME
+                // option list as the Customize Today sheet and the Apple platform
+                // (byte-identical contract).
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.today_workouts_window_label), style = NoopType.caption, color = Palette.textTertiary)
+                    SegmentedPillControl(
+                        items = TodayLayoutPrefs.workoutsWindowOptions,
+                        selection = windowDraft,
+                        label = { workoutsWindowLabel(it) },
+                        onSelect = { windowDraft = it; onWindowChange(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        adaptsToAvailableWidth = true,
+                        accessibilityLabel = stringResource(R.string.today_workouts_window_label),
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.today_workouts_count_label), style = NoopType.caption, color = Palette.textTertiary)
+                    // The feed length on the canonical StepperField (the same control the profile
+                    // editors and the full layout editor use), clamped to the prefs range.
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        StepperField(
+                            value = draft.toString(),
+                            accessibility = stringResource(R.string.today_workouts_count_label),
+                            onMinus = {
+                                val next = (draft - 1).coerceAtLeast(TodayLayoutPrefs.minWorkoutsCount)
+                                draft = next
+                                onCountChange(next)
+                            },
+                            onPlus = {
+                                val next = (draft + 1).coerceAtMost(TodayLayoutPrefs.maxWorkoutsCount)
+                                draft = next
+                                onCountChange(next)
+                            },
+                        )
+                    }
+                }
+                // #today-layout: the per-row chips each feed row shows — the same four chips the
+                // "More > Workouts" rows carry. One toggle per chip; every change live-saves
+                // through the same path as the window and count above. The rows follow the
+                // More > Settings toggle idiom — title + one-line detail + a trailing switch —
+                // separated by hairline dividers.
+                Column(verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
+                    Text(stringResource(R.string.today_workout_fields_label), style = NoopType.caption, color = Palette.textTertiary)
+                    WorkoutField.entries.forEach { field ->
+                        SettingsToggleRow(
+                            title = when (field) {
+                                WorkoutField.STRAIN -> stringResource(R.string.today_workout_field_effort)
+                                WorkoutField.DURATION -> stringResource(R.string.today_workout_field_duration)
+                                WorkoutField.HEART_RATE -> stringResource(R.string.today_workout_field_heart_rate)
+                                WorkoutField.CALORIES -> stringResource(R.string.today_workout_field_calories)
+                            },
+                            detail = when (field) {
+                                WorkoutField.STRAIN -> stringResource(R.string.today_workout_field_effort_detail)
+                                WorkoutField.DURATION -> stringResource(R.string.today_workout_field_duration_detail)
+                                WorkoutField.HEART_RATE -> stringResource(R.string.today_workout_field_heart_rate_detail)
+                                WorkoutField.CALORIES -> stringResource(R.string.today_workout_field_calories_detail)
+                            },
+                            checked = field in fieldsDraft,
+                            onCheckedChange = { on ->
+                                val next = fieldsDraft.toMutableSet()
+                                if (!next.add(field)) next.remove(field)
+                                fieldsDraft = next
+                                onFieldsChange(next)
+                            },
+                        )
+                        if (field != WorkoutField.entries.last()) {
+                            SettingsRowDivider()
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            val next = TodayLayoutPrefs.defaultWorkoutsCount
+                            draft = next
+                            onCountChange(next)
+                            val window = TodayLayoutPrefs.defaultWorkoutsWindowDays
+                            windowDraft = window
+                            onWindowChange(window)
+                            val fields = WorkoutField.entries.toSet()
+                            fieldsDraft = fields
+                            onFieldsChange(fields)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
+                    ) { Text(uiString(R.string.l10n_today_screen_reset_44c57abd), style = NoopType.body) }
+                    Spacer(Modifier.weight(1f))
+                    Button(
+                        onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Palette.accent,
                             contentColor = Palette.surfaceBase,
@@ -7309,39 +7651,122 @@ private fun WorkoutGlyph(icon: ImageVector, modifier: Modifier = Modifier) {
 // MARK: - Today footer sections
 
 @Composable
-private fun TodayWorkoutsSection(workouts: List<WorkoutRow>, onSelect: (WorkoutRow) -> Unit) {
+private fun TodayWorkoutsSection(workouts: List<WorkoutRow>, limit: Int, windowDays: Int,
+                                 fields: Set<WorkoutField>,
+                                 onSelect: (WorkoutRow) -> Unit, onEditCount: () -> Unit) {
     // Single column, newest first: the 2x2 grid truncated durations on narrow phones and read as
     // unrelated stat tiles rather than a chronological feed. Full-width tiles have room for the
     // kcal chip, so the #332 compactDelta workaround is no longer needed here.
-    val feed = lastWorkoutsFeed(workouts)
+    val feed = lastWorkoutsFeed(workouts, limit)
     if (feed.isEmpty()) return
 
     // "Latest Workouts", not "Last": "Last" read as "final". Mirrored on iOS (TodayView). Lives in
     // strings.xml (values + values-de) so the header is localizable like the nav labels.
-    SectionHeader(stringResource(R.string.today_latest_workouts), overline = uiString(R.string.today_workouts_activity), trailing = uiString(R.string.today_workouts_14_days))
-    // #1694: the feed was read-only, so the only way to a session's detail was More > Workouts. The
-    // tap opens the SAME read-only WorkoutDetailSheet the Workouts list uses — nothing there can edit
-    // or delete, so a tap from Today carries no risk that list does not already carry.
-    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
-        feed.forEach { workout ->
+    // The header mirrors the "Your cards" row: overline + title left, the user-edited window
+    // label, then the shared blue EDIT affordance (the same control as Your Cards) — one edit
+    // entry-point style for every Today section that has one.
+    Row(verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Overline(uiString(R.string.today_workouts_activity))
+            Text(stringResource(R.string.today_latest_workouts), style = NoopType.title2, color = Palette.textPrimary)
+        }
+        Text(workoutsWindowLabel(windowDays), style = NoopType.footnote, color = Palette.textSecondary)
+        TodayEditAction(
+            onClick = onEditCount,
+            contentDescription = stringResource(R.string.today_customize_workouts_title),
+            contentAlignment = Alignment.TopCenter,
+        )
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).frostedCardSurface(cornerRadius = 24.dp)
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(24.dp)),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+      feed.forEachIndexed { index, workout ->
             val interaction = remember(workout.startTs, workout.source) { MutableInteractionSource() }
-            StatTile(
+            WorkoutTimelineRow(
+                workout = workout,
+                fields = fields,
                 modifier = Modifier
                     .fillMaxWidth()
                     .liquidPress(interaction)
-                    .clickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClickLabel = uiString(R.string.today_action_show_workout),
-                        onClick = { onSelect(workout) },
-                    ),
-                label = WorkoutEditing.displaySport(workout.sport),
-                value = localizedMetricValue(workoutDuration(workout)),
-                caption = workoutCaption(workout),
-                accent = workout.strain?.let { Palette.effortTint(it / StrainScorer.maxStrain) } ?: Palette.textPrimary,
-                delta = workout.energyKcal?.let { "${it.roundToInt()} kcal" },
-                deltaColor = Palette.metricAmber,
+                    .clickable(interactionSource = interaction, indication = null,
+                        onClickLabel = uiString(R.string.today_action_show_workout), onClick = { onSelect(workout) }),
             )
+            if (index < feed.lastIndex) HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+@Composable
+private fun WorkoutTimelineRow(workout: WorkoutRow, fields: Set<WorkoutField>, modifier: Modifier = Modifier) {
+    // One icon color for every sport, matching the "More > Workouts" icon: effortColor on a
+    // 20%-tinted circle.
+    val color = Palette.effortColor
+    val strainPct = workout.strain?.roundToInt()
+    val duration = workoutDuration(workout)
+    val start = workoutTimeFmt.format(Instant.ofEpochSecond(workout.startTs))
+    val end = if (workout.endTs > workout.startTs) workoutTimeFmt.format(Instant.ofEpochSecond(workout.endTs)) else null
+    val date = workoutDateFmt.format(Instant.ofEpochSecond(workout.startTs))
+    val timeRange = if (end != null) stringResource(R.string.today_workout_time_range, start, end) else start
+    Row(modifier = modifier.heightIn(min = 80.dp).padding(horizontal = Metrics.cardPadding, vertical = Metrics.space10), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space16)) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.20f)), contentAlignment = Alignment.Center) {
+            // Per-sport glyph from the shared catalog (the same mapping as More > Workouts), not a
+            // generic dumbbell: a swim reads as a swim, a ride reads as a ride.
+            Icon(sportIcon(workout.sport), null, tint = color, modifier = Modifier.size(22.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
+            // Top line mirrors the "More > Workouts" rows: the sport in subhead primary, the date
+            // trailing in footnote tertiary, then the small chevron — the row opens a detail.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space8)) {
+                Text(
+                    WorkoutEditing.displaySport(workout.sport),
+                    style = NoopType.subhead,
+                    color = Palette.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(date, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Palette.textTertiary, modifier = Modifier.size(14.dp))
+            }
+            Text(timeRange, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space10)) {
+                // Imported sessions (Apple Health / Health Connect / activity files) store no strain, so a
+                // null Effort renders nothing instead of an empty ring + dash next to the kcal chip.
+                if (strainPct != null && fields.contains(WorkoutField.STRAIN)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space4)) {
+                        Canvas(Modifier.size(14.dp)) {
+                            drawCircle(Palette.textTertiary.copy(alpha = 0.28f), style = Stroke(3.dp.toPx()))
+                            drawArc(Palette.effortColor, -90f, (strainPct.coerceIn(0, 100) * 3.6f), false, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+                        }
+                        Text(stringResource(R.string.today_workout_strain_pct, strainPct), style = NoopType.number(12f, FontWeight.Normal), color = Palette.textSecondary, maxLines = 1)
+                    }
+                }
+                // Duration moved out of the top caption line so the top stays date + time only; a
+                // zero/unknown span renders nothing instead of a dash chip.
+                if (duration != NO_DATA && fields.contains(WorkoutField.DURATION)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space4)) {
+                        Icon(Icons.Filled.Timer, null, tint = Palette.textTertiary, modifier = Modifier.size(14.dp))
+                        Text(duration, style = NoopType.number(12f, FontWeight.Normal), color = Palette.textSecondary, maxLines = 1)
+                    }
+                }
+                // Avg/max HR recorded on-device (live WHOOP sessions); imported sessions have
+                // neither, so each chip renders nothing when its value is null.
+                if (workout.avgHr != null && fields.contains(WorkoutField.HEART_RATE)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space4)) {
+                        Icon(Icons.Filled.Favorite, null, tint = Palette.metricRose, modifier = Modifier.size(14.dp))
+                        Text(workout.avgHr.toString(), style = NoopType.number(12f, FontWeight.Normal), color = Palette.metricRose, maxLines = 1)
+                        Text(uiString(R.string.today_unit_bpm), style = NoopType.number(12f, FontWeight.Normal), color = Palette.metricRose, maxLines = 1)
+                    }
+                }
+                if (workout.energyKcal != null && fields.contains(WorkoutField.CALORIES)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.space4)) {
+                        Icon(Icons.Filled.LocalFireDepartment, null, tint = Palette.metricAmber, modifier = Modifier.size(14.dp))
+                        Text(stringResource(R.string.today_workout_kcal, workout.energyKcal.roundToInt()), style = NoopType.number(12f, FontWeight.Normal), color = Palette.metricAmber, maxLines = 1)
+                    }
+                }
+            }
         }
     }
 }
@@ -7356,8 +7781,6 @@ private fun TodaySourcesSection(
     expanded: Boolean = true,
     onToggle: () -> Unit = {},
 ) {
-    SectionHeader(uiString(R.string.today_data_sources), overline = uiString(R.string.today_provenance))
-    Spacer(Modifier.height(Metrics.gap))
     val whoopPresent = (footer.whoopDays ?: 0) > 0 || strapBatteryPct != null
     val applePresent = (footer.appleDays ?: 0) > 0 || (footer.appleWorkouts ?: 0) > 0
     val hcPresent = (footer.hcDays ?: 0) > 0 || (footer.hcWorkouts ?: 0) > 0
@@ -8059,6 +8482,13 @@ private fun trendWindowLabel(days: Int): String = when (days) {
     7 -> uiString(R.string.today_trend_7_days)
     30 -> uiString(R.string.today_trend_30_days)
     else -> uiString(R.string.today_trend_14_days)
+}
+
+/** Trailing label on the Latest Workouts header for the user-edited feed window. */
+private fun workoutsWindowLabel(days: Int): String = when (TodayLayoutPrefs.snapWorkoutsWindowDays(days)) {
+    30 -> uiString(R.string.today_range_1_month)
+    365 -> uiString(R.string.today_range_1_year)
+    else -> uiString(R.string.today_workouts_14_days)
 }
 
 @Composable

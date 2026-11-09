@@ -37,6 +37,8 @@ struct LiquidTodayView: View {
 
     /// Shared with the real Today's card-customise editor so the two stay in sync.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
+    /// The "Your cards" section layout, persisted with the classic Today + Android twins.
+    @AppStorage(DashboardCardPrefs.layoutKey) private var dashboardLayoutRaw = DashboardLayout.tab.rawValue
     /// #today-hosted-cards: the ordered Trends/Sleep cards the user has hosted in Today. Empty by default
     /// (opt-in); rendered by the `.addedCards` section. Shared @AppStorage key with Android.
     @AppStorage(HostedCardPrefs.selectionKey) private var hostedCardsRaw = ""
@@ -118,6 +120,10 @@ struct LiquidTodayView: View {
     /// The detailed graphs' trailing window — 1 week / 2 weeks / 1 month (shared key with Android). The
     /// loader banks a day-keyed 30-day superset; render filters down, so a window change applies instantly.
     @AppStorage("today.keyMetricsWindowDays") private var keyMetricsWindowDays = 14
+    // #today-layout: the user-edited Latest Workouts feed length + window (the SAME keys TodayView's
+    // editors write — the customization sheet takes both as live bindings and edits them in place).
+    @AppStorage(TodayLayoutPrefs.workoutsCountKey) private var workoutsCount = TodayLayoutPrefs.defaultWorkoutsCount
+    @AppStorage(TodayLayoutPrefs.workoutsWindowDaysKey) private var workoutsWindowDays = TodayLayoutPrefs.defaultWorkoutsWindowDays
     @State private var kSparks: [String: [(String, Double)]] = [:]
     private var enabledKeyMetrics: [KeyMetric] { KeyMetricPrefs.decodeEnabled(keyMetricsRaw) }
 
@@ -480,6 +486,7 @@ struct LiquidTodayView: View {
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
                 dashboardCardsRaw: $dashboardCardsRaw,
+                dashboardLayoutRaw: $dashboardLayoutRaw,
                 hostedCardsRaw: $hostedCardsRaw
             )
         }
@@ -786,13 +793,18 @@ struct LiquidTodayView: View {
             // Data-driven off the SAME @AppStorage the CUSTOMISE editor writes, so add / remove /
             // reorder in Customise reflects on the home screen live. The hydration filter mirrors classic
             // TodayView's `enabledDashboardCards` and Android's `it != HYDRATION || hydrationEnabled`.
-            ForEach(DashboardCardPrefs.decodeEnabled(dashboardCardsRaw)
-                        .filter { hydrationEnabled || $0 != .hydration }
-                        // Coach off means the AI is off, so the launcher card goes with the tab: leaving it
-                        // on Today would offer a feature the wearer has just switched off. Same gate shape
-                        // as hydration, so a card they had added keeps its place and returns on re-enable.
-                        .filter { coachEnabled || $0 != .coach }) { card in
-                liquidCard(for: card)
+            let enabledCards = DashboardCardPrefs.decodeEnabled(dashboardCardsRaw)
+                .filter { hydrationEnabled || $0 != .hydration }
+                // Coach off means the AI is off, so the launcher card goes with the tab: leaving it
+                // on Today would offer a feature the wearer has just switched off. Same gate shape
+                // as hydration, so a card they had added keeps its place and returns on re-enable.
+                .filter { coachEnabled || $0 != .coach }
+            if DashboardCardPrefs.layout(dashboardLayoutRaw) == .tab {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 8) {
+                    ForEach(enabledCards) { card in liquidCard(for: card, grid: true) }
+                }
+            } else {
+                ForEach(enabledCards) { card in liquidCard(for: card) }
             }
         }
     }
@@ -986,10 +998,10 @@ struct LiquidTodayView: View {
     /// Wired cards show real values; the rest render "–" for now (they still appear, so add/remove/
     /// reorder is reflected). stress → Stress screen, sleep → Sleep, everything else → Health.
     @ViewBuilder
-    private func liquidCard(for card: DashboardCard) -> some View {
+    private func liquidCard(for card: DashboardCard, grid: Bool = false) -> some View {
         switch card {
         case .stepsAverage30:
-            RollingStepsAverageCard(day: selectedDayKey)
+            RollingStepsAverageCard(day: selectedDayKey, grid: grid)
         case .stress:
             cardLink(.stress, title: card.title, sub: card.subtitle,
                      value: stressText, tint: StrandPalette.accent, frac: fracOver(stress, 3))

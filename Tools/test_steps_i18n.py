@@ -10,7 +10,7 @@ RES = ROOT / "android/app/src/main/res"
 IOS_KEYS = [
     "3 weeks",
     "sparse, widened to %@",
-    "30-day step average",
+    "30-day step avg",
     "Rolling average over the last 30 days",
     "%lld of 30 days",
     "Historical trend",

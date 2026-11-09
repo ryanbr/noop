@@ -33,6 +33,7 @@ enum TodaySection: String, CaseIterable, Identifiable {
     case yourCards
     case menstrualCycle
     case journal
+    case dataSources
     /// Cards hosted from the Trends / Sleep tabs (#today-hosted-cards). Renders the `HostedCardPrefs`
     /// selection in order; empty (and effectively invisible) until the user adds a card in Customise.
     /// Appended LAST so `decodeOrder`'s back-fill lands it predictably for existing saved orders.
@@ -53,6 +54,7 @@ enum TodaySection: String, CaseIterable, Identifiable {
         case .yourCards:      return String(localized: "Your Cards")
         case .menstrualCycle: return String(localized: "Menstrual Cycle")
         case .journal:        return String(localized: "Journal")
+        case .dataSources:    return String(localized: "Data Sources / Provenance")
         case .addedCards:     return String(localized: "Added Cards")
         }
     }
@@ -61,8 +63,19 @@ enum TodaySection: String, CaseIterable, Identifiable {
     /// widget (#656) is last by default, where it was first added, above the data-sources card.
     static let defaultOrder: [TodaySection] = [
         .hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards,
-        .menstrualCycle, .journal, .addedCards,
+        .menstrualCycle, .journal, .dataSources, .addedCards,
     ]
+}
+
+/// One per-row data chip on the Latest Workouts feed rows — the same four chips the "More > Workouts"
+/// rows carry: the Effort ring, the duration, the average heart rate, and the calories burned. The rawValue
+/// is the stable persisted identifier — keep it byte-identical to the Android `WorkoutField` enum so a
+/// backup/restore shows the same chips on either OS.
+enum WorkoutField: String, CaseIterable {
+    case strain
+    case duration
+    case heartRate
+    case calories
 }
 
 /// Display-only persistence for the Today section order and visibility. The order registry always contains
@@ -72,6 +85,54 @@ enum TodayLayoutPrefs {
     static let orderKey = "today.sectionOrder"
     /// UserDefaults key — a comma-joined list of explicitly hidden `TodaySection` rawValues.
     static let hiddenKey = "today.hiddenSections"
+    /// UserDefaults key — the user-edited Latest Workouts feed length (how many recent workouts the
+    /// Today feed lists). One Int under the same key on both platforms; each platform's default
+    /// preserves its historical feed cap (6 on the Apple platform, 4 on Android).
+    static let workoutsCountKey = "today.workoutsCount"
+    static let defaultWorkoutsCount = 6
+    static let minWorkoutsCount = 1
+    static let maxWorkoutsCount = 14
+
+    /// UserDefaults key — the reach of the Latest Workouts feed in days (how far back it reaches).
+    /// One Int under the same key on both platforms, with the SAME option list, so the header label
+    /// and the cutoff agree on either OS (a backup/restore reads the same window).
+    static let workoutsWindowDaysKey = "today.workoutsWindowDays"
+    static let defaultWorkoutsWindowDays = 14
+    static let workoutsWindowOptions = [14, 30, 365]
+
+    /// UserDefaults key — a comma-joined list of `WorkoutField` rawValues in canonical order: the per-row
+    /// chips the Latest Workouts feed shows. One string under the same key on both platforms; an unset/empty
+    /// value means EVERY chip is enabled (the historical behaviour, so existing users see no change).
+    /// Mirrors the Android `today.workoutsFields` prefs.
+    static let workoutsFieldsKey = "today.workoutsFields"
+
+    /// Encode the enabled chips as a comma-joined string in canonical `WorkoutField` order (deterministic
+    /// regardless of toggle order). Twin of the Kotlin `encodeWorkoutFields`.
+    static func encodeWorkoutFields(_ fields: Set<WorkoutField>) -> String {
+        WorkoutField.allCases.filter { fields.contains($0) }.map(\.rawValue).joined(separator: ",")
+    }
+
+    /// Decode the stored string into the enabled chip set. An empty/unset string means every chip is enabled
+    /// (the default); unknown tokens are ignored and duplicates collapsed, and an all-unknown string degrades
+    /// to the same default. Twin of the Kotlin `decodeWorkoutFields`.
+    static func decodeWorkoutFields(_ raw: String) -> Set<WorkoutField> {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return Set(WorkoutField.allCases) }
+        let fields = Set(trimmed.split(separator: ",").compactMap { WorkoutField(rawValue: $0.trimmingCharacters(in: .whitespaces)) })
+        return fields.isEmpty ? Set(WorkoutField.allCases) : fields
+    }
+
+    /// Snap an arbitrary day count onto the selectable windows (a hand-edited default can never
+    /// render a window the header cannot name).
+    static func snapWorkoutsWindowDays(_ days: Int) -> Int {
+        workoutsWindowOptions.contains(days) ? days : defaultWorkoutsWindowDays
+    }
+
+    /// Clamp a saved/edited feed length into the editable range (a hand-edited default can never
+    /// render a zero-row or unbounded feed).
+    static func clampedWorkoutsCount(_ count: Int) -> Int {
+        Swift.max(minWorkoutsCount, Swift.min(count, maxWorkoutsCount))
+    }
 
     /// Encode an ordered section list into the stored comma-joined string.
     static func encode(_ sections: [TodaySection]) -> String {

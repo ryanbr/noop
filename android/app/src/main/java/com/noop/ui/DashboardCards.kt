@@ -43,7 +43,8 @@ import com.noop.R
 enum class DashboardCard(
     val raw: String,
     @StringRes val titleRes: Int,
-    @StringRes val subtitleRes: Int,
+    // Null for a card that carries title + value only, no description line (the 30-day steps card).
+    @StringRes val subtitleRes: Int?,
     val unit: String,
     val icon: ImageVector,
 ) {
@@ -51,7 +52,7 @@ enum class DashboardCard(
     RESTING_HR("restingHr", R.string.today_card_resting_hr, R.string.today_card_resting_hr_subtitle, "bpm", Icons.Filled.Favorite),
     RESPIRATORY("respiratory", R.string.today_card_respiratory, R.string.today_card_respiratory_subtitle, "rpm", Icons.Filled.Air),
     STEPS("steps", R.string.today_card_steps, R.string.today_card_steps_subtitle, "", Icons.AutoMirrored.Filled.DirectionsWalk),
-    STEPS_AVERAGE_30("stepsAverage30", R.string.steps_average_30, R.string.steps_average_subtitle, "", Icons.AutoMirrored.Filled.DirectionsWalk),
+    STEPS_AVERAGE_30("stepsAverage30", R.string.steps_average_30, null, "", Icons.AutoMirrored.Filled.DirectionsWalk),
     STRESS("stress", R.string.today_card_stress, R.string.today_card_stress_subtitle, "", Icons.Filled.Bolt),
     FITNESS_AGE("fitnessAge", R.string.today_card_fitness_age, R.string.today_card_fitness_age_subtitle, "yrs", Icons.AutoMirrored.Filled.DirectionsRun),
     VO2MAX("vo2max", R.string.today_card_vo2max, R.string.today_card_vo2max_subtitle, "", Icons.Filled.Air),
@@ -95,6 +96,21 @@ enum class DashboardCard(
     }
 }
 
+
+/**
+ * The "Your cards" section layout: [NORMAL] is the 1-column full-width list, [TAB] is the 2-column grid.
+ * The [raw] is the persisted identifier — keep it BYTE-IDENTICAL to the iOS `DashboardLayout` rawValue
+ * so a backup/restore reads the same layout on either OS.
+ */
+enum class DashboardLayout(val raw: String) {
+    NORMAL("normal"),
+    TAB("tab");
+
+    companion object {
+        fun fromRaw(raw: String?): DashboardLayout = entries.firstOrNull { it.raw == raw } ?: TAB
+    }
+}
+
 /**
  * Display-only persistence for the "Your cards" dashboard selection. Holds an ORDERED list of the enabled
  * cards as a JSON-encoded array of ids; a card not in the list is hidden. Stored in SharedPreferences under
@@ -105,6 +121,7 @@ enum class DashboardCard(
  */
 object DashboardCardPrefs {
     private const val KEY_SELECTION = "today.dashboardCards"
+    private const val KEY_LAYOUT = "today.dashboardLayout"
 
     /** The enabled cards in display order. An empty/unset value yields the default selection. */
     fun enabled(context: Context): List<DashboardCard> {
@@ -123,6 +140,15 @@ object DashboardCardPrefs {
     /** Persist the enabled cards in order. Disabled cards are simply omitted from the stored string. */
     fun setEnabled(context: Context, cards: List<DashboardCard>) {
         NoopPrefs.of(context).edit().putString(KEY_SELECTION, encode(cards)).apply()
+    }
+
+    /** The section layout. An empty/unset value yields [DashboardLayout.TAB] (the shipped look). */
+    fun layout(context: Context): DashboardLayout =
+        DashboardLayout.fromRaw(NoopPrefs.of(context).getString(KEY_LAYOUT, null))
+
+    /** Persist the section layout. */
+    fun setLayout(context: Context, layout: DashboardLayout) {
+        NoopPrefs.of(context).edit().putString(KEY_LAYOUT, layout.raw).apply()
     }
 
     /** Encode an ordered list of enabled cards into the stored JSON-array string (matches the iOS form). */

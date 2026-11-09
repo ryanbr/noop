@@ -80,7 +80,10 @@ class TodayWorkoutTapTest {
     }
 
     /**
-     * #1702: both platforms must window the feed to the same 14 days, and iOS must do it AT THE SECTION.
+     * #1702: both platforms must window the feed to the same default 14 days, and iOS must do it AT THE
+     * SECTION. The window itself is user-edited on both platforms (the shared "today.workoutsWindowDays"
+     * key, the same option list, the same snap), so the cutoffs are pinned to the SAME expression on
+     * both sides: start of today minus (window - 1) days.
      *
      * `workouts` on TodayView is shared: the Data Sources Apple-workout count and the HR chart's sport
      * glyphs both read it and are all-time by design. Windowing the array at its source would compile,
@@ -90,19 +93,21 @@ class TodayWorkoutTapTest {
     fun bothPlatformsWindowTheFeedToTheSameFourteenDays() {
         val kotlin = File(repoRoot(), "android/app/src/main/java/com/noop/ui/TodayMetricsLogic.kt").readText()
         assertTrue(
-            "Android's feed contract must stay the 14-day window iOS is pinned to",
-            todayScreenKt().contains(".minusDays(13)"),
+            "Android's feed contract must stay the user-edited window iOS is pinned to",
+            todayScreenKt().contains("minusDays((workoutsWindowDays - 1).toLong())"),
         )
         assertTrue("lastWorkoutsFeed must remain the Android feed contract", kotlin.contains("fun lastWorkoutsFeed"))
 
         val swift = File(repoRoot(), "Strand/Screens/TodayView.swift").readText()
         assertTrue(
-            "iOS must window with the same 13-days-back-from-start-of-day cutoff",
-            swift.contains("value: -13, to: cal.startOfDay(for: now)"),
+            "iOS must window with the same window-minus-one-days-back-from-start-of-day cutoff",
+            swift.contains("value: -(window - 1), to: cal.startOfDay(for: now)"),
         )
         assertTrue(
             "the iOS section must render the WINDOWED feed, not the shared all-time array",
-            swift.contains("let recent = Self.recentWorkoutsFeed(workouts)") && swift.contains("recent.prefix(6)"),
+            swift.contains("let recent = Self.recentWorkoutsFeed(workouts, windowDays: workoutsWindowDays)") &&
+                swift.contains("recent.prefix(feedCount)") &&
+                swift.contains("clampedWorkoutsCount(workoutsCount)"),
         )
         assertTrue(
             "the Data Sources Apple count must keep reading the unwindowed array",

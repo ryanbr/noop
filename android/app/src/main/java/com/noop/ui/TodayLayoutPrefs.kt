@@ -33,6 +33,7 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
     YOUR_CARDS("yourCards", R.string.today_section_your_cards),
     MENSTRUAL_CYCLE("menstrualCycle", R.string.today_section_menstrual_cycle),
     JOURNAL("journal", R.string.today_section_journal),
+    DATA_SOURCES("dataSources", R.string.today_section_data_sources),
 
     /** Cards hosted from the Trends / Sleep tabs (#today-hosted-cards). Renders the [HostedCardPrefs]
      *  selection in order; empty (and effectively invisible) until the user adds a card in Customise.
@@ -46,8 +47,25 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
          *  journal widget (#656) is last by default, where it was first added, above the data-sources card. */
         val defaultOrder: List<TodaySection> = listOf(
             HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
-            MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS,
+            MENSTRUAL_CYCLE, JOURNAL, DATA_SOURCES, ADDED_CARDS,
         )
+    }
+}
+
+/**
+ * One per-row data chip on the Latest Workouts feed rows — the same four chips the "More > Workouts"
+ * rows carry: the Effort ring, the duration, the average heart rate, and the calories burned. The
+ * [raw] is the stable persisted identifier — keep it byte-identical to the Apple-platform
+ * `WorkoutField` enum so a backup/restore shows the same chips on either OS.
+ */
+enum class WorkoutField(val raw: String) {
+    STRAIN("strain"),
+    DURATION("duration"),
+    HEART_RATE("heartRate"),
+    CALORIES("calories");
+
+    companion object {
+        fun fromRaw(raw: String?): WorkoutField? = entries.firstOrNull { it.raw == raw }
     }
 }
 
@@ -60,6 +78,72 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
 object TodayLayoutPrefs {
     private const val KEY_ORDER = "today.sectionOrder"
     private const val KEY_HIDDEN = "today.hiddenSections"
+    private const val KEY_WORKOUTS_COUNT = "today.workoutsCount"
+    private const val KEY_WORKOUTS_WINDOW_DAYS = "today.workoutsWindowDays"
+    private const val KEY_WORKOUTS_FIELDS = "today.workoutsFields"
+
+    /** How many recent workouts the Latest Workouts feed lists — user-edited in the section editor.
+     *  Both platforms store the same Int under the same key; each platform's default preserves its
+     *  historical feed cap (4 on Android, 6 on the Apple platform). */
+    const val defaultWorkoutsCount = 4
+    const val minWorkoutsCount = 1
+    const val maxWorkoutsCount = 14
+
+    /** How far back (in days) the Latest Workouts feed reaches — user-edited beside the feed length.
+     *  Both platforms store the same Int under the same key and offer the SAME option list, so the
+     *  header label and the cutoff agree on either OS (a backup/restore reads the same window). */
+    const val defaultWorkoutsWindowDays = 14
+    val workoutsWindowOptions = listOf(14, 30, 365)
+
+    /** Snap an arbitrary day count onto the selectable windows (a hand-edited default can never
+     *  render a window the header cannot name). */
+    fun snapWorkoutsWindowDays(days: Int): Int =
+        if (days in workoutsWindowOptions) days else defaultWorkoutsWindowDays
+
+    /** The saved feed window, snapped to the option list. */
+    fun workoutsWindowDays(context: Context): Int =
+        snapWorkoutsWindowDays(NoopPrefs.of(context).getInt(KEY_WORKOUTS_WINDOW_DAYS, defaultWorkoutsWindowDays))
+
+    /** Persist the feed window, snapped to the option list. */
+    fun setWorkoutsWindowDays(context: Context, days: Int) {
+        NoopPrefs.of(context).edit()
+            .putInt(KEY_WORKOUTS_WINDOW_DAYS, snapWorkoutsWindowDays(days))
+            .apply()
+    }
+
+    /** The per-row chips the Latest Workouts feed shows — user-toggled in the feed editor.
+     *  Both platforms store the same comma-joined string under the same key; an unset/empty value
+     *  means EVERY chip is enabled (the historical behaviour, so existing users see no change).
+     *  Mirrors the Apple-platform `TodayLayoutPrefs.workoutFields`. */
+    fun workoutFields(context: Context): Set<WorkoutField> =
+        decodeWorkoutFields(NoopPrefs.of(context).getString(KEY_WORKOUTS_FIELDS, null))
+
+    /** Persist the per-row chip set, encoded in canonical order (the stored string is deterministic
+     *  regardless of the toggle order). */
+    fun setWorkoutFields(context: Context, fields: Set<WorkoutField>) {
+        NoopPrefs.of(context).edit()
+            .putString(KEY_WORKOUTS_FIELDS, encodeWorkoutFields(fields))
+            .apply()
+    }
+
+    /** Encode the enabled chips as a comma-joined string in canonical [WorkoutField] order. */
+    fun encodeWorkoutFields(fields: Set<WorkoutField>): String =
+        WorkoutField.entries.filter { it in fields }.joinToString(",") { it.raw }
+
+    /**
+     * Decode the stored string into the enabled chip set. An empty/unset string means every chip is
+     * enabled (the default); unknown tokens are ignored and duplicates collapsed. Twin of the Swift
+     * `decodeWorkoutFields`.
+     */
+    fun decodeWorkoutFields(raw: String?): Set<WorkoutField> {
+        val trimmed = raw?.trim().orEmpty()
+        if (trimmed.isEmpty()) return WorkoutField.entries.toSet()
+        val fields = LinkedHashSet<WorkoutField>()
+        trimmed.split(",").forEach { token -> WorkoutField.fromRaw(token.trim())?.let(fields::add) }
+        // A stored string that names no known chip degrades to the default (all enabled) — the same
+        // "cannot be empty" invariant the section order carries.
+        return if (fields.isEmpty()) WorkoutField.entries.toSet() else fields
+    }
 
     /** Every known section in display order (saved order first, then any newly-added section appended). */
     fun order(context: Context): List<TodaySection> =
@@ -77,6 +161,19 @@ object TodayLayoutPrefs {
     /** Persist the explicit reversible hidden list. */
     fun setHidden(context: Context, sections: List<TodaySection>) {
         NoopPrefs.of(context).edit().putString(KEY_HIDDEN, encodeHidden(sections)).apply()
+    }
+
+    /** The saved feed length, clamped to the editable range (a hand-edited default can never render a
+     *  zero-row or unbounded feed). */
+    fun workoutsCount(context: Context): Int =
+        NoopPrefs.of(context).getInt(KEY_WORKOUTS_COUNT, defaultWorkoutsCount)
+            .coerceIn(minWorkoutsCount, maxWorkoutsCount)
+
+    /** Persist the feed length, clamped to the editable range. */
+    fun setWorkoutsCount(context: Context, count: Int) {
+        NoopPrefs.of(context).edit()
+            .putInt(KEY_WORKOUTS_COUNT, count.coerceIn(minWorkoutsCount, maxWorkoutsCount))
+            .apply()
     }
 
     /** Encode an ordered list of sections into the stored comma-joined string. */

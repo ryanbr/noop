@@ -94,10 +94,10 @@ ANDROID_INDIRECT_NON_UI_LITERALS = {
     "charge", "effort", "rest", "restingHr", "bloodOxygen", "respiratory", "steps",
     "weight", "calories", "today.keyMetrics", "today.keyMetricsDetailed",
     "today.keyMetricsWindowDays", ",",
-    # Stable DashboardCard raw values + preference; units remain measurement metadata.
+    # Stable DashboardCard raw values + preferences; units remain measurement metadata.
     "stress", "fitnessAge", "vo2max", "vitality", "skinTemp", "sleep", "hydration", "coupled",
-    "coach", "stepsAverage30",
-    "today.dashboardCards", "yrs", "kcal", "",
+    "coach", "stepsAverage30", "normal", "tab",
+    "today.dashboardCards", "today.dashboardLayout", "yrs", "kcal", "",
 }
 
 # Confirmed runtime copy that reaches Today through variables, lambdas, model fields or accessibility
@@ -119,8 +119,12 @@ ANDROID_TODAY_RUNTIME_COPY = {
 ANDROID_HELPER_NON_UI_LITERALS = {
     # TodayLayoutPrefs stable backup/persistence wire values.
     "hero", "liveSession", "synthesis", "keyMetrics", "workouts", "heartRate",
-    "recoveryVitals", "yourCards", "menstrualCycle", "journal", "addedCards",
-    "today.sectionOrder", "today.hiddenSections",
+    "recoveryVitals", "yourCards", "menstrualCycle", "journal", "dataSources",
+    "addedCards",
+    "today.sectionOrder", "today.hiddenSections", "today.workoutsCount",
+    "today.workoutsWindowDays",
+    # WorkoutField chip raw values + the feed-chip preference key.
+    "strain", "duration", "calories", "today.workoutsFields",
     # TodayScoring parse/default formats.
     "9999-12-31", "d MMM", "24h", "12h", "6h", "3h", "1h",
     "<1m", "${secs / 60}m", "${secs / 3600}h", "${secs / 86_400}d",

@@ -19,7 +19,7 @@
     <string name="steps_week_of">Week of %1$s</string>
     <string name="steps_chart_summary">Steps, %1$d bars. %2$s</string>
     <string name="steps_no_data">Steps, no data</string>
-    <string name="steps_average_30">30-day step average</string>
+    <string name="steps_average_30">30-day step avg</string>
     <string name="steps_average_subtitle">Rolling average over the last 30 days</string>
     <string name="steps_average_coverage">%1$d of 30 days recorded</string>
     <string-array name="steps_ranges"><item>1W</item><item>2W</item><item>3W</item><item>1M</item><item>3M</item><item>6M</item><item>1Y</item><item>ALL</item></string-array>

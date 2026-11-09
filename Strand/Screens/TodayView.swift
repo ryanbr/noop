@@ -265,11 +265,24 @@ struct TodayView: View {
     // Resting HR). The "CUSTOMISE" link on the section header opens a local sheet (no new nav destination).
     // Persistence is display-only, these cards read the SAME values the rest of Today already loads.
     @AppStorage(DashboardCardPrefs.selectionKey) private var dashboardCardsRaw = ""
+    /// The "Your cards" section layout (1-column list vs 2-column grid), persisted with the
+    /// Android twin under the shared key. Default `.tab` keeps the shipped look.
+    @AppStorage(DashboardCardPrefs.layoutKey) private var dashboardLayoutRaw = DashboardLayout.tab.rawValue
     /// #today-hosted-cards: the ordered Trends/Sleep cards hosted in Today (empty/opt-in). Shared key
     /// with Android; rendered by the `.addedCards` section.
     @AppStorage(HostedCardPrefs.selectionKey) private var hostedCardsRaw = ""
     @AppStorage(TodayLayoutPrefs.orderKey) private var sectionOrderRaw = ""
     @AppStorage(TodayLayoutPrefs.hiddenKey) private var hiddenSectionsRaw = ""
+    /// #today-layout: the user-edited Latest Workouts feed length (Today Customise).
+    @AppStorage(TodayLayoutPrefs.workoutsCountKey) private var workoutsCount = TodayLayoutPrefs.defaultWorkoutsCount
+    /// #today-layout: the user-edited Latest Workouts feed window (how far back the feed reaches).
+    @AppStorage(TodayLayoutPrefs.workoutsWindowDaysKey) private var workoutsWindowDays = TodayLayoutPrefs.defaultWorkoutsWindowDays
+    /// #today-layout: the per-row chips (Effort / duration / heart rate / calories) the Latest Workouts
+    /// feed renders, stored as a comma-joined `WorkoutField` list (empty means every chip).
+    @AppStorage(TodayLayoutPrefs.workoutsFieldsKey) private var workoutFieldsRaw = ""
+    private var workoutFields: Set<WorkoutField> {
+        TodayLayoutPrefs.decodeWorkoutFields(workoutFieldsRaw)
+    }
     @AppStorage(LiveSessionPrefs.betaKey) private var liveSessionsBeta = true
     private var sectionOrder: [TodaySection] {
         TodayLayoutPrefs.visibleOrder(orderRaw: sectionOrderRaw, hiddenRaw: hiddenSectionsRaw)
@@ -516,6 +529,9 @@ struct TodayView: View {
     // the ring shows (never a second store read) plus the folded Readiness, so the sheet can never disagree
     // with the ring. A calibrating night (empty drivers) taps through to the EXISTING calibration countdown.
     @State private var showChargeBreakdown = false
+    // #today-layout: the compact feed-length editor, opened from the pencil beside the "14 days"
+    // window label on the Latest Workouts header.
+    @State private var showWorkoutsCountEditor = false
 
     // S4: the Synthesis card collapses to a single one-liner that expands on tap. Default collapsed so the
     // home screen stays tight; the live content (#506) is unchanged, only the chrome folds. @State (not
@@ -1533,7 +1549,6 @@ struct TodayView: View {
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
-                sourcesSection
             }
             #if os(iOS)
             // #817 - horizontal swipe to change day. A right-swipe (positive X) steps to the NEWER day
@@ -1625,6 +1640,128 @@ struct TodayView: View {
         // A1 (#514/#706): the Charge breakdown, opened by tapping the Today hero Charge ring. The body
         // builds lazily here (#819 lag) from the drivers DERIVED off the displayed row (never a second read).
         .sheet(isPresented: $showChargeBreakdown) { chargeBreakdownSheet }
+        // #today-layout: the compact "workouts shown" editor. Stepper over the same range as the
+        // Today Customise editor, plus the same Reset / Done footer that sheet uses; `workoutsCount`
+        // is @AppStorage, so every change applies immediately and persists — both editors always
+        // agree, and Reset simply restores the default through that same live path.
+        // #today-layout: the compact feed editor — the window, the feed length, and the per-row data
+        // chips (the same four chips the "More > Workouts" rows carry), each live-saved through the
+        // shared @AppStorage keys the Today Customise editor also writes.
+        .sheet(isPresented: $showWorkoutsCountEditor) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "Customize Workouts")).font(StrandFont.title2)
+                        Text(String(localized: "Choose how many workouts the feed lists and how far back it reaches"))
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    // #today-layout: the feed window, above the count and live-saved like it (the same
+                    // @AppStorage key the Today Customise editor writes, so the two editors always
+                    // agree). The same three options as the Android twin (byte-identical contract).
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(localized: "Window"))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                        // #today-layout: the same segmented pill control the Workouts screen's range
+                        // bar uses (StrandDesign), over the same three options as the Android twin.
+                        SegmentedPillControl(TodayLayoutPrefs.workoutsWindowOptions,
+                                             selection: $workoutsWindowDays,
+                                             fillsAvailableWidth: true) { days in
+                            Self.workoutsWindowLabel(days)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(localized: "Workouts shown"))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                        Stepper(value: $workoutsCount,
+                                in: TodayLayoutPrefs.minWorkoutsCount...TodayLayoutPrefs.maxWorkoutsCount) {
+                            Text("\(workoutsCount)")
+                        }
+                    }
+                    // #today-layout: the per-row data chips each feed row shows — one toggle per chip,
+                    // every change live-saved through the same path as the window and count above.
+                    // The rows follow the More > Settings toggle idiom — title + one-line detail + a
+                    // trailing switch — separated by hairline dividers.
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(localized: "Workout details"))
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                        VStack(alignment: .leading, spacing: NoopMetrics.space2 + 2) {
+                            Toggle(isOn: workoutFieldBinding(WorkoutField.strain)) {
+                                Text(String(localized: "Effort"))
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                            }
+                            .toggleStyle(.switch)
+                            .tint(StrandPalette.accent)
+                            Text(String(localized: "Shows the effort ring and strain percentage on each workout row."))
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            rowDivider
+                            Toggle(isOn: workoutFieldBinding(WorkoutField.duration)) {
+                                Text(String(localized: "Duration"))
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                            }
+                            .toggleStyle(.switch)
+                            .tint(StrandPalette.accent)
+                            Text(String(localized: "Shows how long each workout took."))
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            rowDivider
+                            Toggle(isOn: workoutFieldBinding(WorkoutField.heartRate)) {
+                                Text(String(localized: "Heart rate"))
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                            }
+                            .toggleStyle(.switch)
+                            .tint(StrandPalette.accent)
+                            Text(String(localized: "Shows the average heart rate recorded on-device."))
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            rowDivider
+                            Toggle(isOn: workoutFieldBinding(WorkoutField.calories)) {
+                                Text(String(localized: "Calories"))
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                            }
+                            .toggleStyle(.switch)
+                            .tint(StrandPalette.accent)
+                            Text(String(localized: "Shows the calories burned by each workout."))
+                                .font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    HStack {
+                        Button(String(localized: "Reset")) {
+                            workoutsCount = TodayLayoutPrefs.defaultWorkoutsCount
+                            workoutsWindowDays = TodayLayoutPrefs.defaultWorkoutsWindowDays
+                            workoutFieldsRaw = TodayLayoutPrefs.encodeWorkoutFields(Set(WorkoutField.allCases))
+                        }
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .buttonStyle(.plain)
+                        Spacer()
+                        Button(String(localized: "Done")) { showWorkoutsCountEditor = false }
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.accent)
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(24)
+            }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            #else
+            .frame(width: 420, height: 660)
+            #endif
+        }
         // Every Today layout/card affordance presents the same draft-based editor. Section-level buttons
         // deep-link to their child page; Cancel/Save semantics and Shown/Hidden rows stay identical.
         .sheet(item: $customizationDestination) { destination in
@@ -1636,6 +1773,7 @@ struct TodayView: View {
                 keyMetricsDetailed: $keyMetricsDetailed,
                 keyMetricsWindowDays: $keyMetricsWindowDays,
                 dashboardCardsRaw: $dashboardCardsRaw,
+                dashboardLayoutRaw: $dashboardLayoutRaw,
                 hostedCardsRaw: $hostedCardsRaw
             )
         }
@@ -1962,6 +2100,11 @@ struct TodayView: View {
             if selectedDayOffset == 0 { JournalReminderCard() }
         case .addedCards:
             hostedCardsSection
+        case .dataSources:
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader("Data Sources", overline: "Provenance")
+                sourcesSection
+            }
         }
     }
 
@@ -2454,8 +2597,24 @@ struct TodayView: View {
                     .accessibilityLabel("Customise your cards")
                     .help("Choose which cards show and reorder them")
                 }
-                ForEach(enabledDashboardCards) { card in
-                    dashboardCardRow(card)
+                // The user's layout choice (Normal / Tab): a 1-column list or the 2-column grid (the
+                // WHOOP "My Dashboard" density). Each card keeps its own frosted surface either way.
+                if DashboardCardPrefs.layout(dashboardLayoutRaw) == .normal {
+                    VStack(spacing: NoopMetrics.gap) {
+                        ForEach(enabledDashboardCards) { card in
+                            dashboardCardRow(card)
+                        }
+                    }
+                } else {
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())],
+                        alignment: .top,
+                        spacing: 8
+                    ) {
+                        ForEach(enabledDashboardCards) { card in
+                            dashboardCardRow(card, grid: true)
+                        }
+                    }
                 }
             }
         }
@@ -2619,21 +2778,21 @@ struct TodayView: View {
     /// card's detail screen. Branching keeps the destination type concrete (no AnyView) so navigation is
     /// exact and the original three cards reach the SAME screens as before.
     @ViewBuilder
-    private func dashboardCardRow(_ card: DashboardCard) -> some View {
+    private func dashboardCardRow(_ card: DashboardCard, grid: Bool = false) -> some View {
         let tint = dashboardTint(card)
         switch card {
         case .stepsAverage30:
-            RollingStepsAverageCard(day: selectedDayKey)
+            RollingStepsAverageCard(day: selectedDayKey, grid: grid)
         case .stress:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .stress)
+                          value: dashboardValue(card), grid: grid, route: .stress)
         case .fitnessAge, .vo2max, .vitality, .steps, .calories:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .health)
+                          value: dashboardValue(card), grid: grid, route: .health)
         case .hrv, .restingHr, .respiratory, .bloodOxygen, .skinTemp:
             // The overnight vitals share the Health detail screen (the vital-signs surface).
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .health)
+                          value: dashboardValue(card), grid: grid, route: .health)
         case .sleep:
             // #110: the value is `totalSleepMin` — WHOOP's imported TST, which can legitimately differ
             // from the Sleep tab's on-device re-staged night. Label the row with its source + which night
@@ -2641,20 +2800,20 @@ struct TodayView: View {
             // provenance; fall back to the card's static description when there's no banked sleep.
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title,
                           subtitle: sleepSourceSubtitle(displayDay) ?? card.subtitle,
-                          value: dashboardValue(card), route: .sleep)
+                          value: dashboardValue(card), grid: grid, route: .sleep)
         case .hydration:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .hydration)
+                          value: dashboardValue(card), grid: grid, route: .hydration)
         case .coupled:
             // The Coupled view row (#43) carries NO metric value, it is a tap-through to the full
             // coupled day screen. An empty value renders just the icon + title + subtitle + chevron.
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                          value: dashboardValue(card), route: .coupled)
+                          value: dashboardValue(card), grid: grid, route: .coupled)
         case .coach:
             // #1862: a SHEET, not a push — Coach is a thing you dip into and dismiss, and pushing it
             // would take you off Today, which is the discoverability problem this card exists to solve.
             pinnedCardActionRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
-                                value: dashboardValue(card)) { showCoachLauncher = true }
+                                value: dashboardValue(card), grid: grid) { showCoachLauncher = true }
         }
     }
 
@@ -2801,9 +2960,13 @@ struct TodayView: View {
     /// Today root must ride the tab's `NavigationPath` so a re-tap of the Today tab can pop it (#198;
     /// see TabRoute.swift).
     private func pinnedCardRow(icon: String, tint: Color, title: String, subtitle: String,
-                               value: String, route: TabRoute) -> some View {
+                               value: String, grid: Bool = false, route: TabRoute) -> some View {
         NavigationLink(value: route) {
-            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            if grid {
+                pinnedCardGridBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            } else {
+                pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            }
         }
         .buttonStyle(.plain)
     }
@@ -2811,16 +2974,24 @@ struct TodayView: View {
     /// The same row, but it runs `action` instead of pushing a route (#1862).
     ///
     /// Coach is the one dashboard card that opens a SHEET rather than a screen, so it cannot ride
-    /// `NavigationLink`. Both wrappers render `pinnedCardRowBody`, so the two kinds of row cannot drift
-    /// apart visually — which duplicating the HStack for one caller would have guaranteed eventually.
+    /// `NavigationLink`. Both wrappers render the same body for a given layout, so the two kinds of row
+    /// cannot drift apart visually — which duplicating the HStack for one caller would have guaranteed
+    /// eventually.
     private func pinnedCardActionRow(icon: String, tint: Color, title: String, subtitle: String,
-                                     value: String, action: @escaping () -> Void) -> some View {
+                                     value: String, grid: Bool = false,
+                                     action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            if grid {
+                pinnedCardGridBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            } else {
+                pinnedCardRowBody(icon: icon, tint: tint, title: title, subtitle: subtitle, value: value)
+            }
         }
         .buttonStyle(.plain)
     }
 
+    /// The Normal (1-column) face: the original metric row — label over a one-line caption, the value
+    /// (white for a real number, dimmed for a placeholder) and a chevron, sized to its content.
     @ViewBuilder
     private func pinnedCardRowBody(icon: String, tint: Color, title: String, subtitle: String,
                                    value: String) -> some View {
@@ -2841,7 +3012,7 @@ struct TodayView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            // A real number reads white; a placeholder (, / Calibrating) reads dimmed so it doesn't
+            // A real number reads white; a placeholder (— / Calibrating) reads dimmed so it doesn't
             // masquerade as a value.
             let isPlaceholder = (value == "—" || value == Self.calibratingPlaceholder)
             Text(value).font(StrandFont.rounded(18, weight: .semibold))
@@ -2851,6 +3022,48 @@ struct TodayView: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
+        .contentShape(Rectangle())
+    }
+
+    /// The Tab (2-column) face of the same card: a fixed-height tile — the title overline, the value on a
+    /// middle line (a placeholder renders none), and the description on the bottom — so half-width tiles
+    /// stay even in the grid.
+    @ViewBuilder
+    private func pinnedCardGridBody(icon: String, tint: Color, title: String, subtitle: String,
+                                    value: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .frame(width: 34, height: 34)
+                .overlay(Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.uppercased())
+                    .font(StrandFont.overline)
+                    .tracking(StrandFont.overlineTracking)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                // Middle line: the real value only — a placeholder (— / Calibrating) or the empty
+                // tap-through value (Coupled / Coach) renders no number, the subtitle carries the state.
+                let hasValue = !value.isEmpty && value != "—" && value != Self.calibratingPlaceholder
+                if hasValue {
+                    Text(value).font(StrandFont.rounded(18, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                // Bottom text one size down: in the 2-column grid the card is half width, so the
+                // description sits on a caption to keep the card compact (title overline, value number face).
+                Text(subtitle)
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Fixed card height: every "Your cards" tile is this tall, so a long subtitle wraps
+        // instead of stretching its card taller than the neighbour's.
+        .frame(height: NoopMetrics.dashboardCardHeight)
         .background(FrostedCardSurface(cornerRadius: NoopMetrics.cardRadius))
         .contentShape(Rectangle())
     }
@@ -4160,16 +4373,31 @@ struct TodayView: View {
         }
     }
 
-    // MARK: (c) LAST WORKOUTS, SAME grid, uniform 104pt workout tiles.
+    // MARK: (c) ACTIVITY TIMELINE
 
     /// Android's Today feed contract (`TodayScreen.recentCutoff`): sessions starting on or after the
-    /// start of the day 13 days back — 14 days counting today. Named rather than inlined so the window
-    /// is one thing on this platform too, and so the parity guard has something to point at.
-    static func recentWorkoutsFeed(_ rows: [WorkoutRow], now: Date = Date()) -> [WorkoutRow] {
+    /// start of the day `window - 1` days back — `window` counting today. Named rather than inlined so
+    /// the window is one thing on this platform too, and so the parity guard has something to point at.
+    static func recentWorkoutsFeed(
+        _ rows: [WorkoutRow],
+        windowDays: Int = TodayLayoutPrefs.defaultWorkoutsWindowDays,
+        now: Date = Date()
+    ) -> [WorkoutRow] {
+        let window = TodayLayoutPrefs.snapWorkoutsWindowDays(windowDays)
         let cal = Calendar.current
-        guard let cutoff = cal.date(byAdding: .day, value: -13, to: cal.startOfDay(for: now)) else { return rows }
+        guard let cutoff = cal.date(byAdding: .day, value: -(window - 1), to: cal.startOfDay(for: now)) else { return rows }
         let cutoffTs = Int(cutoff.timeIntervalSince1970)
         return rows.filter { $0.startTs >= cutoffTs }
+    }
+
+    /// The localized name of a feed window for the header and the editors. Snapped, so it can only
+    /// ever name a window the user can actually pick.
+    static func workoutsWindowLabel(_ days: Int) -> String {
+        switch TodayLayoutPrefs.snapWorkoutsWindowDays(days) {
+        case 30: return String(localized: "1 month")
+        case 365: return String(localized: "1 year")
+        default: return String(localized: "14 days")
+        }
     }
 
     @ViewBuilder
@@ -4177,32 +4405,49 @@ struct TodayView: View {
         // #1702: window HERE, not on `workouts`. That array is shared — it also feeds the Data Sources
         // Apple-workout count and the HR chart's sport glyphs, both all-time by design — so windowing it
         // at the source would silently shrink two unrelated numbers on this same screen.
-        let recent = Self.recentWorkoutsFeed(workouts)
+        let recent = Self.recentWorkoutsFeed(workouts, windowDays: workoutsWindowDays)
+        // #today-layout: the user-edited feed length (Today Customise), clamped to the prefs range.
+        let feedCount = Self.clampedWorkoutsCount(workoutsCount)
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                // "14 days" describes the window, like Android's today_workouts_14_days. The old
-                // "\(count) total" counted every workout ever recorded while showing at most six.
-                SectionHeader("Latest Workouts", overline: "Activity",
-                              trailing: String(localized: "14 days"))
-                LazyVGrid(columns: grid, alignment: .leading, spacing: NoopMetrics.gap) {
-                    ForEach(Array(recent.prefix(6).enumerated()), id: \.offset) { _, w in
-                        Button {
-                            workoutDetail = WorkoutDetailTarget(row: w)
-                        } label: {
-                            StatTile(
-                                label: "\(WorkoutSource.displaySport(w.sport))",
-                                value: workoutDuration(w),
-                                caption: workoutCaption(w),
-                                accent: StrandPalette.effortTint(fraction: (w.strain ?? 0) / StrainScorer.maxStrain),
-                                delta: w.energyKcal.map { "\(Int($0.rounded())) kcal" },
-                                deltaColor: StrandPalette.metricAmber
-                            )
+                // Header mirrors the "Your cards" row: the overline + title, the user-edited window
+                // label, then the shared blue EDIT affordance (the same control as Your Cards) —
+                // one edit entry-point style for every Today section that has one.
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Activity").strandOverline()
+                        Text(String(localized: "Latest Workouts"))
+                            .font(StrandFont.title2)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                    }
+                    Spacer(minLength: 8)
+                    Text(Self.workoutsWindowLabel(workoutsWindowDays))
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                    Button {
+                        showWorkoutsCountEditor = true
+                    } label: {
+                        Label(String(localized: "Edit").uppercased(), systemImage: "slider.horizontal.3")   // #492/#563: unified "EDIT"
+                            .font(StrandFont.overline)
+                            .tracking(StrandFont.overlineTracking)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(StrandPalette.accent)
+                    .accessibilityLabel(String(localized: "Customize Workouts"))
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(recent.prefix(feedCount).enumerated()), id: \.offset) { index, w in
+                        Button { workoutDetail = WorkoutDetailTarget(row: w) } label: {
+                            WorkoutTimelineRow(workout: w, date: workoutDate(w), timeRange: workoutTimeRange(w), duration: workoutDuration(w), fields: workoutFields)
                         }
-                        // The Workouts list's own rows use this, not .plain: it is the iOS twin of
-                        // Android's liquidPress, so the tile settles inward on press on both platforms.
                         .buttonStyle(LiquidPressStyle())
+                        if index < min(recent.count, feedCount) - 1 {
+                            Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5).padding(.horizontal, 16)
+                        }
                     }
                 }
+                .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.white.opacity(0.06), lineWidth: 1))
             }
         }
     }
@@ -4212,7 +4457,6 @@ struct TodayView: View {
     @ViewBuilder
     private var sourcesSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Data Sources", overline: "Provenance")
             // S5: collapsed to a single "Synced from: …" summary line by default; tapping expands the full
             // per-source rows + strap battery/sync inline. Nothing is removed, the detail is one tap away.
             if sourcesExpanded {
@@ -5396,6 +5640,145 @@ struct TodayView: View {
         let end = Date(timeIntervalSince1970: TimeInterval(w.endTs))
         return "\(date) · \(Self.hrTimeFmt.string(from: start))-\(Self.hrTimeFmt.string(from: end))"
     }
+
+    private func workoutDate(_ w: WorkoutRow) -> String {
+        Date(timeIntervalSince1970: TimeInterval(w.startTs)).formatted(.dateTime.day().month(.abbreviated).locale(AppLanguage.activeLocale))
+    }
+
+    private func workoutTimeRange(_ w: WorkoutRow) -> String {
+        let start = Date(timeIntervalSince1970: TimeInterval(w.startTs))
+        guard w.endTs > w.startTs else { return Self.hrTimeFmt.string(from: start) }
+        return "\(Self.hrTimeFmt.string(from: start)) – \(Self.hrTimeFmt.string(from: Date(timeIntervalSince1970: TimeInterval(w.endTs))))"
+    }
+
+    /// #today-layout: a live-binding into the per-row chip set for the feed editor's toggles.
+    /// Every write re-encodes the enabled chips in canonical order through the shared prefs.
+    private func workoutFieldBinding(_ field: WorkoutField) -> Binding<Bool> {
+        Binding(
+            get: { self.workoutFields.contains(field) },
+            set: { enabled in
+                var fields = TodayLayoutPrefs.decodeWorkoutFields(workoutFieldsRaw)
+                if enabled {
+                    fields.insert(field)
+                } else {
+                    fields.remove(field)
+                }
+                workoutFieldsRaw = TodayLayoutPrefs.encodeWorkoutFields(fields)
+            }
+        )
+    }
+    /// #today-layout: hairline separator between the feed editor's per-field toggle rows —
+    /// the same idiom the More > Settings feature toggles use.
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(StrandPalette.hairline)
+            .frame(height: 1)
+            .padding(.vertical, 4)
+    }
+
+private struct WorkoutTimelineRow: View {
+    let workout: WorkoutRow
+    let date: String
+    let timeRange: String
+    let duration: String
+    // #today-layout: the per-row chips the feed editor enabled (every chip by default); each chip
+    // below renders only when its value exists AND its field is enabled.
+    let fields: Set<WorkoutField>
+    // One icon color for every sport, matching the "More > Workouts" icon: effortColor on a
+    // 20%-tinted circle.
+    private var color: Color { StrandPalette.effortColor }
+    private var strainPercent: Int? { workout.strain.map { Int($0.rounded()) } }
+    /// A zero/unknown span renders no duration chip (the Android twin hides its NO_DATA sentinel).
+    private var hasDuration: Bool {
+        let secs = workout.durationS ?? Double(max(workout.endTs - workout.startTs, 0))
+        return secs > 0
+    }
+    var body: some View {
+        HStack(spacing: 16) {
+            Circle().fill(color.opacity(0.20)).frame(width: 40, height: 40)
+                .overlay(Image(systemName: sportSymbol(workout.sport))
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(color))
+            VStack(alignment: .leading, spacing: 6) {
+                // Top line mirrors the "More > Workouts" rows: the sport in subhead primary, the
+                // date trailing in footnote tertiary, then the small chevron — the row opens a detail.
+                HStack(spacing: 8) {
+                    Text(WorkoutSource.displaySport(workout.sport))
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Text(date)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+                Text(timeRange)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+                HStack(spacing: 10) {
+                    // Imported sessions (Apple Health / Health Connect) store no strain, so a nil
+                    // Effort renders nothing instead of an empty ring + dash beside the kcal chip.
+                    if let strainPercent = strainPercent, fields.contains(.strain) {
+                        HStack(spacing: 4) {
+                            strainRing(fraction: Double(strainPercent) / 100.0)
+                            Text("\(strainPercent)%")
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                    }
+                    // Duration moved out of the top caption line so the top stays date + time only.
+                    if hasDuration, fields.contains(.duration) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "stopwatch")
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            Text(duration)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                    }
+                    // Avg/max HR recorded on-device (live WHOOP sessions); a null value renders
+                    // nothing.
+                    if let avg = workout.avgHr, fields.contains(.heartRate) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart.fill")
+                                .foregroundStyle(StrandPalette.metricRose)
+                            Text(String(localized: "\(avg) bpm"))
+                                .foregroundStyle(StrandPalette.metricRose)
+                        }
+                    }
+                    if let kcal = workout.energyKcal, fields.contains(.calories) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(StrandPalette.metricAmber)
+                            Text("\(Int(kcal.rounded())) kcal")
+                                .foregroundStyle(StrandPalette.metricAmber)
+                        }
+                    }
+                }
+                .font(StrandFont.number(12, weight: .regular))
+                .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10).frame(minHeight: 80).contentShape(Rectangle())
+    }
+
+    /// The 14pt progress ring for the Effort chip: a tertiary track with the arc in the Effort
+    /// colour, the same tint More > Workouts gives its effort cells.
+    private func strainRing(fraction: Double) -> some View {
+        ZStack {
+            Circle().stroke(StrandPalette.textTertiary.opacity(0.28), lineWidth: 1)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(StrandPalette.effortColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 14, height: 14)
+    }
+}
 
     /// Thousands-grouped integer string (steps / calories).
     private func intString(_ v: Double) -> String {
