@@ -32,7 +32,10 @@ object SourceIdentity {
      */
     fun resolve(address: String?, rows: List<PairedDeviceRow>, currentId: String): String? {
         if (address.isNullOrBlank()) return null
-        val row = rows.firstOrNull { it.peripheralId?.equals(address, ignoreCase = true) == true }
+        // Removed rows are skipped: a re-added strap's archived row carries the same address.
+        val row = rows.firstOrNull {
+            it.status != "archived" && it.peripheralId?.equals(address, ignoreCase = true) == true
+        }
             ?: return null
         if (!isWhoop(row) || row.id == currentId) return null
         return row.id

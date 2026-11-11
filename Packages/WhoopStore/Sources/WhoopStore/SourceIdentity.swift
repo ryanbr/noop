@@ -31,8 +31,9 @@ public enum SourceIdentity {
         guard let address, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
+        // Removed rows are skipped: a re-added strap's archived row carries the same peripheral id.
         guard let row = rows.first(where: {
-            guard let pid = $0.peripheralId else { return false }
+            guard $0.status != .archived, let pid = $0.peripheralId else { return false }
             return pid.caseInsensitiveCompare(address) == .orderedSame
         }) else { return nil }
         guard isWhoop(row), row.id != currentId else { return nil }

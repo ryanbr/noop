@@ -75,4 +75,16 @@ final class SourceIdentityTests: XCTestCase {
         XCTAssertEqual(SourceIdentity.resolve(address: "AA:BB:CC:DD:EE:03",
                                               rows: [legacy], currentId: "oura-abc"), "my-whoop")
     }
+
+    /// A strap removed and re-added keeps its old row (archived, data kept) carrying the SAME peripheral id
+    /// as the new one. First-match used to pick the archived row, filing every new sample under a device the
+    /// user had removed. Removed rows never claim a link.
+    func testRemovedRowNeverClaimsTheLink() {
+        var removed = row("my-whoop", "WHOOP", "AA:BB:CC:DD:EE:02")
+        removed.status = .archived
+        XCTAssertEqual(SourceIdentity.resolve(address: "AA:BB:CC:DD:EE:02",
+                                              rows: [removed, strap], currentId: "whoop-123"), nil)
+        XCTAssertEqual(SourceIdentity.resolve(address: "AA:BB:CC:DD:EE:02",
+                                              rows: [removed, strap], currentId: "my-whoop"), "whoop-123")
+    }
 }
