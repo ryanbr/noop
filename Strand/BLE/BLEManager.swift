@@ -6127,6 +6127,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                                didDisconnectPeripheral peripheral: CBPeripheral,
                                error: Error?) {
         Task { @MainActor in await collector?.flush() }
+        // The disconnect edge SourceCoordinator.connectedPeripheralChanged expects. Without it the coordinator
+        // kept a dropped strap as "connected", so Remove + re-add of the same strap took its adopt-in-place
+        // branch and never reconnected.
+        if connectedPeripheralUUID == peripheral.identifier.uuidString { connectedPeripheralUUID = nil }
         // Reboot trail: if a user reboot is in flight, this drop is the strap acting on it. Log how long
         // the link stayed up (a real reboot drops within ~1-2 s) and cancel the no-disconnect watchdog. The
         // reconnect time is logged separately once the handshake completes. `rebootRequestedAt` stays set so

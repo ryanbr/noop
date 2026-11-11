@@ -402,6 +402,27 @@ class SourceCoordinatorAdoptionTest {
         assertEquals("a different WHOOP must reconnect", 1, starts)
     }
 
+    @Test
+    fun reAddingTheSameStrapAfterRemoveReconnects() = runBlocking {
+        // Remove drops the link; the wizard re-adds the strap under the SAME id ("whoop-<address>"). The
+        // "already on this WHOOP" skip used to fire on the id alone, so nothing ever scanned again.
+        val dao = FakeRegistryDao().apply {
+            devices["whoop-aabbccddee01"] = whoopRow("whoop-aabbccddee01", "AA:BB:CC:DD:EE:01")
+        }
+        var starts = 0
+        val coordinator = churnCountingCoordinator(dao, starts = { starts++ }, stops = {})
+
+        coordinator.start()
+        coordinator.connectedPeripheralChanged("AA:BB:CC:DD:EE:01")
+        coordinator.connectedPeripheralChanged(null)            // Remove released the link
+        dao.archiveDevice("whoop-aabbccddee01")
+        coordinator.activeDeviceRemoved()                       // what archivePairedDevice does
+        dao.promote("whoop-aabbccddee01", 200)                 // re-added, same id
+        coordinator.onActiveDeviceChanged("whoop-aabbccddee01")
+
+        assertEquals("a re-added strap with no live link must reconnect", 1, starts)
+    }
+
     // MARK: - "Last seen" is stamped by the link, not by the wizard (#1527)
 
     /**
