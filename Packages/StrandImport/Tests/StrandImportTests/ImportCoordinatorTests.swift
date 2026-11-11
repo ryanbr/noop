@@ -70,6 +70,82 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(spo2?.value), 97.0, accuracy: 1e-9)
     }
 
+    // MARK: - Localised Apple Health export
+
+    /// A minimal clinical-document stand-in for `export_cda.xml`: valid XML with no HealthData, so
+    /// importing it instead of the main file would yield zero samples.
+    private let cdaStandIn = Data("<?xml version=\"1.0\"?><ClinicalDocument></ClinicalDocument>".utf8)
+
+    /// Build a zip from raw (entryPath, bytes) pairs, in the given order.
+    private func makeZip(named: String, rawEntries: [(String, Data)]) throws -> URL {
+        let zipURL = makeTempDir().appendingPathComponent(named)
+        let archive = try Archive(url: zipURL, accessMode: .create)
+        for (entryPath, data) in rawEntries {
+            try archive.addEntry(with: entryPath, type: .file,
+                                 uncompressedSize: Int64(data.count)) { position, size in
+                let start = data.startIndex + Int(position)
+                return data.subdata(in: start..<(start + size))
+            }
+        }
+        return zipURL
+    }
+
+    /// A Chinese-locale export names the main file `导出.xml` beside an English `export_cda.xml`.
+    /// The CDA entry comes first in the archive so a "first .xml wins" rule would pick it.
+    func testAppleHealthFromLocalisedZipSkipsCDA() throws {
+        let zip = try makeZip(named: "导出.zip", rawEntries: [
+            ("apple_health_export/export_cda.xml", cdaStandIn),
+            ("apple_health_export/导出.xml", Fixtures.data(appleHealthFixture)),
+        ])
+        let result = try ImportCoordinator().importAppleHealth(from: zip)
+        XCTAssertGreaterThan(result.samples.count, 0)
+        XCTAssertEqual(result.workouts.count, 1)
+
+        let detected = try ImportCoordinator().detectAndImport(from: zip)
+        XCTAssertEqual(detected.kind, .appleHealth)
+    }
+
+    /// Picking the unzipped `apple_health_export/` folder itself: two `.xml` files sit side by side,
+    /// so the old "exactly one .xml" fallback gave up.
+    func testAppleHealthFromLocalisedFolder() throws {
+        let folder = makeTempDir().appendingPathComponent("apple_health_export")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try cdaStandIn.write(to: folder.appendingPathComponent("export_cda.xml"))
+        try Fixtures.data(appleHealthFixture).write(to: folder.appendingPathComponent("导出.xml"))
+
+        XCTAssertEqual(try ImportCoordinator().detectKind(of: folder), .appleHealth)
+        let result = try ImportCoordinator().importAppleHealth(from: folder)
+        XCTAssertGreaterThan(result.samples.count, 0)
+
+        // The parent folder (what "unzip" produces) resolves the same way.
+        let parent = folder.deletingLastPathComponent()
+        XCTAssertEqual(try ImportCoordinator().detectKind(of: parent), .appleHealth)
+        XCTAssertGreaterThan(try ImportCoordinator().importAppleHealth(from: parent).samples.count, 0)
+    }
+
+    /// Pins the entry rule. Twin: `AppleHealthExportEntryTest` on Android asserts the same table.
+    func testMainExportEntryRule() {
+        let cases: [(String, Bool)] = [
+            ("export.xml", true),
+            ("apple_health_export/export.xml", true),
+            ("deep/nested/EXPORT.XML", true),
+            ("apple_health_export/导出.xml", true),
+            ("apple_health_export/экспорт.xml", true),
+            ("Apple_Health_Export\\エクスポート.xml", true),
+            ("apple_health_export/export_cda.xml", false),
+            ("apple_health_export/导出_cda.xml", false),
+            ("导出.xml", false),
+            ("other/导出.xml", false),
+            ("apple_health_export/workout-routes/route_1.gpx", false),
+            ("apple_health_export/electrocardiograms/ecg_1.csv", false),
+            ("apple_health_export/", false),
+            ("", false),
+        ]
+        for (path, expected) in cases {
+            XCTAssertEqual(AppleHealthExportLocator.isMainExportEntry(path), expected, path)
+        }
+    }
+
     // MARK: - Auto detection
 
     func testDetectKindAppleHealthByXMLExtension() throws {
