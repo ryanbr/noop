@@ -90,4 +90,17 @@ class SourceIdentityTest {
         assertEquals(WhoopBleClient.DEFAULT_DEVICE_ID,
             SourceIdentity.resolve("AA:BB:CC:DD:EE:03", listOf(legacy), currentId = "oura-abc"))
     }
+
+    /**
+     * A strap removed and re-added keeps its old row (archived, data kept) carrying the SAME address as the
+     * new one. First-match used to pick the archived row, filing every new sample under a device the user
+     * had removed. Removed rows never claim a link.
+     */
+    @Test
+    fun `a removed row never claims the link`() {
+        val removed = row(WhoopBleClient.DEFAULT_DEVICE_ID, "WHOOP", "AA:BB:CC:DD:EE:02").copy(status = "archived")
+        assertNull(SourceIdentity.resolve("AA:BB:CC:DD:EE:02", listOf(removed, strap), currentId = "whoop-123"))
+        assertEquals("whoop-123",
+            SourceIdentity.resolve("AA:BB:CC:DD:EE:02", listOf(removed, strap), currentId = WhoopBleClient.DEFAULT_DEVICE_ID))
+    }
 }
