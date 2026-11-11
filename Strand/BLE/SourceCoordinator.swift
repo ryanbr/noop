@@ -209,8 +209,9 @@ final class SourceCoordinator: ObservableObject {
     ///   • We were on a generic strap → stop that source and resume WHOOP, pointed at this WHOOP.
     ///   • We were on a DIFFERENT WHOOP → drop that WHOOP link and reconnect to this one.
     private func switchToWhoop(id: String) {
-        // Already streaming this exact WHOOP with no strap in between → nothing to do.
-        if !onStrap, activeWhoopId == id { return }
+        // Already streaming this exact WHOOP with no strap in between → nothing to do. Only while a link is
+        // up: Remove drops it, and the wizard re-adds the strap under the SAME id, which must reconnect.
+        if !onStrap, activeWhoopId == id, connectedWhoopUuid != nil { return }
 
         let peripheralId = peripheralId(for: id)
 

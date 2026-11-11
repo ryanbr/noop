@@ -212,6 +212,12 @@ class SourceCoordinator(
         scope.launch { reconcileActiveDevice(id) }
     }
 
+    /** The active device was removed. Forget it so re-adding the same strap (same id) is not dropped as a
+     *  duplicate. iOS gets this for free: archiving the active row publishes a nil active id. */
+    fun activeDeviceRemoved() {
+        scope.launch { reconcileLock.withLock { lastSeenId = null } }
+    }
+
     /**
      * Await the serialized source switch and report its completed outcome. Callers which publish active
      * source state must use this API so they never advertise an id whose activation later failed.
@@ -332,8 +338,9 @@ class SourceCoordinator(
      *   • A DIFFERENT WHOOP → drop the current link, re-point (preferred address + deviceId), reconnect.
      */
     private fun switchToWhoop(id: String, devices: List<PairedDeviceRow>) {
-        // Already streaming this exact WHOOP with no strap in between → nothing to do.
-        if (!onStrap && activeWhoopId == id) return
+        // Already streaming this exact WHOOP with no strap in between → nothing to do. Only while a link is
+        // up: Remove drops it, and the wizard re-adds the strap under the SAME id, which must reconnect.
+        if (!onStrap && activeWhoopId == id && connectedWhoopAddress != null) return
 
         val peripheralId = devices.firstOrNull { it.id == id }?.peripheralId
 

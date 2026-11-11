@@ -284,6 +284,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun archivePairedDevice(id: String) {
         val devices = runCatching { noopApp.deviceRegistry.all() }.getOrDefault(emptyList())
         noopApp.deviceRegistry.archive(id)
+        if (devices.any { it.id == id && it.status == com.noop.data.DeviceStatus.active.name }) {
+            noopApp.sourceCoordinator.activeDeviceRemoved()
+        }
         if (com.noop.ble.SourceCoordinator.isWhoop(id, devices)) ble.releaseStrap()
     }
 
