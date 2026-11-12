@@ -483,12 +483,20 @@ enum DataBackup {
         let dbURL = URL(fileURLWithPath: dbPath)
 
         do {
-            // Snapshot the current DB (+ sidecars) to a timestamped side file so the user can roll back.
+            // Snapshot the current DB to a timestamped side file so the user can roll back. Through
+            // SQLite's backup API, not a file copy (#2877): the store is still open, so recent commits
+            // can sit only in -wal, which a copy of the main file misses and the swap below deletes.
             var sidecar = dbURL.deletingLastPathComponent()
                 .appendingPathComponent("whoop-replaced-\(timestamp()).sqlite")
             if fm.fileExists(atPath: dbURL.path) {
                 if fm.fileExists(atPath: sidecar.path) { try fm.removeItem(at: sidecar) }
-                try fm.copyItem(at: dbURL, to: sidecar)
+                do {
+                    try snapshotDatabase(at: dbURL.path, to: sidecar.path)
+                } catch {
+                    // A store too damaged to read is exactly the one a user restores over: keep the raw
+                    // main file as before rather than refusing the restore.
+                    try fm.copyItem(at: dbURL, to: sidecar)
+                }
             } else {
                 // Nothing to preserve (fresh install); report a placeholder so the message reads sensibly.
                 sidecar = dbURL
@@ -708,6 +716,28 @@ enum DataBackup {
     }
 
     /// Read the first 16 bytes and check for the SQLite magic header.
+    private struct SnapshotError: LocalizedError {
+        let errorDescription: String?
+    }
+
+    /// One self-contained copy of the database at `path`, including committed pages still in its WAL.
+    private static func snapshotDatabase(at path: String, to dest: String) throws {
+        var src: OpaquePointer?, dst: OpaquePointer?
+        defer { sqlite3_close(src); sqlite3_close(dst) }
+        guard sqlite3_open_v2(path, &src, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK,
+              sqlite3_open_v2(dest, &dst, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil) == SQLITE_OK,
+              let backup = sqlite3_backup_init(dst, "main", src, "main") else {
+            throw SnapshotError(errorDescription: "couldn't snapshot the current database: "
+                + String(cString: sqlite3_errmsg(dst ?? src)))
+        }
+        let step = sqlite3_backup_step(backup, -1)
+        sqlite3_backup_finish(backup)
+        guard step == SQLITE_DONE else {
+            try? FileManager.default.removeItem(atPath: dest)
+            throw SnapshotError(errorDescription: "couldn't snapshot the current database (SQLite \(step))")
+        }
+    }
+
     private static func isSQLiteFile(at url: URL) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
