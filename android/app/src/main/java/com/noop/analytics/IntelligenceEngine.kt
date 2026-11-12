@@ -176,6 +176,10 @@ object IntelligenceEngine {
         /** A locked owner override for [day] from the dayOwnership table, or null. Wins outright. */
         suspend fun lockedOwner(day: String): String?
 
+        /** #2880: archived devices sharing the ACTIVE device's peripheralId (the same physical strap left
+         *  behind by Remove + re-add), in registry order. Empty by default, so test sources are unaffected. */
+        suspend fun sameStrapArchivedIds(): List<String> = emptyList()
+
         /** The registry's currently-active strap id (CAPTURE-B universal `writeActiveId`). The default
          *  returns null so legacy/test sources are unaffected; [RegistryDayOwnerSource] supplies the real
          *  active id so the universal dayOwner diagnostic can name where new data is being WRITTEN, which
@@ -2880,8 +2884,19 @@ object IntelligenceEngine {
         //
         // The probe is a scalar EXISTS now, not a fetched LIMIT 1 row: the question is one bit, and it
         // used to be answered by materialising a cursor and an HrSample to test a list for emptiness.
-        for ((id, _) in candidatePriorities.sortedBy { it.second }) {
-            if (repo.hasHrInWindow(id, from, to)) return id
+        for ((id, priority) in candidatePriorities.sortedBy { it.second }) {
+            if (!repo.hasHrInWindow(id, from, to)) continue
+            // #2880: Remove + re-add can leave the night under an archived row for this same strap while the
+            // active row holds only minutes of live HR. Counted only when such a row exists (rare).
+            // Archived rows rank 4; without one there is nothing to ask the registry.
+            if (priority != 0 || candidatePriorities.none { it.second == 4 }) return id
+            val sameStrapArchived = ownerSource.sameStrapArchivedIds()
+            if (sameStrapArchived.isEmpty()) return id
+            return DayOwnerResolver.sameStrapOwner(
+                activeId = id,
+                activeHrRows = repo.hrFingerprintWindow(id, from, to).first,
+                siblings = sameStrapArchived.map { it to repo.hrFingerprintWindow(it, from, to).first },
+            )
         }
         return importedDeviceId
     }

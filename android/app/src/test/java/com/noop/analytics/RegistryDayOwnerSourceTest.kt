@@ -241,4 +241,20 @@ class RegistryDayOwnerSourceTest {
         assertEquals("old", resolveWith(src, "2026-06-15", mapOf("my-whoop" to false, "old" to true)))
         assertEquals("my-whoop", resolveWith(src, "2026-06-15", mapOf("my-whoop" to true, "old" to true)))
     }
+
+    /** #2880: only ARCHIVED rows sharing the ACTIVE row's peripheralId are same-strap siblings. */
+    @Test
+    fun sameStrapArchivedIdsMatchTheActivePeripheral() = runBlocking {
+        val dao = FakeDao()
+        dao.devices["my-whoop"] = device("my-whoop", "WHOOP", SourceKind.liveBLE, DeviceStatus.archived)
+            .copy(peripheralId = "P1", addedAt = 1)
+        dao.devices["other-old"] = device("other-old", "WHOOP", SourceKind.liveBLE, DeviceStatus.archived)
+            .copy(peripheralId = "P2", addedAt = 2)
+        dao.devices["whoop-new"] = device("whoop-new", "WHOOP", SourceKind.liveBLE, DeviceStatus.active)
+            .copy(peripheralId = "P1", addedAt = 3)
+        assertEquals(listOf("my-whoop"), RegistryDayOwnerSource(registry(dao)).sameStrapArchivedIds())
+
+        dao.devices["whoop-new"] = dao.devices["whoop-new"]!!.copy(peripheralId = null)
+        assertEquals(emptyList<String>(), RegistryDayOwnerSource(registry(dao)).sameStrapArchivedIds())
+    }
 }

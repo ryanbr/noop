@@ -43,6 +43,13 @@ class RegistryDayOwnerSource(private val registry: DeviceRegistry) : Intelligenc
     // the stored owner as an authoritative override (the `locked` flag gates the UI, not the read).
     override suspend fun lockedOwner(day: String): String? = registry.dayOwner(day)?.deviceId
 
+    override suspend fun sameStrapArchivedIds(): List<String> {
+        val all = registry.all()
+        val peripheral = all.firstOrNull { it.id == registry.activeDeviceId() }?.peripheralId
+        if (peripheral.isNullOrEmpty()) return emptyList()
+        return all.filter { it.status == DeviceStatus.archived.name && it.peripheralId == peripheral }.map { it.id }
+    }
+
     // CAPTURE-B: the registry's active strap id, for the universal dayOwner diagnostic's writeActiveId.
     // This is the SAME id the live read path resolves to (BLEManager/AppModel's activeDeviceId), so the
     // universal line can prove the read owner and the write target are the same device (or surface it

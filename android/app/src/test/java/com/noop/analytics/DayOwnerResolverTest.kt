@@ -58,4 +58,16 @@ class DayOwnerResolverTest {
         )
         assertNull(DayOwnerResolver.resolve("2026-06-15", lockedOwner = null, candidates = candidates))
     }
+
+    /** #2880. Swift `DayOwnerResolverTests.testSameStrapOwnerMostHrRowsWins` pins the same cases. */
+    @Test
+    fun sameStrapOwnerMostHrRowsWins() {
+        fun owner(active: Int, siblings: List<Pair<String, Int>>) =
+            DayOwnerResolver.sameStrapOwner("whoop-new", active, siblings)
+        assertEquals("my-whoop", owner(234, listOf("my-whoop" to 13_274))) // the #2880 night
+        assertEquals("whoop-new", owner(5_000, listOf("my-whoop" to 300)))
+        assertEquals("whoop-new", owner(100, listOf("my-whoop" to 100)))   // tie keeps the active strap
+        assertEquals("a", owner(10, listOf("a" to 50, "b" to 50)))         // then the earlier sibling
+        assertEquals("whoop-new", owner(0, emptyList()))
+    }
 }

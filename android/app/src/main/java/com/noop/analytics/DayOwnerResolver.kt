@@ -17,4 +17,14 @@ object DayOwnerResolver {
     fun resolve(day: String, lockedOwner: String?, candidates: List<Candidate>): String? =
         if (lockedOwner != null) lockedOwner
         else candidates.filter { it.hasData }.minByOrNull { it.priority }?.deviceId
+
+    /** #2880: the active strap won the day, but archived rows for the SAME physical strap (same
+     *  peripheralId, left behind by Remove + re-add) may hold the night. The one with the most HR rows
+     *  owns the day; a tie keeps the active id, then the earlier sibling. [siblings] are (id, hrRows).
+     *  Twin of the Swift `DayOwnerResolver.sameStrapOwner`. */
+    fun sameStrapOwner(activeId: String, activeHrRows: Int, siblings: List<Pair<String, Int>>): String {
+        var best = activeId to activeHrRows
+        for (s in siblings) if (s.second > best.second) best = s
+        return best.first
+    }
 }

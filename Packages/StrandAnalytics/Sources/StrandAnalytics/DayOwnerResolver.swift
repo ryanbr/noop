@@ -17,4 +17,14 @@ public enum DayOwnerResolver {
         if let locked = lockedOwner { return locked }
         return candidates.filter { $0.hasData }.sorted { $0.priority < $1.priority }.first?.deviceId
     }
+
+    /// #2880: the active strap won the day, but archived rows for the SAME physical strap (same
+    /// peripheralId, left behind by Remove + re-add) may hold the night. The one with the most HR rows
+    /// owns the day; a tie keeps the active id, then the earlier sibling. `siblings` are (id, hrRows).
+    public static func sameStrapOwner(activeId: String, activeHrRows: Int,
+                                      siblings: [(id: String, hrRows: Int)]) -> String {
+        var best = (id: activeId, hrRows: activeHrRows)
+        for s in siblings where s.hrRows > best.hrRows { best = s }
+        return best.id
+    }
 }
