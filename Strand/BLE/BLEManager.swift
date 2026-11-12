@@ -578,6 +578,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// observable, so without this the UI would keep showing the old id until relaunch.
     var onSerialIdentityAdopted: ((String) -> Void)?
     private var registryStore: DeviceRegistryStore?
+    /// The store `bootstrapStore` opened, kept so `didConnect` can re-seed the battery buffer (#2887).
+    private var batterySeedStore: WhoopStore?
     /// #716: true once the seeded "WHOOP" model has been stamped to the correct family.
     private var modelStamped = false
 
@@ -1275,7 +1277,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// The strap family the user chose to pair. Drives which service we scan for
     /// and which service we discover after connecting. Hydrated from the persisted
     /// pick so restoration/reconnect after a relaunch target the right strap.
-    private var selectedModel: WhoopModel = .persisted
+    private var selectedModel: WhoopModel = .persisted { didSet { applyBatteryRatedLife() } }
     private var lastStandardHRLogAt: Date?
     /// Counts unreadable standard heart-rate samples in a row, so a run of them clears the shown heart rate.
     private var heartRateReadability = LiveHeartRateReadability()
@@ -1364,6 +1366,7 @@ public final class BLEManager: NSObject, ObservableObject {
         // before any BLE data arrives.
         self.collector = nil
         super.init()
+        applyBatteryRatedLife()   // #2887: didSet does not run for the initial .persisted value
         // Deliberately NOT seeded from the global key here. It belongs to whichever strap synced last,
         // which on a two-strap install is not the one the screens are scoped to — the misattribution this
         // whole change removes. `seedLastSyncFromActiveStrap` fills it from the ACTIVE strap once the
@@ -1559,6 +1562,13 @@ public final class BLEManager: NSObject, ObservableObject {
         // already banked from live events this session, so a seed that races the first live reading is safe.
         // nil-SoC rows are dropped here (the buffer is non-optional %); a read failure is non-fatal, the
         // estimate just cold-starts as before.
+        batterySeedStore = store
+        await seedBatteryHistory(from: store)
+    }
+
+    /// The 14-day SoC seed above, also re-run on every connect (#2887): `clearBiometrics` empties the buffer
+    /// on each disconnect, so without it a reconnect sat on the rated fallback. Idempotent (de-dupes by ts).
+    func seedBatteryHistory(from store: WhoopStore) async {
         let seedNow = Int(Date().timeIntervalSince1970)
         let fourteenDays = 14 * 24 * 3600
         if let rows = try? await store.batterySamples(
@@ -1571,6 +1581,14 @@ public final class BLEManager: NSObject, ObservableObject {
         }
     }
 
+    /// Battery "~X days left" fallback (#713): a 5/MG runs far longer than a 4.0, so the estimator's rated
+    /// life follows the selected family. Driven by `selectedModel` (#2887) so the restore path, which never
+    /// runs `connectCore`, gets the 5/MG figure too.
+    private func applyBatteryRatedLife() {
+        state.batteryRatedHours = selectedModel.deviceFamily == .whoop5
+            ? BatteryEstimator.ratedLifeHoursWhoop5 : BatteryEstimator.ratedLifeHoursWhoop4
+    }
+
     /// Designated initializer for testing and preview use: accepts a pre-built Collector.
     init(state: LiveState, deviceId: String = "my-whoop", collector: Collector?) {
         self.state = state
@@ -1578,6 +1596,7 @@ public final class BLEManager: NSObject, ObservableObject {
         self.router = FrameRouter(state: state)
         self.collector = collector
         super.init()
+        applyBatteryRatedLife()   // #2887: didSet does not run for the initial .persisted value
         // Deliberately NOT seeded from the global key here. It belongs to whichever strap synced last,
         // which on a two-strap install is not the one the screens are scoped to — the misattribution this
         // whole change removes. `seedLastSyncFromActiveStrap` fills it from the ACTIVE strap once the
@@ -1657,11 +1676,6 @@ public final class BLEManager: NSObject, ObservableObject {
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
         connectAttemptStartedAt = Date()
         selectedModel = model
-        // Battery "~X days left" fallback (#713): a 5/MG runs far longer than a 4.0, so point the estimator's
-        // rated-life fallback at the connected family. The Today badge reads state.batteryEstimate (which uses
-        // state.batteryRatedHours); without this it always assumed WHOOP 4.0 (108h).
-        state.batteryRatedHours = model.deviceFamily == .whoop5
-            ? BatteryEstimator.ratedLifeHoursWhoop5 : BatteryEstimator.ratedLifeHoursWhoop4
         // Frame the inbound stream for the chosen family (WHOOP 4.0 CRC8 vs WHOOP 5.0 CRC16/puffin)
         // and tell the router which decoder to use. Fresh per connection so no stale bytes carry over.
         reassembler = Reassembler(family: model.deviceFamily)
@@ -5985,6 +5999,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         linkUpSince = DispatchTime.now()
         standingConnectAt = nil     // #1413: a live link means no standing connect is outstanding
         restoredPeripheral = nil
+        if let store = batterySeedStore { Task { await seedBatteryHistory(from: store) } }   // #2887
         preparePeripheral(peripheral)
         // #1881: BEFORE anything persists. The Collector and Backfiller read `deviceId` at flush and at
         // finishChunk, so re-pointing here is what keeps this link's rows off another device's id.
