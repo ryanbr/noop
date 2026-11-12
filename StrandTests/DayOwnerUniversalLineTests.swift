@@ -93,4 +93,40 @@ final class DayOwnerUniversalLineTests: XCTestCase {
             activeId: "my-whoop", registry: registry, fallbackDeviceId: "my-whoop")
         XCTAssertEqual(activeOwner, "my-whoop")
     }
+
+    /// #2880: Remove + re-add left the night under an archived row for the SAME strap while the active row
+    /// holds a few minutes of live HR. The night owns the day; an archived row for a different strap does not.
+    func testArchivedRowForTheSameStrapOwnsTheNightItHolds() async throws {
+        let store = try await WhoopStore.inMemory()
+        let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
+        try registry.add(PairedDevice(id: "my-whoop", brand: "WHOOP", model: "WHOOP 4.0", peripheralId: "P1",
+                                      sourceKind: .liveBLE, capabilities: [.hr], status: .archived,
+                                      addedAt: 1, lastSeenAt: 1))
+        try registry.add(PairedDevice(id: "other-old", brand: "WHOOP", model: "WHOOP 4.0", peripheralId: "P2",
+                                      sourceKind: .liveBLE, capabilities: [.hr], status: .archived,
+                                      addedAt: 2, lastSeenAt: 2))
+        try registry.add(PairedDevice(id: "whoop-new", brand: "WHOOP", model: "5.0 MG", peripheralId: "P1",
+                                      sourceKind: .liveBLE, capabilities: [.hr], status: .active,
+                                      addedAt: 3, lastSeenAt: 3))
+        let dayStart = 1_781_481_600
+        let from = dayStart - 30 * 3_600, to = dayStart + 12 * 3_600
+        let night = (0..<50).map { HRSample(ts: dayStart + $0 * 60, bpm: 55) }
+        let live = (0..<3).map { HRSample(ts: dayStart + 9 * 3_600 + $0, bpm: 70) }
+        _ = try await store.insert(Streams(hr: Array(night.prefix(10))), deviceId: "my-whoop")
+        _ = try await store.insert(Streams(hr: night), deviceId: "other-old")
+        _ = try await store.insert(Streams(hr: live), deviceId: "whoop-new")
+
+        func owner() async throws -> String {
+            await IntelligenceEngine.resolveDayOwner(
+                day: "2026-06-15", from: from, to: to, store: store, devices: try registry.all(),
+                activeId: "whoop-new", registry: registry, fallbackDeviceId: "whoop-new")
+        }
+        let first = try await owner()
+        XCTAssertEqual(first, "my-whoop")   // 10 rows beat 3; other-old (P2) is not this strap
+
+        let more = (0..<20).map { HRSample(ts: dayStart + 10 * 3_600 + $0, bpm: 70) }
+        _ = try await store.insert(Streams(hr: more), deviceId: "whoop-new")
+        let second = try await owner()
+        XCTAssertEqual(second, "whoop-new")
+    }
 }

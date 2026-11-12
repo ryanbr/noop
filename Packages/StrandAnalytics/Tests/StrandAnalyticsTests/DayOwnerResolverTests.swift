@@ -43,4 +43,16 @@ final class DayOwnerResolverTests: XCTestCase {
             DayOwnerResolver.resolve(day: "2026-06-15", lockedOwner: nil, candidates: candidates)
         )
     }
+
+    /// #2880. Kotlin `DayOwnerResolverTest.sameStrapOwnerMostHrRowsWins` pins the same cases.
+    func testSameStrapOwnerMostHrRowsWins() {
+        func owner(_ active: Int, _ siblings: [(id: String, hrRows: Int)]) -> String {
+            DayOwnerResolver.sameStrapOwner(activeId: "whoop-new", activeHrRows: active, siblings: siblings)
+        }
+        XCTAssertEqual(owner(234, [("my-whoop", 13_274)]), "my-whoop")   // the #2880 night
+        XCTAssertEqual(owner(5_000, [("my-whoop", 300)]), "whoop-new")
+        XCTAssertEqual(owner(100, [("my-whoop", 100)]), "whoop-new")     // tie keeps the active strap
+        XCTAssertEqual(owner(10, [("a", 50), ("b", 50)]), "a")           // then the earlier sibling
+        XCTAssertEqual(owner(0, []), "whoop-new")
+    }
 }

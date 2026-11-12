@@ -436,6 +436,24 @@
       "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
       "platform": "swift",
       "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::sameStrapArchivedIds/0#1",
+      "identity_sha256": "0cf3d6dcc38ba31b43ce987be722a37d6d0e72e3c62371fc576af36c63eae235",
+      "platform": "kotlin",
+      "rationale": "Swift IntelligenceEngine.resolveDayOwner finds the archived rows sharing the active row's peripheralId inline in the excluded app layer, from the registry devices it is already handed (#2880); this disposition does not assert behavioral parity.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RegistryDayOwnerSource.kt::sameStrapArchivedIds/0#1",
+      "identity_sha256": "626c2434e6281c5981b86f283fe24eaeae697b63499de061d683b990866d7408",
+      "platform": "kotlin",
+      "rationale": "Swift IntelligenceEngine.resolveDayOwner finds the archived rows sharing the active row's peripheralId inline in the excluded app layer, from the registry devices it is already handed (#2880); this disposition does not assert behavioral parity.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
     }
   ]
 }

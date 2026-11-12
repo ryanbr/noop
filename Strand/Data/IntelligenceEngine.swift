@@ -3154,7 +3154,22 @@ final class IntelligenceEngine: ObservableObject {
         .enumerated().sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
         .map(\.element)
         for c in ranked {
-            if (try? await store.hasHrInWindow(deviceId: c.id, from: from, to: to)) == true { return c.id }
+            guard (try? await store.hasHrInWindow(deviceId: c.id, from: from, to: to)) == true else { continue }
+            guard c.id == activeId else { return c.id }
+            // #2880: Remove + re-add can leave the night under an archived row for this same strap while the
+            // active row holds only minutes of live HR. Counted only when such a row exists (rare).
+            let peripheral = devices.first { $0.id == activeId }?.peripheralId
+            let siblings = devices.filter {
+                $0.status == .archived && peripheral?.isEmpty == false && $0.peripheralId == peripheral
+            }
+            if siblings.isEmpty { return activeId }
+            func hrRows(_ id: String) async -> Int {
+                (try? await store.hrFingerprint(deviceId: id, from: from, to: to).count) ?? 0
+            }
+            var counted: [(id: String, hrRows: Int)] = []
+            for d in siblings { counted.append((d.id, await hrRows(d.id))) }
+            return DayOwnerResolver.sameStrapOwner(activeId: activeId, activeHrRows: await hrRows(activeId),
+                                                   siblings: counted)
         }
         return fallbackDeviceId
     }
