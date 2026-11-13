@@ -121,11 +121,12 @@ public struct AppleHealthImporter {
             throw ImportError.notAZipOrFolder(zipURL.path)
         }
 
-        // Locate the export.xml entry by filename anywhere in the archive
-        // (Apple nests it under apple_health_export/).
+        // Locate the main export entry (Apple nests it under apple_health_export/). The first
+        // qualifying entry wins; see AppleHealthExportLocator for why a localised name such as
+        // `导出.xml` qualifies and `export_cda.xml` does not.
         var target: Entry?
         for entry in archive where entry.type == .file {
-            if (entry.path as NSString).lastPathComponent.lowercased() == "export.xml" {
+            if AppleHealthExportLocator.isMainExportEntry(entry.path) {
                 target = entry
                 break
             }
@@ -205,17 +206,23 @@ public struct AppleHealthImporter {
         if fm.fileExists(atPath: direct.path) { return direct }
         let nested = folder.appendingPathComponent("apple_health_export/export.xml")
         if fm.fileExists(atPath: nested.path) { return nested }
-        // Otherwise search for an "export.xml" by name (any depth, case-insensitive).
+        // Otherwise search for an "export.xml" by name (any depth, case-insensitive),
+        // collecting localised `apple_health_export/<name>.xml` candidates on the way.
+        var localised: [URL] = []
         if let e = fm.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-            for case let u as URL in e where u.lastPathComponent.lowercased() == "export.xml" {
-                return u
+            for case let u as URL in e {
+                if u.lastPathComponent.lowercased() == "export.xml" { return u }
+                if AppleHealthExportLocator.isMainExportEntry(u.path) { localised.append(u) }
             }
         }
-        // LOCALISED export: a non-English Health app names the root file in the
-        // device locale (e.g. `экспорт.xml`, `エクスポート.xml`), not `export.xml`.
-        // As a last resort accept a single `.xml` file at the folder root (or in
-        // `apple_health_export/`). Only act when there is EXACTLY one candidate so
-        // we never guess wrong amid several XML files.
+        if localised.count == 1 { return localised[0] }
+        // LOCALISED export: a non-English Health app names the main file in the
+        // device locale (e.g. `导出.xml`, `экспорт.xml`), not `export.xml`, while the
+        // sibling `export_cda.xml` keeps its English name. Accept a single non-CDA
+        // `.xml` file directly in the folder (the user may have picked
+        // `apple_health_export/` itself) or in its `apple_health_export/` subfolder.
+        // Only act when there is EXACTLY one candidate so we never guess wrong amid
+        // several XML files.
         let exportSub = folder.appendingPathComponent("apple_health_export")
         for dir in [folder, exportSub] {
             if let only = soleXMLFile(directlyIn: dir) { return only }
@@ -223,8 +230,8 @@ public struct AppleHealthImporter {
         return nil
     }
 
-    /// The single `*.xml` file directly inside `dir` (non-recursive), or `nil` if
-    /// `dir` doesn't exist, has no `.xml` files, or has more than one.
+    /// The single non-CDA `*.xml` file directly inside `dir` (non-recursive), or `nil`
+    /// if `dir` doesn't exist, has no such file, or has more than one.
     private func soleXMLFile(directlyIn dir: URL) -> URL? {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
@@ -232,8 +239,41 @@ public struct AppleHealthImporter {
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         ) else { return nil }
-        let xmls = entries.filter { $0.pathExtension.lowercased() == "xml" }
+        let xmls = entries.filter {
+            let name = $0.lastPathComponent.lowercased()
+            return name.hasSuffix(".xml") && !name.hasSuffix("_cda.xml")
+        }
         return xmls.count == 1 ? xmls[0] : nil
+    }
+}
+
+// MARK: - Export entry selection
+
+/// Decides which file inside an Apple Health export is the main `HealthData` document.
+///
+/// The Health app names that file in the device language: an English export carries
+/// `apple_health_export/export.xml`, a Chinese one `apple_health_export/导出.xml`, a Russian one
+/// `экспорт.xml`. The sibling `export_cda.xml` (the clinical-document export) keeps its English
+/// name in every locale and is NOT the file to parse. So a name check for `export.xml` alone
+/// rejects every non-English export.
+///
+/// The rule, applied to an entry's relative path (`/` or `\` separated):
+/// - a basename of `export.xml` (any case, any depth) qualifies, as it always has;
+/// - otherwise an `.xml` file qualifies only when it sits DIRECTLY inside a folder named
+///   `apple_health_export` and is not a `*_cda.xml` clinical document. The folder name is fixed
+///   across locales, which keeps an unrelated `.xml` elsewhere in an archive from matching.
+///
+/// Both platforms take the FIRST qualifying entry in archive order, so they pick the same file.
+enum AppleHealthExportLocator {
+    /// Kotlin twin: `AppleHealthImporter.isMainExportEntry` (`com.noop.ingest`).
+    static func isMainExportEntry(_ path: String) -> Bool {
+        let parts = path.replacingOccurrences(of: "\\", with: "/")
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map { $0.lowercased() }
+        guard let base = parts.last else { return false }
+        if base == "export.xml" { return true }
+        guard base.hasSuffix(".xml"), !base.hasSuffix("_cda.xml"), parts.count >= 2 else { return false }
+        return parts[parts.count - 2] == "apple_health_export"
     }
 }
 

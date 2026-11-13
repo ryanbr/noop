@@ -140,6 +140,19 @@ public struct ImportCoordinator {
 
         let names = try entryFilenames(of: url, isDirectory: isDir.boolValue)
         if names.contains("export.xml") { return .appleHealth }
+        // A localised Apple Health export (`apple_health_export/导出.xml`) carries no `export.xml`.
+        // A folder is matched by full path, so picking `apple_health_export/` itself still sees
+        // the folder name as the file's parent.
+        if isDir.boolValue {
+            if let e = fm.enumerator(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                for case let u as URL in e where AppleHealthExportLocator.isMainExportEntry(u.path) {
+                    return .appleHealth
+                }
+            }
+        } else if let paths = try? ZipPeek.paths(in: url),
+                  paths.contains(where: AppleHealthExportLocator.isMainExportEntry) {
+            return .appleHealth
+        }
         let whoopNames: Set<String> = [
             "physiological_cycles.csv", "sleeps.csv", "workouts.csv", "journal_entries.csv",
         ]

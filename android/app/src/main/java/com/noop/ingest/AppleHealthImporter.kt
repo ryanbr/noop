@@ -146,8 +146,8 @@ object AppleHealthImporter {
     }
 
     /**
-     * Stream the zip with [ZipInputStream], find the first entry whose basename is `export.xml`
-     * (case-insensitive — Apple nests it under `apple_health_export/`), and stream-parse it WITHOUT
+     * Stream the zip with [ZipInputStream], find the first entry that [isMainExportEntry] accepts
+     * (Apple nests it under `apple_health_export/`), and stream-parse it WITHOUT
      * inflating to disk or RAM first. The entry stream is parsed directly off the inflating stream;
      * a guarded wrapper prevents the pull-parser from closing the underlying zip stream.
      */
@@ -155,7 +155,7 @@ object AppleHealthImporter {
         val zip = ZipInputStream(input)
         var entry = zip.nextEntry
         while (entry != null) {
-            if (!entry.isDirectory && baseName(entry.name).equals("export.xml", ignoreCase = true)) {
+            if (!entry.isDirectory && isMainExportEntry(entry.name)) {
                 parseXml(NonClosingInputStream(zip), agg)
                 return
             }
@@ -165,10 +165,25 @@ object AppleHealthImporter {
         throw MissingExportXml()
     }
 
-    private fun baseName(path: String): String {
-        val p = path.replace('\\', '/')
-        val idx = p.lastIndexOf('/')
-        return if (idx >= 0) p.substring(idx + 1) else p
+    /**
+     * Whether a zip entry path is the main `HealthData` document of an Apple Health export.
+     *
+     * The Health app names that file in the device language: `export.xml` in English,
+     * `导出.xml` in Chinese, `экспорт.xml` in Russian. The sibling `export_cda.xml` keeps its
+     * English name in every locale and is not the file to parse. So a basename of `export.xml`
+     * (any case, any depth) qualifies, and otherwise an `.xml` file qualifies only when it sits
+     * directly inside a folder named `apple_health_export` and is not a `*_cda.xml` document.
+     *
+     * Both platforms take the first qualifying entry in archive order, so they pick the same file.
+     * Swift twin: `AppleHealthExportLocator.isMainExportEntry`.
+     */
+    internal fun isMainExportEntry(path: String): Boolean {
+        val parts = path.replace('\\', '/').split('/').filter { it.isNotEmpty() }
+            .map { it.lowercase(java.util.Locale.ROOT) }
+        val base = parts.lastOrNull() ?: return false
+        if (base == "export.xml") return true
+        if (!base.endsWith(".xml") || base.endsWith("_cda.xml") || parts.size < 2) return false
+        return parts[parts.size - 2] == "apple_health_export"
     }
 
     /** Prevents the XML pull-parser from closing the shared underlying stream (the zip). */
