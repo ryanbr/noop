@@ -295,6 +295,57 @@ final class BackupSyncRoundTripTests: XCTestCase {
 
     /// Build a minimal valid GRDB-origin NOOP DB: a `grdb_migrations` bookkeeping table (so the origin
     /// gate accepts it as this app's backup) plus a `device` table holding the given identifiers.
+    // MARK: - #2877: the pre-import snapshot keeps rows still in the live WAL
+
+    func testPreImportSnapshotKeepsRowsStillInTheLiveWal() throws {
+        // A live WAL-mode store whose newest row sits only in -wal: the connection stays open with
+        // auto-checkpoint off, like the app's store during Settings → Import.
+        let liveDB = tmp.appendingPathComponent("live.sqlite")
+        try makeNoopDatabase(at: liveDB, deviceRows: ["old"])
+        var live: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(liveDB.path, &live), SQLITE_OK)
+        defer { sqlite3_close(live) }
+        try exec(live, "PRAGMA journal_mode=WAL")
+        try exec(live, "PRAGMA wal_autocheckpoint=0")
+        try exec(live, "INSERT INTO device (id) VALUES ('only-in-wal')")
+
+        let sourceDB = tmp.appendingPathComponent("source.sqlite")
+        try makeNoopDatabase(at: sourceDB, deviceRows: ["backup"])
+        let backup = tmp.appendingPathComponent(BackupSync.snapshotName(1_782_000_000_000))
+        try DataBackup.writeBackupForTesting(databaseAt: sourceDB, to: backup)
+
+        guard case .imported(let snapshot) = DataBackup.restore(from: backup, toDatabaseAt: liveDB.path) else {
+            return XCTFail("Restore should succeed")
+        }
+        XCTAssertEqual(try deviceRows(in: snapshot, readWrite: true), ["old", "only-in-wal"],
+                       "The rollback snapshot must hold the WAL's committed rows too")
+        XCTAssertEqual(try deviceRows(in: liveDB), ["backup"])
+    }
+
+    // MARK: - #2885: the export zips a SQLite-consistent copy, not the live file's raw bytes
+
+    func testExportCopiesThroughSQLiteNotTheLiveFileBytes() throws {
+        // The live store stays open while it is exported; its newest commit is still only in -wal.
+        // A raw copy of the main file misses it (and can tear when a checkpoint lands mid-copy).
+        let liveDB = tmp.appendingPathComponent("live.sqlite")
+        try makeNoopDatabase(at: liveDB, deviceRows: ["old"])
+        var live: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(liveDB.path, &live), SQLITE_OK)
+        defer { sqlite3_close(live) }
+        try exec(live, "PRAGMA journal_mode=WAL")
+        try exec(live, "PRAGMA wal_autocheckpoint=0")
+        try exec(live, "INSERT INTO device (id) VALUES ('only-in-wal')")
+
+        let backup = tmp.appendingPathComponent(BackupSync.snapshotName(1_782_000_000_000))
+        try DataBackup.writeVerifiedBackupZip(dbURL: liveDB, to: backup, settingsJSON: nil)
+
+        let restored = tmp.appendingPathComponent("restored.sqlite")
+        guard case .imported = DataBackup.restore(from: backup, toDatabaseAt: restored.path) else {
+            return XCTFail("The exported backup should restore")
+        }
+        XCTAssertEqual(try deviceRows(in: restored, readWrite: true), ["old", "only-in-wal"])
+    }
+
     private func makeNoopDatabase(at url: URL, deviceRows: [String]) throws {
         var db: OpaquePointer?
         guard sqlite3_open(url.path, &db) == SQLITE_OK else {
@@ -339,9 +390,9 @@ final class BackupSyncRoundTripTests: XCTestCase {
         try exec(db, "INSERT INTO device (id) VALUES ('android-strap')")
     }
 
-    private func deviceRows(in url: URL) throws -> [String] {
+    private func deviceRows(in url: URL, readWrite: Bool = false) throws -> [String] {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(url.path, &db, readWrite ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
             throw TestError("open (read) failed: \(url.path)")
         }
         defer { sqlite3_close(db) }
