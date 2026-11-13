@@ -322,6 +322,30 @@ final class BackupSyncRoundTripTests: XCTestCase {
         XCTAssertEqual(try deviceRows(in: liveDB), ["backup"])
     }
 
+    // MARK: - #2885: the export zips a SQLite-consistent copy, not the live file's raw bytes
+
+    func testExportCopiesThroughSQLiteNotTheLiveFileBytes() throws {
+        // The live store stays open while it is exported; its newest commit is still only in -wal.
+        // A raw copy of the main file misses it (and can tear when a checkpoint lands mid-copy).
+        let liveDB = tmp.appendingPathComponent("live.sqlite")
+        try makeNoopDatabase(at: liveDB, deviceRows: ["old"])
+        var live: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(liveDB.path, &live), SQLITE_OK)
+        defer { sqlite3_close(live) }
+        try exec(live, "PRAGMA journal_mode=WAL")
+        try exec(live, "PRAGMA wal_autocheckpoint=0")
+        try exec(live, "INSERT INTO device (id) VALUES ('only-in-wal')")
+
+        let backup = tmp.appendingPathComponent(BackupSync.snapshotName(1_782_000_000_000))
+        try DataBackup.writeVerifiedBackupZip(dbURL: liveDB, to: backup, settingsJSON: nil)
+
+        let restored = tmp.appendingPathComponent("restored.sqlite")
+        guard case .imported = DataBackup.restore(from: backup, toDatabaseAt: restored.path) else {
+            return XCTFail("The exported backup should restore")
+        }
+        XCTAssertEqual(try deviceRows(in: restored, readWrite: true), ["old", "only-in-wal"])
+    }
+
     private func makeNoopDatabase(at url: URL, deviceRows: [String]) throws {
         var db: OpaquePointer?
         guard sqlite3_open(url.path, &db) == SQLITE_OK else {

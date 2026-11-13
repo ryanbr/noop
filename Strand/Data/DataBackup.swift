@@ -222,11 +222,17 @@ enum DataBackup {
         verifyWrittenBackup(at: url) == .intact
     }
 
-    private static func writeVerifiedBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
-        if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: dbURL.path) {
+    static func writeVerifiedBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
+        // #2885: zip a copy taken through SQLite's backup API, not the live file. The store stays open, so
+        // a checkpoint during a slow (backgrounded) zip rewrote pages under the reader and the archive held
+        // a torn mix. The copy is one read transaction, so it is consistent and doesn't block strap writes.
+        let copy = NoopScratch.file("backup-copy-\(UUID().uuidString).sqlite")
+        defer { for s in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: copy.path + s) } }
+        try snapshotDatabase(at: dbURL.path, to: copy.path)
+        if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: copy.path) {
             throw ExportIntegrityFailure(complaint: complaint)
         }
-        try writeBackupZip(dbURL: dbURL, to: dest, settingsJSON: settingsJSON, manifestJSON: currentManifestJSON())
+        try writeBackupZip(dbURL: copy, to: dest, settingsJSON: settingsJSON, manifestJSON: currentManifestJSON())
         switch verifyWrittenBackup(at: dest) {
         case .intact:
             break
