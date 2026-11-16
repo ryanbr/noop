@@ -79,7 +79,7 @@ object Palette {
     // Glow.
     val glowAmbient get() = active.glowAmbient
 
-    // Accent — user-selectable chrome anchor (mint default / WHOOP blue / custom). Chrome ONLY; the
+    // Accent — user-selectable chrome anchor (WHOOP blue default / mint / custom). Chrome ONLY; the
     // recovery/strain/sleep DATA worlds are never themed by this. Reads AccentPrefs snapshot state so a
     // change is live. Twin of macOS StrandPalette.accent* branching on AccentColor.
     val accent get() = when (AccentPrefs.color) {
@@ -405,7 +405,7 @@ object Metrics {
     val space18 = 18.dp
     val space24 = 24.dp
     val sourceBadgeHeight = 18.dp
-    val cardRadius = 18.dp   // Bevel continuous radius (18–22dp)
+    val cardRadius = 14.dp
     val cornerXs = 2.dp
     val cornerSm = 12.dp
     val cornerBadge = 6.dp

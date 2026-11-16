@@ -1007,15 +1007,12 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_HYDRATION_TRACKING, enabled).apply()
     }
 
-    /** "Day-cycle background" (#698): the time-of-day scene (sunrise / day / dusk / night) behind the
-     *  Today screen. Default ON, it's the v7 atmosphere. Some people find the moving scene distracting
-     *  and want a plain dark canvas, so turning this off makes TodayScreen drop the SceneScreenBackground
-     *  and fall back to the flat surface; the cards already sit on an opaque canvas, so they stay just as
-     *  readable. Mirrors macOS @AppStorage("noop.showDayCycleBackground"). */
+    /** The time-of-day scene behind Today and detail screens. Default OFF for a quiet, legible canvas;
+     *  users can enable it in Settings. Existing saved preferences are respected. */
     const val KEY_SHOW_DAY_CYCLE_BACKGROUND = "noop.showDayCycleBackground"
 
     fun showDayCycleBackground(context: Context): Boolean =
-        of(context).getBoolean(KEY_SHOW_DAY_CYCLE_BACKGROUND, true)
+        of(context).getBoolean(KEY_SHOW_DAY_CYCLE_BACKGROUND, false)
 
     fun setShowDayCycleBackground(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_SHOW_DAY_CYCLE_BACKGROUND, enabled).apply()
