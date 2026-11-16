@@ -103,6 +103,31 @@ class TodayLayoutPrefsTest {
     }
 
     @Test
+    fun freshInstallDefault_hidesSecondaryDetailSectionsOnly() {
+        assertEquals(
+            listOf(
+                TodaySection.HEART_RATE,
+                TodaySection.RECOVERY_VITALS,
+                TodaySection.YOUR_CARDS,
+                TodaySection.ADDED_CARDS,
+            ),
+            TodayLayoutPrefs.defaultHidden,
+        )
+        assertEquals(
+            listOf(
+                TodaySection.HERO,
+                TodaySection.LIVE_SESSION,
+                TodaySection.SYNTHESIS,
+                TodaySection.KEY_METRICS,
+                TodaySection.WORKOUTS,
+                TodaySection.MENSTRUAL_CYCLE,
+                TodaySection.JOURNAL,
+            ),
+            TodaySection.defaultOrder.filterNot { it in TodayLayoutPrefs.defaultHidden },
+        )
+    }
+
+    @Test
     fun visibleOrder_filtersHiddenWithoutChangingSavedOrder() {
         val order = "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal"
         assertEquals(

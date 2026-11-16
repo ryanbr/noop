@@ -6,11 +6,8 @@ import com.noop.R
 
 // MARK: - Reorderable Today sections (#today-layout)
 //
-// The Today screen's sections — the Charge/Effort/Rest hero, the Start-session entry, Synthesis, Key
-// Metrics, Workouts, Heart Rate, Recovery Vitals, Your Cards — rendered in one fixed order. This lets the
-// user REORDER or HIDE them, with the default being the original order so nothing changes for anyone who
-// never customizes Today. Display-only — no metric is computed or stored differently; this only decides
-// which already-built sections render and in what sequence.
+// Today sections can be reordered or hidden without changing any metric. Fresh installs start with the
+// core scores, summary, key metrics and workouts; secondary detail sections remain available in Arrange.
 //
 // Stored as a single comma-joined string of section keys in SharedPreferences ("today.sectionOrder"), the
 // same mechanism KeyMetricPrefs/DashboardCards use. Mirrors the macOS TodayLayoutPrefs.swift +
@@ -70,9 +67,25 @@ object TodayLayoutPrefs {
         NoopPrefs.of(context).edit().putString(KEY_ORDER, encode(sections)).apply()
     }
 
-    /** The explicitly hidden sections in their editor order. Empty/unset means every section is visible. */
-    fun hidden(context: Context): List<TodaySection> =
-        decodeHidden(NoopPrefs.of(context).getString(KEY_HIDDEN, null))
+    /** Secondary detail sections hidden on a fresh install. Arrange can restore any of them. */
+    val defaultHidden: List<TodaySection> = listOf(
+        TodaySection.HEART_RATE,
+        TodaySection.RECOVERY_VITALS,
+        TodaySection.YOUR_CARDS,
+        TodaySection.ADDED_CARDS,
+    )
+
+    /**
+     * Return the user's saved hidden list, preserving any saved layout. Only a truly fresh layout gets
+     * the minimal default; saving an empty list remains an explicit choice to show everything.
+     */
+    fun hidden(context: Context): List<TodaySection> {
+        val prefs = NoopPrefs.of(context)
+        val saved = prefs.getString(KEY_HIDDEN, null)
+        if (saved != null) return decodeHidden(saved)
+        if (prefs.contains(KEY_ORDER)) return emptyList()
+        return defaultHidden
+    }
 
     /** Persist the explicit reversible hidden list. */
     fun setHidden(context: Context, sections: List<TodaySection>) {

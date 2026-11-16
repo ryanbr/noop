@@ -98,14 +98,13 @@ data class PaletteTokens(
     val heroBorder: Color,
 )
 
-// WHOOP-reset dark palette (gold killed 2026-06-22). Values match StrandPalette.swift's DARK
-// Titanium column byte-for-byte: blue-grey canvas, WHOOP red→yellow→green recovery, green Charge,
-// blue Effort, slate Rest, amber Stress. NO gold anywhere — accent/gold tokens point to WHOOP blue.
+// Android's cleaner dark palette: near-black canvas, neutral cards, and restrained dividers.
+// Recovery/strain/sleep semantics stay unchanged; the default chrome accent is selected separately.
 val DarkTokens = PaletteTokens(
-    surfaceBase = Color(0xFF121518), surfaceRaised = Color(0xFF25292C), surfaceOverlay = Color(0xFF1C1F26),
-    surfaceInset = Color(0xFF1F2229), hairline = Color(0xFF21304A), hairlineStrong = Color(0xFF2E3C57),
+    surfaceBase = Color(0xFF0B0D0F), surfaceRaised = Color(0xFF171A1D), surfaceOverlay = Color(0xFF1E2124),
+    surfaceInset = Color(0xFF101214), hairline = Color(0xFF292D31), hairlineStrong = Color(0xFF3A3F44),
     textPrimary = Color(0xFFF4F6F8), textSecondary = Color(0xFFC8CFD8), textTertiary = Color(0xFF8A94A4),
-    glowAmbient = Color(0xFF3A2D0A),
+    glowAmbient = Color(0xFF111416),
     // Brand accent → mint, parity with iOS #1068 (NoopVisualStyle.mint/mintGlow). accentMuted is a dark
     // teal muted surface (green-shifted analog of the old navy 0xFF16233A). Gold stays in the recovery world.
     accent = Color(0xFF69DDB8), accentHover = Color(0xFF54E6BD), accentMuted = Color(0xFF163329), focusRing = Color(0xFF69DDB8),
@@ -121,12 +120,12 @@ val DarkTokens = PaletteTokens(
     restColor = Color(0xFF83A0B8), restDeep = Color(0xFF2F6FCB), restBright = Color(0xFF6FA8E8), restGlow = Color(0xFF4A90E2),
     stressColor = Color(0xFFF0A020), stressDeep = Color(0xFF4A90E2), stressBright = Color(0xFFE0662F), stressGlow = Color(0xFFF0A020),
     scenicCenter = Color(0xFF1C2128), scenicEdge = Color(0xFF121518), scenicStar = Color(0xFFC8CFD8),
-    cardFillTop = Color(0xFF15243C), cardFillBottom = Color(0xFF0B1424),
+    cardFillTop = Color(0xFF171A1D), cardFillBottom = Color(0xFF171A1D),
     gold = Color(0xFF60A0E0), goldLight = Color(0xFF9FC8F0), goldDeep = Color(0xFF3A78C8),
     goldDeepText = Color(0xFFFFFFFF), signalYellow = Color(0xFFFFD63D),
     titaniumTop = Color(0xFFF1F3F5), titaniumMid = Color(0xFFC9CFD4), titaniumLow = Color(0xFF969DA4), titaniumDeep = Color(0xFF6B737B),
     tipCore = Color(0xFFFFFFFF),
-    heroFill = Color(0xCC0D0E14), heroBorder = Color(0x1CFFFFFF),
+    heroFill = Color(0xFF171A1D), heroBorder = Color(0xFF292D31),
 )
 
 val LightTokens = PaletteTokens(
@@ -196,11 +195,11 @@ object ChartStylePrefs {
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    var style by mutableStateOf(ChartStyle.TITANIUM)
+    var style by mutableStateOf(ChartStyle.CLASSIC)
         private set
 
     fun load(ctx: Context) {
-        style = ChartStyle.fromStorage(prefs(ctx).getString(KEY, ChartStyle.TITANIUM.storageValue))
+        style = ChartStyle.fromStorage(prefs(ctx).getString(KEY, ChartStyle.CLASSIC.storageValue))
     }
 
     fun set(ctx: Context, value: ChartStyle) {
@@ -295,8 +294,8 @@ object AppearancePrefs {
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    /** Live appearance mode read by NoopTheme; defaults to System until [load] runs. */
-    var mode by mutableStateOf(AppearanceMode.SYSTEM)
+    /** Live appearance mode read by NoopTheme; defaults to Dark until [load] runs. */
+    var mode by mutableStateOf(AppearanceMode.DARK)
         private set
 
     /**
@@ -309,7 +308,7 @@ object AppearancePrefs {
         private set
 
     fun load(ctx: Context) {
-        mode = AppearanceMode.fromStorage(prefs(ctx).getString(KEY, AppearanceMode.SYSTEM.storageValue))
+        mode = AppearanceMode.fromStorage(prefs(ctx).getString(KEY, AppearanceMode.DARK.storageValue))
         gaugeNumerals = GaugeNumeralStyle.fromStorage(
             prefs(ctx).getString(GAUGE_KEY, GaugeNumeralStyle.BOLD.storageValue))
     }
@@ -333,11 +332,11 @@ enum class AccentColor(val storageValue: String, val label: String) {
     CUSTOM("custom", "Custom");
 
     companion object {
-        /** Seeds the custom picker (mint) so a fresh Custom selection is not black. */
-        const val DEFAULT_CUSTOM_HEX = "#149A78"
+        /** Seeds the custom picker with the default blue accent. */
+        const val DEFAULT_CUSTOM_HEX = "#60A0E0"
 
         fun fromStorage(raw: String?): AccentColor =
-            entries.firstOrNull { it.storageValue == raw } ?: MINT
+            entries.firstOrNull { it.storageValue == raw } ?: WHOOP_BLUE
 
         /** Parse `#RRGGBB` to a Color, falling back to [fallback] on any malformed value. */
         fun parseHex(hex: String, fallback: Color): Color {
@@ -350,7 +349,7 @@ enum class AccentColor(val storageValue: String, val label: String) {
 
         /** Blend a hex toward white by [amount] (0..1) — the deterministic hover for a custom accent. */
         fun lighten(hex: String, amount: Float = 0.24f): Color {
-            val c = parseHex(hex, Color(0xFF149A78))
+            val c = parseHex(hex, Color(0xFF60A0E0))
             fun up(x: Float) = (x + (1 - x) * amount).coerceIn(0f, 1f)
             return Color(up(c.red), up(c.green), up(c.blue), 1f)
         }
@@ -369,13 +368,13 @@ object AccentPrefs {
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     /** Live accent choice + custom hex read by the Palette accent getters; defaults until [load] runs. */
-    var color by mutableStateOf(AccentColor.MINT)
+    var color by mutableStateOf(AccentColor.WHOOP_BLUE)
         private set
     var customHex by mutableStateOf(AccentColor.DEFAULT_CUSTOM_HEX)
         private set
 
     fun load(ctx: Context) {
-        color = AccentColor.fromStorage(prefs(ctx).getString(KEY_COLOR, AccentColor.MINT.storageValue))
+        color = AccentColor.fromStorage(prefs(ctx).getString(KEY_COLOR, AccentColor.WHOOP_BLUE.storageValue))
         customHex = prefs(ctx).getString(KEY_CUSTOM, AccentColor.DEFAULT_CUSTOM_HEX)
             ?: AccentColor.DEFAULT_CUSTOM_HEX
     }
@@ -404,8 +403,8 @@ enum class ThemePreset(
     val cardOpacity: Int,       // percent, 100 = solid
 ) {
     MINT("mint", "Mint", AccentColor.MINT, ChartStyle.TITANIUM, true, 100),
-    OCEAN("ocean", "Ocean", AccentColor.WHOOP_BLUE, ChartStyle.TITANIUM, true, 100),
-    CLASSIC("classic", "Classic", AccentColor.WHOOP_BLUE, ChartStyle.CLASSIC, true, 100),
+    OCEAN("ocean", "Ocean", AccentColor.WHOOP_BLUE, ChartStyle.TITANIUM, false, 100),
+    CLASSIC("classic", "Classic", AccentColor.WHOOP_BLUE, ChartStyle.CLASSIC, false, 100),
     MIDNIGHT("midnight", "Midnight", AccentColor.MINT, ChartStyle.TITANIUM, false, 100),
     FROSTED("frosted", "Frosted", AccentColor.MINT, ChartStyle.TITANIUM, true, 85),
     CUSTOM("custom", "Custom", null, null, true, 100);
