@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import CoreBluetooth
 import WhoopProtocol
 import WhoopStore
@@ -607,6 +608,11 @@ public final class BLEManager: NSObject, ObservableObject {
     private var strapNewestTs: Int?
     /// Fires if the strap goes silent mid-offload; re-armed on every frame during backfill.
     private var backfillTimeout: DispatchWorkItem?
+    #if os(macOS)
+    /// The App Nap exemption held while a strap link is up (see `init`), and the subscription driving it.
+    private var linkActivity: NSObjectProtocol?
+    private var appNapCancellable: AnyCancellable?
+    #endif
     /// Periodic re-trigger of the type-47 historical offload. This is the PRIMARY continuous metric
     /// source (mirrors how WHOOP syncs): the strap's 14-day biometric store is re-offloaded every
     /// `backfillIntervalSeconds` while connected+bonded, rather than once per connect. Started on
@@ -1364,6 +1370,17 @@ public final class BLEManager: NSObject, ObservableObject {
         // before any BLE data arrives.
         self.collector = nil
         super.init()
+        #if os(macOS)
+        // App Nap: when NOOP's window is hidden or covered, macOS coalesces its timers and clamps its work
+        // to background priority. That stalled history drains (each chunk is decoded on a utility task
+        // before its ack) and delayed the keep-alive, watchdog and periodic-sync timers, so syncing seemed
+        // to stop whenever the app was not in front. Hold a user-initiated activity for as long as a strap
+        // link is up, driven by `connected` so every connect and teardown path is covered. The
+        // AllowingIdleSystemSleep variant still lets the Mac sleep; it only stops the app being napped.
+        appNapCancellable = state.$connected
+            .removeDuplicates()
+            .sink { [weak self] connected in self?.setAppNapExempt(connected) }
+        #endif
         // Deliberately NOT seeded from the global key here. It belongs to whichever strap synced last,
         // which on a two-strap install is not the one the screens are scoped to — the misattribution this
         // whole change removes. `seedLastSyncFromActiveStrap` fills it from the ACTIVE strap once the
@@ -6498,6 +6515,24 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         standingConnectWhilePausedIfDue()
         scheduleReconnect()
     }
+
+    #if os(macOS)
+    /// The activity held while a strap link is up. User-initiated so App Nap leaves the app alone, but
+    /// allowing idle system sleep: the exemption must never keep the Mac awake.
+    nonisolated static let appNapExemptionOptions: ProcessInfo.ActivityOptions = .userInitiatedAllowingIdleSystemSleep
+
+    /// Begin or end the App Nap exemption described in `init`. Idempotent in both directions.
+    private func setAppNapExempt(_ exempt: Bool) {
+        if exempt, linkActivity == nil {
+            linkActivity = ProcessInfo.processInfo.beginActivity(
+                options: BLEManager.appNapExemptionOptions,
+                reason: "Syncing and streaming from the WHOOP strap")
+        } else if !exempt, let activity = linkActivity {
+            ProcessInfo.processInfo.endActivity(activity)
+            linkActivity = nil
+        }
+    }
+    #endif
 
     /// State restoration entry point (M3 background collection).
     /// Stores the restored peripheral and — if already connected — immediately
