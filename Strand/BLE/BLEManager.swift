@@ -1652,7 +1652,7 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     private func connectCore(model: WhoopModel) {
-        intentionalDisconnect = false
+        intentionalDisconnect = LinkIntent.connect.leavesLinkDown
         // Connection test mode: stamp when this connect attempt began so didConnect can report the connect
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
         connectAttemptStartedAt = Date()
@@ -1770,7 +1770,7 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     public func disconnect() {
-        intentionalDisconnect = true
+        intentionalDisconnect = LinkIntent.userDisconnect.leavesLinkDown
         cancelScanFallback()
         // A user-initiated teardown is a clean slate: clear any #80 marginal-radio fallback so the next
         // (manual) reconnect attempts the full R10/R11 stream again rather than inheriting old suspicion.
@@ -1803,7 +1803,7 @@ public final class BLEManager: NSObject, ObservableObject {
         // Captured BEFORE the teardown below nils `peripheral`, since a nil argument means "the current
         // strap" and that is the only place its identifier can still be read.
         let releasedUUID = peripheralId ?? peripheral?.identifier.uuidString
-        intentionalDisconnect = true            // defuses the disconnect→3s-reconnect loop's guard
+        intentionalDisconnect = LinkIntent.forget.leavesLinkDown   // defuses the disconnect→3s-reconnect loop's guard
         cancelScanFallback()
         readoptingTo = nil                       // abandon any in-flight #52 pin handoff
         // Clear the targeted-connect pin + the iOS state-restoration peripheral if they point at this strap,
@@ -5140,6 +5140,11 @@ public final class BLEManager: NSObject, ObservableObject {
     /// told apart in a strap log.
     private func connectRestored(_ p: CBPeripheral, reason: String) {
         guard whoopConnectAllowed("restored/\(reason)") else { return }
+        // The second system-initiated connect entry (poweredOn with a restored peripheral, and
+        // willRestoreState). It must clear the flag exactly as connectCore does: after a radio-off teardown
+        // on a state-restored iOS session, leaving it set made the next genuine drop take the intentional
+        // branch, so nothing reconnected until Connect was tapped (#2787 review).
+        intentionalDisconnect = LinkIntent.restoredConnect.leavesLinkDown
         log("Connecting to restored peripheral (\(reason)) — peripheral state=\(peripheralStateName(p.state))")
         central.connect(p, options: nil)
         pendingConnectProbe?.cancel()
@@ -5804,7 +5809,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // onBluetoothRadioOff → teardownAfterGattFailure (#314).
             if BLEManager.radioStateEndsLink(central.state), let p = peripheral, state.connected || didBond {
                 log("Bluetooth \(central.state == .poweredOff ? "turned off" : "reset") - ending this link here (CoreBluetooth reports no disconnect for it); the next connect starts a fresh session")
-                intentionalDisconnect = true
+                intentionalDisconnect = LinkIntent.radioOff.leavesLinkDown
                 centralManager(central, didDisconnectPeripheral: p, error: nil)
             }
             // #280: a non-poweredOn radio state used to be a SILENT return — the strap log showed only
@@ -5840,6 +5845,10 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 state.lastSyncError = "Bluetooth is off. Turn it on to connect to your strap."
                 log("Bluetooth is off — cannot scan or connect")
                 radioStateErrorShown = true
+            case .resetting:
+                // bluetoothd restarting. Transient (the next poweredOn reconnects), so no banner, but the
+                // radio-off teardown above may just have ended a link, and the log should say why.
+                log("Bluetooth is restarting — waiting for it to come back")
             case .unsupported:
                 state.lastSyncError = "This device can't use Bluetooth Low Energy."
                 log("Bluetooth LE unsupported on this device")
@@ -6491,6 +6500,30 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // about above cannot hot-loop. Inert when the pause is not latched (the gate checks it).
         standingConnectWhilePausedIfDue()
         scheduleReconnect()
+    }
+
+    /// Who started a connect or a teardown, and so what it does to `intentionalDisconnect`, the flag that
+    /// stops the disconnect handler from reconnecting. Every writer of that flag goes through this one
+    /// table, so a new connect entry point cannot forget to clear it the way `connectRestored` did.
+    enum LinkIntent: CaseIterable {
+        /// connectCore: a user Connect / Re-scan, or poweredOn's connectFromSystem.
+        case connect
+        /// connectRestored: poweredOn with a restored peripheral, or willRestoreState (iOS).
+        case restoredConnect
+        /// disconnect(): the user ended the link.
+        case userDisconnect
+        /// forgetDevice: the strap is being released for pairing elsewhere.
+        case forget
+        /// The radio powered off or reset (see `radioStateEndsLink`); poweredOn reconnects.
+        case radioOff
+
+        /// True when the link is meant to stay down, so the next disconnect must not reconnect.
+        nonisolated var leavesLinkDown: Bool {
+            switch self {
+            case .connect, .restoredConnect: return false
+            case .userDisconnect, .forget, .radioOff: return true
+            }
+        }
     }
 
     /// Radio states after which the current link is gone even though CoreBluetooth delivers no
