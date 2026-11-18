@@ -85,6 +85,12 @@ private struct DevicesContent: View {
     /// "make active". An import source is a data partition, not a live device; offering it here would let
     /// activating it demote the live WHOOP driving BLE routing + day-owner priority 0.
     private var activatableDevices: [PairedDevice] { activeDevices.filter { !$0.isImportSource } }
+    /// The strap switcher's choices: every non-archived device plus any removed Bluetooth strap. A strap
+    /// that was dropped (Remove is the only way to let go of a non-WHOOP strap on iOS) must stay
+    /// selectable, otherwise the switcher vanished the moment the second strap went away.
+    private var switcherDevices: [PairedDevice] {
+        registry.devices.filter { $0.status != .archived || $0.sourceKind == .liveBLE }
+    }
 
     /// #987: the active+connected strap's clock state, from the SAME pure ConnectionReadout parsers the
     /// Test Centre Connection panel binds (one source of truth). nil (no row at all) until the WHOOP path
@@ -155,9 +161,9 @@ private struct DevicesContent: View {
                         ? String(localized: "1 paired")
                         : String(localized: "\(activeDevices.count) paired"))
             // #1300: a prominent switcher to flip which strap is active — the "switch, don't combine"
-            // option for a user with two straps (e.g. a 4.0 + a 5/MG). Shown only with 2+ straps, so it
-            // auto-collapses when one is forgotten. Reuses the existing active-strap confirmation.
-            if activeDevices.count > 1 { strapSwitcher }
+            // option for a user with two straps (e.g. a 4.0 + a 5/MG). Always shown while there is a
+            // device to pick, including a removed Bluetooth strap. Reuses the active-strap confirmation.
+            if !switcherDevices.isEmpty { strapSwitcher }
             ForEach(Array(activeDevices.enumerated()), id: \.element.id) { idx, device in
                 // Shared read-only probe gate (Test Centre → Connection + a live WHOOP), hoisted so the two
                 // probe closures below don't each re-inline a 4-term && chain — which tips the iOS Swift
@@ -575,10 +581,10 @@ private struct DevicesContent: View {
     /// #1300: a compact segmented switcher over the paired straps. The active one is highlighted; tapping
     /// another opens the SAME "Make active?" confirmation the per-card action uses (no accidental switch,
     /// history preserved). Switching-not-combining: scores stay single-owner-per-day, this just picks the
-    /// owner. Collapses automatically when only one strap remains (the caller gates on count > 1).
+    /// owner. Picking a removed strap re-activates it through the same confirmation.
     private var strapSwitcher: some View {
         HStack(spacing: 6) {
-            ForEach(activeDevices, id: \.id) { device in
+            ForEach(switcherDevices, id: \.id) { device in
                 let isActive = device.status == .active
                 Button { if !isActive { switchTarget = device } } label: {
                     Text(device.displayName)
