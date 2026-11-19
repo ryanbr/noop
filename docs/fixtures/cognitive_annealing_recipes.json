@@ -1,0 +1,241 @@
+{
+  "recipes": [
+    {
+      "id": "A1",
+      "step_context": "PROPOSED: \"Did you complete an exploration-preparation sequence this morning?\" (5-min novel microdomain exposure, e.g. unfamiliar pattern, new vocabulary set, novel motor sequence)",
+      "baseline_control": "explicit-No mornings (no sequence) on comparable wake-days (matched prior sleep, weekday, training load)",
+      "outcome_key": "learning.far_transfer.7d_per_min",
+      "outcome_lag_days": 7,
+      "secondary_outcomes": [
+        {"key": "learning.retention.24h", "lag_days": 1},
+        {"key": "learning.calibration.brier", "lag_days": 1},
+        {"key": "learning.false_memory.rate", "lag_days": 1},
+        {"key": "subjective.fatigue.next_am", "lag_days": 1},
+        {"key": "sleep_performance", "lag_days": 1}
+      ],
+      "owner": "external_learning_producer",
+      "mode": "assignable",
+      "evidence_tier": 2,
+      "predicted_direction": "preparation > neutral",
+      "disconfirming_result": "with >=5 prep and >=5 explicit-No days, >=70% coverage, primary effect <= 0 or Welch p >= 0.05. Below coverage -> inconclusive.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["regression_to_mean", "season_dst", "training_load", "expectancy_placebo", "practice_effects"],
+      "exposure_input_tier": "self_report",
+      "exposure_input_basis": "user answers Journal question about preparation sequence",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "far_transfer_test_v1.0.0"
+    },
+    {
+      "id": "A2",
+      "step_context": "PROPOSED: \"Did you complete the standardized encoding block today?\" (fixed 10-min study of assigned novel material, same for all conditions)",
+      "baseline_control": "not a contrast -- this is the held-constant step. Control is the absence of A1/A3/A4, not absence of encoding.",
+      "outcome_key": "learning.immediate.accuracy",
+      "outcome_lag_days": 0,
+      "secondary_outcomes": [],
+      "owner": "external_learning_producer",
+      "mode": "assignable",
+      "evidence_tier": 2,
+      "predicted_direction": "no difference across arms (manipulation check)",
+      "disconfirming_result": "if immediate accuracy differs across arms by >5 pp or p < 0.05, encoding standardization failed -> entire protocol inconclusive.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["practice_effects"],
+      "exposure_input_tier": "device_measured",
+      "exposure_input_basis": "external producer records encoding block completion",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "encoding_accuracy_v1.0.0"
+    },
+    {
+      "id": "A3",
+      "step_context": "PROPOSED: \"Did you keep a 60-min quiet wake window after encoding?\" (no media, no tasks, eyes-open rest or breath protocol only)",
+      "baseline_control": "explicit-No days (no quiet window) on comparable wake-days; interference arm = matched disruption (notifications, secondary task)",
+      "outcome_key": "learning.far_transfer.7d_per_min",
+      "outcome_lag_days": 7,
+      "secondary_outcomes": [
+        {"key": "learning.retention.24h", "lag_days": 1},
+        {"key": "learning.calibration.brier", "lag_days": 1},
+        {"key": "learning.false_memory.rate", "lag_days": 1},
+        {"key": "subjective.fatigue.next_am", "lag_days": 1},
+        {"key": "sleep_performance", "lag_days": 1}
+      ],
+      "owner": "noop_journal",
+      "mode": "assignable",
+      "evidence_tier": 2,
+      "predicted_direction": "quiet > interference",
+      "disconfirming_result": "quiet - interference <= 0 on primary at >=70% coverage, Welch p >= 0.05.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["regression_to_mean", "season_dst", "training_load", "expectancy_placebo"],
+      "exposure_input_tier": "self_report",
+      "exposure_input_basis": "user answers Journal question about quiet wake window",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "far_transfer_test_v1.0.0"
+    },
+    {
+      "id": "A4",
+      "step_context": "PROPOSED: \"Did you sleep >=7 h with no alarm?\" (natural wake, no intentional restriction)",
+      "baseline_control": "explicit-No nights (<7 h or alarm) on comparable nights; season/DST boundary = stop",
+      "outcome_key": "learning.far_transfer.7d_per_min",
+      "outcome_lag_days": 7,
+      "secondary_outcomes": [
+        {"key": "learning.retention.24h", "lag_days": 1},
+        {"key": "sleep_performance", "lag_days": 1},
+        {"key": "sleep.spindle.density", "lag_days": 1, "note": "optional external probe, context only"},
+        {"key": "sleep.sw.power", "lag_days": 1, "note": "optional external probe, context only"}
+      ],
+      "owner": "sleep_external",
+      "mode": "observe-only",
+      "evidence_tier": 2,
+      "predicted_direction": "natural >=7h > restricted",
+      "disconfirming_result": "natural - restricted <= 0 at >=70% coverage, Welch p >= 0.05. Carry-over check at lag 14: if lag-14 > lag-7, result inconclusive.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["regression_to_mean", "season_dst", "training_load", "carry_over"],
+      "exposure_input_tier": "imported_source",
+      "exposure_input_basis": "WHOOP/HealthKit sleep duration and alarm flag",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "whoop_sleep_v1.0.0"
+    },
+    {
+      "id": "A5",
+      "step_context": "PROPOSED: \"Did you do a 5-min re-exposure (not re-study) on day 3?\" (brief cued recall, no feedback)",
+      "baseline_control": "explicit-No days (no re-exposure) on comparable wake-days",
+      "outcome_key": "learning.far_transfer.7d_per_min",
+      "outcome_lag_days": 7,
+      "secondary_outcomes": [
+        {"key": "learning.retention.24h", "lag_days": 1},
+        {"key": "learning.calibration.brier", "lag_days": 1}
+      ],
+      "owner": "external_learning_producer",
+      "mode": "assignable",
+      "evidence_tier": 2,
+      "predicted_direction": "re-exposure > no re-exposure",
+      "disconfirming_result": "re-exposure - no <= 0 at >=70% coverage, Welch p >= 0.05.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["regression_to_mean", "season_dst", "training_load", "practice_effects"],
+      "exposure_input_tier": "device_measured",
+      "exposure_input_basis": "external producer records re-exposure completion",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "reexposure_recall_v1.0.0"
+    },
+    {
+      "id": "A6",
+      "step_context": "Full sequence (A1->A2->A3->A4->A5) vs Neutral sequence (A2 only, no A1/A3/A4/A5)",
+      "baseline_control": "Neutral = explicit-No on A1, A3, A4, A5 on same wake-day; encoding (A2) held constant",
+      "outcome_key": "learning.far_transfer.7d_per_min",
+      "outcome_lag_days": 7,
+      "secondary_outcomes": [
+        {"key": "learning.retention.24h", "lag_days": 1},
+        {"key": "learning.calibration.brier", "lag_days": 1},
+        {"key": "learning.false_memory.rate", "lag_days": 1},
+        {"key": "subjective.fatigue.next_am", "lag_days": 1},
+        {"key": "sleep_performance", "lag_days": 1}
+      ],
+      "owner": "external_learning_producer",
+      "mode": "assignable",
+      "evidence_tier": 2,
+      "predicted_direction": "full sequence > neutral",
+      "disconfirming_result": "CORE FALSIFICATION: full sequence - neutral <= 0 on primary at >=70% coverage, Welch p >= 0.05. Any single component (A1, A3, A4, A5) null/harm also falsifies its individual claim. Below coverage -> inconclusive.",
+      "minimum_coverage": 0.7,
+      "minimum_samples": 5,
+      "confounds": ["regression_to_mean", "season_dst", "training_load", "expectancy_placebo", "practice_effects", "carry_over"],
+      "exposure_input_tier": "mixed",
+      "exposure_input_basis": "A1 self_report, A2 device_measured, A3 self_report, A4 imported_source, A5 device_measured",
+      "outcome_input_tier": "device_measured",
+      "measurement_protocol": "far_transfer_test_v1.0.0"
+    }
+  ],
+  "falsification_criteria": [
+    {
+      "id": "F1",
+      "criterion": "Primary endpoint null or harm in within-person A/B (full sequence vs neutral) with adequate coverage (>=5 per arm, >=70%)",
+      "meaning": "The core claim -- that the state sequence increases 7-day far transfer per learning minute -- is not supported. Stop building the annealing engine."
+    },
+    {
+      "id": "F2",
+      "criterion": "Any single component (A1, A3, A4, A5) shows null/harm on its individual contrast at adequate coverage",
+      "meaning": "The sequence is not additive; the hypothesized phase (explore, consolidate, sleep, re-expose) does not contribute. Reallocate to the next exploration."
+    },
+    {
+      "id": "F3",
+      "criterion": "Immediate encoding differs across arms (manipulation check fails: >5 pp or p < 0.05 on learning.immediate.accuracy)",
+      "meaning": "The 'focused encoding standardized in all arms' assumption is violated. The comparison is confounded. Protocol inconclusive -- redesign encoding standardization."
+    },
+    {
+      "id": "F4",
+      "criterion": "Carry-over dominates (lag-14 effect > lag-7 effect on primary, or lag-2 > lag-1 on sleep)",
+      "meaning": "The effect is not consolidation but residual interference or delayed expression. Result inconclusive for consolidation claim."
+    },
+    {
+      "id": "F5",
+      "criterion": "Expectancy/placebo explains the effect (baseline self_report expectancy covariate renders primary effect <= 0 at p >= 0.05)",
+      "meaning": "The benefit is belief-mediated, not state-sequence-mediated. The 'belief/placebo route to willpower' (per #79 comment) is the active ingredient -- redirect to that hypothesis."
+    },
+    {
+      "id": "F6",
+      "criterion": "Missingness / censoring asymmetric (coverage <70% in one arm, or censoring pattern predicts outcome)",
+      "meaning": "The comparison is not fair. The trial is censored, not failed -- documented as inconclusive per #85."
+    }
+  ],
+  "non_falsifiable_acknowledged": [
+    "If the study cannot be run (no physical device for external learning producer, no consent, EEG/WHOOP export unavailable, external producer API changes), the result is inconclusive -- not evidence for or against. The design documents this as a censored trial.",
+    "self_report and agent_inferred tiers are never promoted to primary learning outcomes (enforced by #77 receipt logic). A null result on primary with only self-report data is expected, not a falsification of the protocol."
+  ],
+  "not_executed": [
+    {
+      "item": "learning.far_transfer.7d_per_min (primary outcome)",
+      "reason": "Requires external learning producer (Anki/FSRS, custom microdomain) with hold-out novel-task transfer test. NOOP has no learning engine.",
+      "how_measured": "kvnloo/anki, kvnloo/fsrs4anki, or custom microdomain tooling emits #77 ExternalOutcomeObservation with outcome_key = learning.far_transfer.7d_per_min, input_tier = device_measured, measurement_protocol = far_transfer_test_vX.Y.Z"
+    },
+    {
+      "item": "learning.retention.24h, learning.calibration.brier, learning.false_memory.rate",
+      "reason": "Same -- external producer only.",
+      "how_measured": "Same as above with respective outcome_keys"
+    },
+    {
+      "item": "EEG sleep architecture (sleep.spindle.density, sleep.sw.power)",
+      "reason": "Requires EEG hardware + consent; not a NOOP sensor.",
+      "how_measured": "Optional external probe; input_tier = device_measured, source_id = eeg_research_probe, recorded as context only (never primary)"
+    },
+    {
+      "item": "optional external research probes (EEG, virtual-reality, eye_movement, stroboscopic)",
+      "reason": "Optional external research probes; not NOOP capabilities.",
+      "how_measured": "Same as EEG -- context only, input_tier = device_measured, never assigned exposure"
+    },
+    {
+      "item": "input_tier = self_report expectancy/placebo baseline",
+      "reason": "User-entered; NOOP records it but cannot validate it as a learning outcome.",
+      "how_measured": "Journal question PROPOSED: 'How confident are you that today's preparation will help?' (1-7); recorded as context covariate only"
+    },
+    {
+      "item": "input_tier = agent_inferred attention/arousal proxy",
+      "reason": "Agent inference; explicitly barred from primary outcomes per #79 comment.",
+      "how_measured": "If an agent infers attention from telemetry, it is logged with input_tier = agent_inferred, input_basis = '...', used only as secondary context"
+    },
+    {
+      "item": "Durable preregistration proof (prediction_locked_at before exposure)",
+      "reason": "Pure type cannot prove lock-before-exposure; needs independent persistence (signed hash, write-once log, external timestamping).",
+      "how_measured": "Documented as NOT_EXECUTED -- the #76 contract design notes this; a real implementation would need an external timestamping service or local write-once log"
+    }
+  ],
+  "exit_criteria": [
+    {"id": "G1", "criterion": "Two-workflow evidence (M2+). Two independent genuine user workflows not expressible losslessly through current NOOP primitives demonstrated and recorded in #79.", "gate": "M2+"},
+    {"id": "G2", "criterion": "Invariant repaired on main (M3). #76 §4 violation (explicit-No baseline) fixed on both platforms with synthetic vectors and oracle parity.", "gate": "M3"},
+    {"id": "G3", "criterion": "Locked contract + adjudicated receipt. #76 contract locked before day 1; #77 receipt with verdict from predeclared rule.", "gate": "M2+"},
+    {"id": "G4", "criterion": "Falsification plan executed. At least one F-criterion tested with adequate coverage and result recorded.", "gate": "M2+"},
+    {"id": "G5", "criterion": "Input tier invariant enforced. No self_report or agent_inferred in primary learning outcome fields in any receipt.", "gate": "M3"},
+    {"id": "G6", "criterion": "Fork gates on exact head. gate isolate then gate union on throwaway ref. BLOCKED/NOT_EXECUTED recorded as such.", "gate": "All"},
+    {"id": "G7", "criterion": "Human burden stated and bounded. 0 new minutes/day (reuses existing Journal questions; Breathe opt-in, default OFF).", "gate": "All"},
+    {"id": "G8", "criterion": "Stop date: 2026-11-21. If G1 not collected, exploration dropped or re-scoped; result kept.", "gate": "All"}
+  ],
+  "governance": {
+    "chain_position": 5,
+    "predecessors": ["#76 PR #176", "#77 PR #177", "#85 PR #178", "#84 PR #179"],
+    "burden_minutes_per_day": 0,
+    "trial_burden_seconds_per_day": 15,
+    "stop_date": "2026-11-21",
+    "receipt_recorded": false
+  }
+}
