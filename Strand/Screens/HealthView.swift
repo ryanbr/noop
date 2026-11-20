@@ -338,6 +338,11 @@ private struct HeartRateSection: View {
             hrHistory.append(LiveHRSample(date: now, bpm: Double(v)))
             if hrHistory.count > 180 { hrHistory.removeFirst(hrHistory.count - 180) }
         }
+        // A live-HR surface arms the realtime stream while it is on screen, ref-counted with Live, workouts
+        // and Breathe. Without it this card sat on "Awaiting strap" unless another surface had armed the
+        // stream. Twin of Android HealthScreen's requestRealtimeHr / releaseRealtimeHr.
+        .onAppear { model.startRealtimeHR() }
+        .onDisappear { model.stopRealtimeHR() }
     }
 
     /// The hero chart body: a tall, time-aware HR line tinted to the current zone, with a
