@@ -186,7 +186,7 @@ struct RecentWorkoutChip: View {
         Button(action: onTap) {
             HStack(spacing: NoopMetrics.space2) {
                 WorkoutTypeIcon(workoutType: sport.name, size: 18, weight: .semibold, color: accent)
-                Text(sport.name)
+                Text(WorkoutSource.displaySport(sport.name))
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
@@ -197,7 +197,7 @@ struct RecentWorkoutChip: View {
             .contentShape(Capsule())
         }
         .nativeLiquidGlassWorkoutSelectionControl(capsule: true)
-        .accessibilityLabel(Text("\(sport.name) workout"))
+        .accessibilityLabel(Text("\(WorkoutSource.displaySport(sport.name)) workout"))
         .accessibilityHint(Text("Double tap to start"))
     }
 }
@@ -222,7 +222,7 @@ struct WorkoutSelectionCard: View {
                     .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: NoopMetrics.space1) {
-                    Text(sport.name)
+                    Text(WorkoutSource.displaySport(sport.name))
                         .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.textPrimary)
                         .multilineTextAlignment(.leading)
@@ -257,8 +257,9 @@ struct WorkoutSelectionCard: View {
 
     private var accessibilityLabelText: String {
         let labels = meta.map(\.text)
-        if labels.isEmpty { return "\(sport.name) workout" }
-        return "\(sport.name) workout, \(labels.joined(separator: ", "))"
+        let name = WorkoutSource.displaySport(sport.name)
+        if labels.isEmpty { return String(localized: "\(name) workout") }
+        return String(localized: "\(name) workout, \(labels.joined(separator: ", "))")
     }
 }
 

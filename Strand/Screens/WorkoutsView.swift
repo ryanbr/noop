@@ -1626,7 +1626,7 @@ struct WorkoutsView: View {
         case .detected:
             Menu("Re-label as") {
                 ForEach(Self.relabelSports, id: \.self) { sport in
-                    Button(sport) { relabel(row, to: sport) }
+                    Button(WorkoutSource.displaySport(sport)) { relabel(row, to: sport) }
                 }
             }
             Button("Edit details…") { editWorkout(row) }
@@ -1645,7 +1645,7 @@ struct WorkoutsView: View {
     /// A manual-source copy of an imported row, so "Duplicate as manual" opens the add sheet pre-filled
     /// without ever mutating the imported original (the sheet saves under the strap source).
     private func asManualCopy(_ row: WorkoutRow) -> WorkoutRow {
-        WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: WorkoutSource.displaySport(row.sport),
+        WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: WorkoutSource.editableSport(row.sport),
                    source: "manual", durationS: row.durationS, energyKcal: row.energyKcal,
                    avgHr: row.avgHr, maxHr: row.maxHr, strain: row.strain, distanceM: row.distanceM,
                    zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps)

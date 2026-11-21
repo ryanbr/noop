@@ -162,7 +162,12 @@ enum WorkoutCatalog {
     static func matching(_ query: String) -> [Sport] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return all }
-        return all.filter { $0.name.range(of: q, options: .caseInsensitive) != nil }
+        // Match the stored English name and the name shown in the reader's language.
+        return all.filter {
+            $0.name.range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+                || WorkoutSource.displaySport($0.name)
+                    .range(of: q, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
     }
 
     /// Sports where a step count is meaningful , feet on the ground , so the workout summary can show
