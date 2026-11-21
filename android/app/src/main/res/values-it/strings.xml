@@ -2828,4 +2828,24 @@
     <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
     <string name="today_customize_live_session_availability">Compare oggi se le sessioni in diretta sono attivate nelle Impostazioni o una sessione è attiva.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Oggi a modo tuo, frequenza cardiaca leggibile da ogni app e l\'italiano</string>
+    <string name="weekly_digest_balance_overreaching">Questa settimana il tuo Sforzo ha superato la tua Carica: sei andato in rosso. Attenzione a un calo del recupero.</string>
+    <string name="weekly_digest_balance_balanced">Sforzo e Carica sono andati di pari passo questa settimana: un carico sostenibile.</string>
+    <string name="weekly_digest_balance_underloaded">Questa settimana hai avuto più Carica di quanta ne hai spesa: c\'è margine per spingere, se vuoi.</string>
+    <string name="weekly_digest_balance_insufficient">Non ci sono abbastanza giorni con Sforzo e Carica questa settimana per leggere il tuo equilibrio.</string>
+    <string name="weekly_digest_mover_up">%1$s è in aumento di %2$s rispetto alla settimana scorsa (media %3$d contro %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s è in calo di %2$s rispetto alla settimana scorsa (media %3$d contro %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s senza variazioni rispetto alla settimana scorsa (media %2$d contro %3$d)</string>
+    <string name="weekly_digest_points">%1$s pt</string>
+    <string name="weekly_digest_steady_rest">Una settimana stabile: il Riposo è rimasto costante (±%1$s pt) e nulla si è mosso molto.</string>
+    <string name="weekly_digest_steady">Una settimana stabile: nessuna metrica si è mossa in modo significativo rispetto alla settimana scorsa.</string>
+    <string name="weekly_digest_good_sign">%1$s, un buon segno.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, da tenere d\'occhio.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Solo %1$d giorno di questa settimana finora, troppo presto per parlare di una tendenza settimanale.</item>
+        <item quantity="other">Solo %1$d giorni di questa settimana finora, troppo presto per parlare di una tendenza settimanale.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">La settimana scorsa aveva solo %1$d giorno di dati, quindi le variazioni settimanali sono approssimative, non una tendenza.</item>
+        <item quantity="other">La settimana scorsa aveva solo %1$d giorni di dati, quindi le variazioni settimanali sono approssimative, non una tendenza.</item>
+    </plurals>
 </resources>

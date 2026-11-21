@@ -163,6 +163,77 @@ enum class BalanceRead {
         }
 }
 
+/**
+ * One weekly-digest focal point as data rather than prose, so the card can localize it. [englishText] is
+ * the sentence [WeeklyDigest.focalPoints] carries, byte for byte. Mirrors Swift `DigestFocalLine`.
+ */
+sealed class DigestFocalLine {
+    /**
+     * How far a mover moved: a whole percentage, or (when the percentage is under 1 or undefined) an
+     * absolute amount already rounded to one decimal, in the metric's unit (empty = Charge/Effort/Rest points).
+     */
+    sealed class Magnitude {
+        data class Percent(val value: Int) : Magnitude()
+        data class Amount(val value: Double, val unit: String) : Magnitude()
+    }
+
+    /** A week-over-week mover. [direction] is the sign of the move; [goodness] is `wowGoodness`. */
+    data class Mover(
+        val metric: WeeklyMetric,
+        val direction: Int,
+        val magnitude: Magnitude,
+        val goodness: Int,
+        val thisAverage: Int,
+        val lastAverage: Int,
+    ) : DigestFocalLine()
+
+    /** A non-trivial strain-vs-recovery read ([BalanceRead.sentence]). */
+    data class Balance(val read: BalanceRead) : DigestFocalLine()
+
+    /** This week has fewer than MIN_DAYS_FOR_FOCUS days so far. */
+    data class CurrentWeekSparse(val days: Int) : DigestFocalLine()
+
+    /** Last week had fewer than MIN_DAYS_FOR_FOCUS days. */
+    data class PreviousWeekSparse(val days: Int) : DigestFocalLine()
+
+    /** Nothing moved and Rest held within the steadiness band (SD rounded to one decimal). */
+    data class SteadyRest(val sd: Double) : DigestFocalLine()
+
+    /** Nothing moved meaningfully. */
+    object Steady : DigestFocalLine()
+
+    val englishText: String
+        get() = when (this) {
+            is Mover -> {
+                val directionWord = if (direction > 0) "up" else if (direction < 0) "down" else "flat"
+                val magnitudeText = when (val m = magnitude) {
+                    is Magnitude.Percent -> "${m.value}%"
+                    is Magnitude.Amount -> "${m.value}${if (m.unit.isEmpty()) " pts" else " ${m.unit}"}"
+                }
+                val frame = when (goodness) {
+                    1 -> ", a good sign"
+                    -1 -> ", worth a look"
+                    else -> ""
+                }
+                "${metric.label} is $directionWord $magnitudeText week over week " +
+                    "(avg $thisAverage vs $lastAverage)$frame."
+            }
+            is Balance -> read.sentence
+            is CurrentWeekSparse -> {
+                val dayWord = if (days == 1) "day" else "days"
+                "Only $days $dayWord into this week so far, too early to " +
+                    "call a week-over-week trend yet."
+            }
+            is PreviousWeekSparse -> {
+                val dayWord = if (days == 1) "day" else "days"
+                "Last week only had $days $dayWord of data, so week-over-week " +
+                    "changes are rough, not a trend."
+            }
+            is SteadyRest -> "A steady week: Rest held even (±$sd pts) and nothing moved much."
+            Steady -> "A steady week: no metric moved meaningfully from last week."
+        }
+}
+
 /** The complete week-in-review. */
 data class WeeklyDigest(
     /** The Monday that anchors "this week" ("yyyy-MM-dd"). */
@@ -179,6 +250,8 @@ data class WeeklyDigest(
     val balance: BalanceRead,
     /** 1–2 plain-English focal points, most salient first. */
     val focalPoints: List<String>,
+    /** The same focal points as structured values, in the same order (see [DigestFocalLine]). */
+    val focalLines: List<DigestFocalLine> = emptyList(),
 ) {
     fun summary(metric: WeeklyMetric): WeeklyMetricSummary? = metrics.firstOrNull { it.metric == metric }
 
@@ -245,12 +318,12 @@ object WeeklyDigestEngine {
         val restConsistency = if ((restStat?.n ?: 0) >= 2) restStat?.stdev else null
 
         val balance = balanceRead(summaries)
-        val focal = focalPoints(summaries, balance, restConsistency, effortDisplayFactor)
+        val focal = focalLines(summaries, balance, restConsistency, effortDisplayFactor)
 
         return WeeklyDigest(
             weekStart = monday, weekEnd = sunday, metrics = summaries,
             daysWithData = daysSeen.size, sleepConsistencySD = restConsistency,
-            balance = balance, focalPoints = focal,
+            balance = balance, focalPoints = focal.map { it.englishText }, focalLines = focal,
         )
     }
 
@@ -335,12 +408,16 @@ object WeeklyDigestEngine {
 
     // MARK: - Focal points
 
-    private fun focalPoints(
+    /**
+     * The 1–2 focal points as structured lines, most salient first (see [DigestFocalLine]).
+     * Swift twin: `WeeklyDigestEngine.focalLines`.
+     */
+    internal fun focalLines(
         summaries: List<WeeklyMetricSummary>,
         balance: BalanceRead,
         consistencySD: Double?,
         effortDisplayFactor: Double = 1.0,
-    ): List<String> {
+    ): List<DigestFocalLine> {
         val movers = summaries
             .filter {
                 it.weekOverWeek.current.n >= MIN_DAYS_FOR_FOCUS &&
@@ -349,14 +426,14 @@ object WeeklyDigestEngine {
             }
             .sortedByDescending { abs(it.normalisedMove) }
 
-        val lines = mutableListOf<String>()
+        val lines = mutableListOf<DigestFocalLine>()
 
-        movers.firstOrNull()?.let { lines.add(moverSentence(it, effortDisplayFactor)) }
+        movers.firstOrNull()?.let { lines.add(moverLine(it, effortDisplayFactor)) }
 
         if (balance == BalanceRead.OVERREACHING || balance == BalanceRead.UNDERLOADED) {
-            lines.add(balance.sentence)
+            lines.add(DigestFocalLine.Balance(balance))
         } else if (movers.size >= 2) {
-            lines.add(moverSentence(movers[1], effortDisplayFactor))
+            lines.add(moverLine(movers[1], effortDisplayFactor))
         }
 
         // Nothing cleared the mover bar. Distinguish three very different reasons:
@@ -370,21 +447,13 @@ object WeeklyDigestEngine {
             val currentDays = summaries.maxOfOrNull { it.weekOverWeek.current.n } ?: 0
             val prevDays = summaries.maxOfOrNull { it.weekOverWeek.previous.n } ?: 0
             if (currentDays in 1 until MIN_DAYS_FOR_FOCUS) {
-                val dayWord = if (currentDays == 1) "day" else "days"
-                lines.add(
-                    "Only $currentDays $dayWord into this week so far, too early to " +
-                        "call a week-over-week trend yet.",
-                )
+                lines.add(DigestFocalLine.CurrentWeekSparse(currentDays))
             } else if (currentDays >= MIN_DAYS_FOR_FOCUS && prevDays in 1 until MIN_DAYS_FOR_FOCUS) {
-                val dayWord = if (prevDays == 1) "day" else "days"
-                lines.add(
-                    "Last week only had $prevDays $dayWord of data, so week-over-week " +
-                        "changes are rough, not a trend.",
-                )
+                lines.add(DigestFocalLine.PreviousWeekSparse(prevDays))
             } else if (consistencySD != null && consistencySD <= 6.0) {
-                lines.add("A steady week: Rest held even (±${round1(consistencySD)} pts) and nothing moved much.")
+                lines.add(DigestFocalLine.SteadyRest(round1(consistencySD)))
             } else {
-                lines.add("A steady week: no metric moved meaningfully from last week.")
+                lines.add(DigestFocalLine.Steady)
             }
         }
 
@@ -396,24 +465,30 @@ object WeeklyDigestEngine {
      * [effortDisplayFactor] rescales the EFFORT averages (and its pts fallback) for
      * display only — % is scale-invariant.
      */
-    private fun moverSentence(s: WeeklyMetricSummary, effortDisplayFactor: Double = 1.0): String {
+    private fun moverSentence(s: WeeklyMetricSummary, effortDisplayFactor: Double = 1.0): String =
+        moverLine(s, effortDisplayFactor).englishText
+
+    /**
+     * [moverSentence] as a structured line (see [DigestFocalLine.Mover]).
+     * Swift twin: `WeeklyDigestEngine.moverLine`.
+     */
+    private fun moverLine(s: WeeklyMetricSummary, effortDisplayFactor: Double = 1.0): DigestFocalLine {
         val f = if (s.metric == WeeklyMetric.EFFORT) effortDisplayFactor else 1.0
-        val directionWord = if (s.wowDelta > 0) "up" else if (s.wowDelta < 0) "down" else "flat"
+        val direction = if (s.wowDelta > 0) 1 else if (s.wowDelta < 0) -1 else 0
         val pct = s.weekOverWeek.pctChange
         val magnitude = if (pct != null && abs(pct) >= 1) {
-            "${abs(pct).roundToInt()}%"
+            DigestFocalLine.Magnitude.Percent(abs(pct).roundToInt())
         } else {
-            val suffix = if (s.metric.unit.isEmpty()) " pts" else " ${s.metric.unit}"
-            "${round1(abs(s.wowDelta) * f)}$suffix"
+            DigestFocalLine.Magnitude.Amount(round1(abs(s.wowDelta) * f), s.metric.unit)
         }
-        val frame = when (s.wowGoodness) {
-            1 -> ", a good sign"
-            -1 -> ", worth a look"
-            else -> ""
-        }
-        val thisAvg = (s.thisWeek.mean * f).roundToInt()
-        val lastAvg = (s.weekOverWeek.previous.mean * f).roundToInt()
-        return "${s.metric.label} is $directionWord $magnitude week over week (avg $thisAvg vs $lastAvg)$frame."
+        return DigestFocalLine.Mover(
+            metric = s.metric,
+            direction = direction,
+            magnitude = magnitude,
+            goodness = s.wowGoodness,
+            thisAverage = (s.thisWeek.mean * f).roundToInt(),
+            lastAverage = (s.weekOverWeek.previous.mean * f).roundToInt(),
+        )
     }
 
     // MARK: - Range extraction

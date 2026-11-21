@@ -2876,4 +2876,28 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="weekly_digest_balance_overreaching">W tym tygodniu Twój Wysiłek przewyższył Twoją Energię: wszedłeś na czerwone. Uważaj na spadek regeneracji.</string>
+    <string name="weekly_digest_balance_balanced">Wysiłek i Energia szły w tym tygodniu w parze: zrównoważone obciążenie.</string>
+    <string name="weekly_digest_balance_underloaded">W tym tygodniu miałeś więcej Energii, niż zużyłeś: jest miejsce, by docisnąć, jeśli chcesz.</string>
+    <string name="weekly_digest_balance_insufficient">Za mało dni z Wysiłkiem i Energią w tym tygodniu, by ocenić Twoją równowagę.</string>
+    <string name="weekly_digest_mover_up">%1$s: wzrost o %2$s tydzień do tygodnia (średnio %3$d wobec %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s: spadek o %2$s tydzień do tygodnia (średnio %3$d wobec %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s: bez zmian tydzień do tygodnia (średnio %2$d wobec %3$d)</string>
+    <string name="weekly_digest_points">%1$s pkt</string>
+    <string name="weekly_digest_steady_rest">Stabilny tydzień: Odpoczynek był równy (±%1$s pkt) i nic się specjalnie nie zmieniło.</string>
+    <string name="weekly_digest_steady">Stabilny tydzień: żaden wskaźnik nie zmienił się istotnie względem zeszłego tygodnia.</string>
+    <string name="weekly_digest_good_sign">%1$s, to dobry znak.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, warto się przyjrzeć.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Dopiero %1$d dzień tego tygodnia, za wcześnie na trend tydzień do tygodnia.</item>
+        <item quantity="few">Dopiero %1$d dni tego tygodnia, za wcześnie na trend tydzień do tygodnia.</item>
+        <item quantity="many">Dopiero %1$d dni tego tygodnia, za wcześnie na trend tydzień do tygodnia.</item>
+        <item quantity="other">Dopiero %1$d dni tego tygodnia, za wcześnie na trend tydzień do tygodnia.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">W zeszłym tygodniu był tylko %1$d dzień danych, więc zmiany tydzień do tygodnia są przybliżone, a nie trendem.</item>
+        <item quantity="few">W zeszłym tygodniu było tylko %1$d dni danych, więc zmiany tydzień do tygodnia są przybliżone, a nie trendem.</item>
+        <item quantity="many">W zeszłym tygodniu było tylko %1$d dni danych, więc zmiany tydzień do tygodnia są przybliżone, a nie trendem.</item>
+        <item quantity="other">W zeszłym tygodniu było tylko %1$d dni danych, więc zmiany tydzień do tygodnia są przybliżone, a nie trendem.</item>
+    </plurals>
 </resources>

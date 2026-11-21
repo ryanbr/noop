@@ -2859,4 +2859,24 @@
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
     <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Aujourd\'hui à votre façon, fréquence cardiaque lisible par toute application, et l\'italien</string>
+    <string name="weekly_digest_balance_overreaching">Ton Effort a dépassé ta Charge cette semaine : tu as tiré sur la corde. Surveille une baisse de récupération.</string>
+    <string name="weekly_digest_balance_balanced">Effort et Charge ont évolué ensemble cette semaine : une charge soutenable.</string>
+    <string name="weekly_digest_balance_underloaded">Tu as eu plus de Charge que tu n\'en as dépensé cette semaine : il y a de la marge pour pousser si tu veux.</string>
+    <string name="weekly_digest_balance_insufficient">Pas assez de jours avec Effort et Charge cette semaine pour lire ton équilibre.</string>
+    <string name="weekly_digest_mover_up">%1$s est en hausse de %2$s par rapport à la semaine précédente (moy. %3$d contre %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s est en baisse de %2$s par rapport à la semaine précédente (moy. %3$d contre %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s : stable par rapport à la semaine précédente (moy. %2$d contre %3$d)</string>
+    <string name="weekly_digest_points">%1$s pts</string>
+    <string name="weekly_digest_steady_rest">Une semaine stable : le Repos est resté régulier (±%1$s pts) et rien n\'a beaucoup bougé.</string>
+    <string name="weekly_digest_steady">Une semaine stable : aucune mesure n\'a bougé de façon notable depuis la semaine dernière.</string>
+    <string name="weekly_digest_good_sign">%1$s, bon signe.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, à surveiller.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Seulement %1$d jour écoulé cette semaine, trop tôt pour parler d\'une tendance d\'une semaine à l\'autre.</item>
+        <item quantity="other">Seulement %1$d jours écoulés cette semaine, trop tôt pour parler d\'une tendance d\'une semaine à l\'autre.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">La semaine dernière n\'avait qu\'%1$d jour de données, donc les écarts d\'une semaine à l\'autre sont approximatifs, pas une tendance.</item>
+        <item quantity="other">La semaine dernière n\'avait que %1$d jours de données, donc les écarts d\'une semaine à l\'autre sont approximatifs, pas une tendance.</item>
+    </plurals>
 </resources>

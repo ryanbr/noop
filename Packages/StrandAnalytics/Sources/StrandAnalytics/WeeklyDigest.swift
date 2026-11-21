@@ -390,6 +390,7 @@ public enum WeeklyDigestEngine {
     }
 
     /// `focalPoints` as structured lines (see `DigestFocalLine`).
+    /// Kotlin twin: `WeeklyDigestEngine.focalLines`.
     static func focalLines(summaries: [WeeklyMetricSummary],
                            balance: BalanceRead,
                            consistencySD: Double?,
@@ -451,6 +452,7 @@ public enum WeeklyDigestEngine {
     }
 
     /// `moverSentence` as a structured line (see `DigestFocalLine.mover`).
+    /// Kotlin twin: `WeeklyDigestEngine.moverLine`.
     static func moverLine(_ s: WeeklyMetricSummary,
                           effortDisplayFactor: Double = 1.0) -> DigestFocalLine {
         let f = s.metric == .effort ? effortDisplayFactor : 1.0

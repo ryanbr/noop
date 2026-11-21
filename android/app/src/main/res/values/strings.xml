@@ -2889,4 +2889,24 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="weekly_digest_balance_overreaching">Your Effort outpaced your Charge this week: you leaned into the red. Watch for a recovery dip.</string>
+    <string name="weekly_digest_balance_balanced">Effort and Charge tracked together this week: a sustainable load.</string>
+    <string name="weekly_digest_balance_underloaded">You carried more Charge than you spent this week: there\'s room to push if you want it.</string>
+    <string name="weekly_digest_balance_insufficient">Not enough Effort and Charge days this week to read your balance.</string>
+    <string name="weekly_digest_mover_up">%1$s is up %2$s week over week (avg %3$d vs %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s is down %2$s week over week (avg %3$d vs %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s is unchanged week over week (avg %2$d vs %3$d)</string>
+    <string name="weekly_digest_points">%1$s pts</string>
+    <string name="weekly_digest_steady_rest">A steady week: Rest held even (±%1$s pts) and nothing moved much.</string>
+    <string name="weekly_digest_steady">A steady week: no metric moved meaningfully from last week.</string>
+    <string name="weekly_digest_good_sign">%1$s, a good sign.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, worth a look.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Only %1$d day into this week so far, too early to call a week-over-week trend yet.</item>
+        <item quantity="other">Only %1$d days into this week so far, too early to call a week-over-week trend yet.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">Last week only had %1$d day of data, so week-over-week changes are rough, not a trend.</item>
+        <item quantity="other">Last week only had %1$d days of data, so week-over-week changes are rough, not a trend.</item>
+    </plurals>
 </resources>

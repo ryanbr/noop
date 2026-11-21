@@ -2860,4 +2860,24 @@
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoy si Live Sessions está activado en Ajustes o hay una sesión activa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoy a tu manera, frecuencia cardíaca para cualquier aplicación e italiano</string>
+    <string name="weekly_digest_balance_overreaching">Tu Esfuerzo superó tu Carga esta semana: te metiste en rojo. Atento a una bajada de la recuperación.</string>
+    <string name="weekly_digest_balance_balanced">Esfuerzo y Carga fueron de la mano esta semana: una carga sostenible.</string>
+    <string name="weekly_digest_balance_underloaded">Esta semana tuviste más Carga de la que gastaste: hay margen para apretar si quieres.</string>
+    <string name="weekly_digest_balance_insufficient">No hay suficientes días con Esfuerzo y Carga esta semana para leer tu equilibrio.</string>
+    <string name="weekly_digest_mover_up">%1$s sube un %2$s respecto a la semana anterior (media %3$d frente a %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s baja un %2$s respecto a la semana anterior (media %3$d frente a %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s no cambia respecto a la semana anterior (media %2$d frente a %3$d)</string>
+    <string name="weekly_digest_points">%1$s pts</string>
+    <string name="weekly_digest_steady_rest">Una semana estable: el Descanso se mantuvo parejo (±%1$s pts) y nada se movió mucho.</string>
+    <string name="weekly_digest_steady">Una semana estable: ninguna métrica cambió de forma significativa respecto a la semana pasada.</string>
+    <string name="weekly_digest_good_sign">%1$s, una buena señal.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, merece un vistazo.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Solo llevamos %1$d día de esta semana, aún es pronto para hablar de una tendencia semanal.</item>
+        <item quantity="other">Solo llevamos %1$d días de esta semana, aún es pronto para hablar de una tendencia semanal.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">La semana pasada solo tuvo %1$d día de datos, así que los cambios semanales son aproximados, no una tendencia.</item>
+        <item quantity="other">La semana pasada solo tuvo %1$d días de datos, así que los cambios semanales son aproximados, no una tendencia.</item>
+    </plurals>
 </resources>
