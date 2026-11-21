@@ -26750,7 +26750,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uma receita cardiorrespiratória transparente que recupera melhor o REM profundo e o REM do que o estadiamento padrão. Ativado e experimental: altera apenas a forma como as noites já detetadas são divididas em fases (a deteção e as pontuações permanecem inalteradas), e o teste padrão permanece em vigor se deixar esta opção desativada. Entra em vigor nas próximas noites encenadas."
+            "value": "Uma receita cardiorrespiratória transparente que recupera melhor o sono profundo e o REM do que a classificação padrão. Ativado e experimental: altera apenas a forma como as noites já detetadas são divididas em fases (a deteção e as pontuações permanecem inalteradas), e o teste padrão permanece em vigor se deixar esta opção desativada. Entra em vigor nas próximas noites encenadas."
           }
         },
         "ru": {
@@ -26808,7 +26808,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uma receita cardiorrespiratória transparente que recupera melhor o REM profundo e o REM do que o antigo estadiamento V1 e é agora o padrão. Isto apenas altera a forma como as noites já detetadas são divididas em fases (a deteção e as pontuações permanecem inalteradas); desligue-o para voltar a V1. Entra em vigor nas próximas noites encenadas."
+            "value": "Uma receita cardiorrespiratória transparente que recupera melhor o sono profundo e o REM do que a antiga classificação V1 e é agora o padrão. Isto apenas altera a forma como as noites já detetadas são divididas em fases (a deteção e as pontuações permanecem inalteradas); desligue-o para voltar a V1. Entra em vigor nas próximas noites encenadas."
           }
         },
         "pl": {
@@ -27632,7 +27632,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "AVG RH"
+            "value": "FC MÉD."
           }
         },
         "ru": {
@@ -33054,7 +33054,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tudo o que necessite da nuvem da Oura (painel web, treinadoring da Oura, círculos partilhados)."
+            "value": "Tudo o que necessite da nuvem da Oura (painel web, orientação da Oura, círculos partilhados)."
           }
         },
         "ru": {
@@ -36394,7 +36394,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Média de RH"
+            "value": "FC média"
           }
         },
         "ru": {
@@ -42640,7 +42640,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Transmitir RH a partir deste telefone"
+            "value": "Transmitir FC a partir deste telefone"
           }
         },
         "pl": {
@@ -44213,7 +44213,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia de zumbido"
+            "value": "Vibrar a bracelete"
           }
         },
         "ru": {
@@ -71748,7 +71748,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estadiamento experimental do sono (V2)"
+            "value": "Classificação experimental das fases do sono (V2)"
           }
         },
         "ru": {
@@ -71864,7 +71864,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Experimental · Estadiamento do sono"
+            "value": "Experimental · Classificação das fases do sono"
           }
         },
         "ru": {
@@ -78543,7 +78543,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "RH %@ · Esforço %@"
+            "value": "FC %@ · Esforço %@"
           }
         },
         "ru": {
@@ -78601,7 +78601,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "ZONA RH"
+            "value": "ZONA DE FC"
           }
         },
         "ru": {
@@ -78665,7 +78665,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zonas de RH"
+            "value": "Zonas de FC"
           }
         },
         "ru": {
@@ -78723,7 +78723,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zonas de RH (todas)"
+            "value": "Zonas de FC (todas)"
           }
         },
         "ru": {
@@ -78781,7 +78781,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zonas de RH 1–3"
+            "value": "Zonas de FC 1–3"
           }
         },
         "ru": {
@@ -78839,7 +78839,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zonas de RH 4–5"
+            "value": "Zonas de FC 4–5"
           }
         },
         "ru": {
@@ -79089,7 +79089,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O RH liquidou %1$lld → %2$lld sobre %3$@."
+            "value": "A FC estabilizou de %1$lld → %2$lld ao longo de %3$@."
           }
         },
         "ru": {
@@ -79147,7 +79147,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O RH acertou %@."
+            "value": "A FC estabilizou ao longo de %@."
           }
         },
         "ru": {
@@ -79205,7 +79205,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "RH indisponível"
+            "value": "FC indisponível"
           }
         },
         "ru": {
@@ -79315,7 +79315,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Treinadoring da zona de RH"
+            "value": "Orientação por zonas de FC"
           }
         },
         "ru": {
@@ -92063,7 +92063,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "APENAS RH AO VIVO"
+            "value": "APENAS FC EM DIRETO"
           }
         },
         "ru": {
@@ -96387,7 +96387,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "RH em direto (não totalmente emparelhado)"
+            "value": "FC em direto (não totalmente emparelhada)"
           }
         },
         "ru": {
@@ -96503,7 +96503,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O RH em direto funciona. Liberte a bracelete para desbloquear o buzz, os alarmes e a sincronização"
+            "value": "A FC em direto funciona. Liberta a bracelete para desbloquear a vibração, os alarmes e a sincronização"
           }
         },
         "ru": {
@@ -100114,7 +100114,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encenação de baixa confiança. Esta noite teve alta eficiência, mas muito pouco profundo ou REM, mais provavelmente uma estimativa errada do que um défice restaurador real."
+            "value": "Classificação das fases com baixa confiança. Esta noite teve alta eficiência, mas muito pouco profundo ou REM, mais provavelmente uma estimativa errada do que um défice restaurador real."
           }
         },
         "ru": {
@@ -102522,7 +102522,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "RH máximo"
+            "value": "FC máxima"
           }
         },
         "ru": {
@@ -103069,7 +103069,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "RH médio"
+            "value": "FC média"
           }
         },
         "ru": {
@@ -109317,7 +109317,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Necessita do vínculo encriptado completo: feche a aplicação oficial do WHOOP e emparelhe primeiro a bracelete com o NOOP (um link apenas de RH em direto não pode realizar o desbloqueio)."
+            "value": "Necessita do vínculo encriptado completo: feche a aplicação oficial do WHOOP e emparelhe primeiro a bracelete com o NOOP (um link apenas de FC em direto não pode realizar o desbloqueio)."
           }
         },
         "ru": {
@@ -112311,7 +112311,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem leitura em direto. O treinadoring é pausado até que a bracelete volte."
+            "value": "Sem leitura em direto. A orientação fica em pausa até a bracelete voltar."
           }
         },
         "ru": {
@@ -113657,7 +113657,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem valor de RH em repouso"
+            "value": "Sem valor de FC em repouso"
           }
         },
         "ru": {
@@ -123157,7 +123157,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estadiamento do sono noturno, frequência cardíaca em repouso, tendência da temperatura da pele, movimento e bateria, lidos diretamente no anel."
+            "value": "Fases do sono noturno, frequência cardíaca em repouso, tendência da temperatura da pele, movimento e bateria, lidos diretamente no anel."
           }
         },
         "ru": {
@@ -134545,7 +134545,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Regista um treino de máquina em direto, com pontuação de esforço do RH quando a máquina reporta que"
+            "value": "Regista um treino de máquina em direto, com pontuação de esforço da FC quando a máquina reporta que"
           }
         },
         "ru": {
@@ -151662,7 +151662,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encenação do sono"
+            "value": "Classificação das fases do sono"
           }
         },
         "ru": {
@@ -151732,7 +151732,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estadiamento do sono (V2)"
+            "value": "Classificação das fases do sono (V2)"
           }
         },
         "pl": {
@@ -153746,7 +153746,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O RH padrão não é um vínculo completo"
+            "value": "A FC padrão não é um vínculo completo"
           }
         },
         "ru": {
@@ -157338,7 +157338,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia aceita bandeiras %lld/15 R22…"
+            "value": "A bracelete aceitou %lld/15 marcas R22…"
           }
         },
         "ru": {
@@ -157664,7 +157664,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia colada"
+            "value": "Bracelete emparelhada"
           }
         },
         "ru": {
@@ -157838,7 +157838,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia totalmente carregada"
+            "value": "Bracelete totalmente carregada"
           }
         },
         "ru": {
@@ -158012,7 +158012,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia ociosa"
+            "value": "Bracelete inativa"
           }
         },
         "ru": {
@@ -158244,7 +158244,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia necessária"
+            "value": "Bracelete necessária"
           }
         },
         "ru": {
@@ -158308,7 +158308,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia não ligada"
+            "value": "Bracelete não ligada"
           }
         },
         "ru": {
@@ -158424,7 +158424,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia não utilizada"
+            "value": "Bracelete não colocada"
           }
         },
         "ru": {
@@ -176669,7 +176669,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correia WHOOP (BLE em direto)"
+            "value": "Bracelete WHOOP (BLE em direto)"
           }
         },
         "ru": {
@@ -196478,7 +196478,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "ainda não há RH em direto"
+            "value": "ainda não há FC em direto"
           }
         },
         "ru": {
@@ -209333,7 +209333,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zonas de RH personalizadas"
+            "value": "Zonas de FC personalizadas"
           }
         },
         "ru": {

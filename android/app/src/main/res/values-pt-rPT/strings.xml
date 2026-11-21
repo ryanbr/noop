@@ -232,7 +232,7 @@
     <string name="l10n_automations_screen_enable_inactivity_reminder_468c3017">Ativar lembrete de inatividade</string>
     <string name="l10n_automations_screen_from_3f66052a">De</string>
     <string name="l10n_automations_screen_haptic_coaching_e2fab286">Treinamento háptico</string>
-    <string name="l10n_automations_screen_hr_zone_coaching_9306e6e1">Treinadoring da zona de RH</string>
+    <string name="l10n_automations_screen_hr_zone_coaching_9306e6e1">Orientação por zonas de FC</string>
     <string name="l10n_automations_screen_illness_early_warning_453ab477">Alerta precoce de doença</string>
     <string name="l10n_automations_screen_inactivity_reminder_ca49b1ba">Lembrete de inatividade</string>
     <string name="l10n_automations_screen_nap_detection_ca2dedf5">Deteção de sesta</string>
@@ -367,7 +367,7 @@
     <string name="l10n_data_sources_screen_auto_sync_health_connect_periodically_6f3f4d92">Sincronizar automaticamente o Health Connect periodicamente</string>
     <string name="l10n_data_sources_screen_auto_sync_periodically_5f3041e8">Sincronizar automaticamente periodicamente</string>
     <string name="l10n_data_sources_screen_broadcast_heart_rate_as_a_bluetooth_6a44fdb4">Transmita a frequência cardíaca como um sensor Bluetooth</string>
-    <string name="l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c">Transmitir RH a partir deste telefone</string>
+    <string name="l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c">Transmitir FC a partir deste telefone</string>
     <string name="l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a">A transmissão da frequência cardíaca está LIGADA. Este telemóvel transmite a frequência cardíaca continuamente, o que mantém o Bluetooth ativo e descarrega a bateria mais depressa. Desliga-a quando não a estiveres a usar com outro dispositivo.</string>
     <string name="l10n_data_sources_screen_cancel_77dfd213">Cancelar</string>
     <string name="l10n_data_sources_screen_data_sources_5e43d6bb">Fontes de dados</string>
@@ -403,7 +403,7 @@
     <string name="l10n_data_sources_screen_share_computed_metrics_back_to_health_c11f5d70">Partilhar as métricas calculadas de volta com o Health Connect</string>
     <string name="l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e">Isto exclui permanentemente tudo o que é importado do Apple Health: frequência cardíaca, VFC, sono, passos, treinos e muito mais. Os dados da tua bracelete em direto permanecem intactos. Isso não pode ser desfeito.</string>
     <string name="l10n_data_sources_screen_whoop_history_db101974">Histórico do WHOOP</string>
-    <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">Correia WHOOP (BLE em direto)</string>
+    <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">Bracelete WHOOP (BLE em direto)</string>
     <string name="l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068">Ficheiro de treino (GPX/TCX/FIT)</string>
     <string name="l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2">Escrever as métricas que o NOOP calcula a partir da tua bracelete (FC em repouso, VFC, SpO₂, respiratory rate, heart rate, steps, active energy and sleep) into Health Connect so other apps can use them. Only NOOP\'s own values are shared. Imported data is never echoed back.</string>
     <string name="l10n_data_sources_screen_xiaomi_mi_band_edeab3bc">Xiaomi Mi Banda</string>
@@ -488,7 +488,7 @@
     <string name="l10n_health_screen_one_reading_so_far_your_trend_eaad57f2">Uma leitura até agora – o teu gráfico de tendências é aqui preenchido uma vez por segundo reading lands.</string>
     <string name="l10n_health_screen_out_of_100_da0953a8">de 100</string>
     <string name="l10n_health_screen_respiratory_1cd8c175">Respiratório</string>
-    <string name="l10n_health_screen_resting_hr_26677094">Descansando RH</string>
+    <string name="l10n_health_screen_resting_hr_26677094">FC em repouso</string>
     <string name="l10n_health_screen_sleep_3cac34e6">Sono</string>
     <string name="l10n_health_screen_source_6da13add">Fonte</string>
     <string name="l10n_health_screen_title_subtitle_8d9004e8">%1$s. %2$s</string>
@@ -505,7 +505,7 @@
     <string name="l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff">Uma leitura de VFC precisa da transmissão R-R em direto. Abre o ecrã Em direto, liga a tua bracelete e volta.</string>
     <string name="l10n_hrv_snapshot_screen_beats_12aafda0">Batidas</string>
     <string name="l10n_hrv_snapshot_screen_hrvdial_4c244c45">hrvDial</string>
-    <string name="l10n_hrv_snapshot_screen_mean_hr_6c9272dd">RH médio</string>
+    <string name="l10n_hrv_snapshot_screen_mean_hr_6c9272dd">FC média</string>
     <string name="l10n_hrv_snapshot_screen_not_enough_clean_beats_sit_still_0893e6c2">Não há batidas limpas suficientes - fique quieto e tente novamente. %1$s de %2$s beats survived filtering (need %3$s).</string>
     <string name="l10n_hrv_snapshot_screen_rmssd_e240fd3c">RMSSD</string>
     <string name="l10n_hrv_snapshot_screen_sdnn_9ab9ee2a">SDNN</string>
@@ -623,7 +623,7 @@
     <string name="l10n_lab_book_screen_type_in_a_blood_pressure_reading_c276d418">Introduz uma leitura da tensão arterial ou um valor de colesterol da tua última consulta. Fica neste telemóvel e, com o tempo, vais ver como se relaciona com o teu sono, frequência cardíaca e recuperação.</string>
     <string name="l10n_lab_book_screen_what_lab_book_is_and_isn_f28686df">O que Lab Book é (e não é)</string>
     <string name="l10n_live_screen_manage_devices_e5c277ff">Gerir dispositivos</string>
-    <string name="l10n_live_screen_max_hr_6acd9e07">RH máximo</string>
+    <string name="l10n_live_screen_max_hr_6acd9e07">FC máxima</string>
     <string name="l10n_live_screen_rmssd_e240fd3c">RMSSD</string>
     <string name="l10n_live_screen_rmssd_roundtoint_ms_9e6c0887">%1$s senhora</string>
     <string name="l10n_live_screen_scan_and_connect_to_start_a_3e27b47b">Procura e liga para iniciar uma transmissão em direto.</string>
@@ -900,7 +900,7 @@
     <string name="l10n_stress_screen_no_stress_history_yet_ec962e3c">Ainda não há histórico de stress</string>
     <string name="l10n_stress_screen_reading_your_heart_rate_variability_and_c0249246">Leitura da variabilidade da frequência cardíaca e da frequência cardíaca em repouso…</string>
     <string name="l10n_stress_screen_reading_today_s_heart_rate_7491835a">Leitura da frequência cardíaca de hoje…</string>
-    <string name="l10n_stress_screen_resting_hr_26677094">Descansando RH</string>
+    <string name="l10n_stress_screen_resting_hr_26677094">FC em repouso</string>
     <string name="l10n_stress_screen_start_a_breathe_session_9619e5c0">Iniciar uma sessão de respiração</string>
     <string name="l10n_stress_screen_stress_bad33342">Stress</string>
     <string name="l10n_stress_screen_your_last_day_sustainedrun_hours_have_194825dd">As tuas últimas %1$s horas mantiveram-se na faixa alta. Alguns minutos of paced breathing can help downshift your nervous system.</string>
@@ -998,7 +998,7 @@
     <string name="l10n_wheel_picker_done_e9b450d1">Concluído</string>
     <string name="l10n_whoop_model_comparison_screen_4_0_vs_5_0_mg_56099a02">4,0 versus 5,0/MG</string>
     <string name="l10n_whoop_model_comparison_screen_5_mg_62eaa522">5/MG</string>
-    <string name="l10n_whoop_model_comparison_screen_both_straps_are_supported_8545557a">Ambas as tiras são suportadas</string>
+    <string name="l10n_whoop_model_comparison_screen_both_straps_are_supported_8545557a">Ambas as braceletes são suportadas</string>
     <string name="l10n_whoop_model_comparison_screen_cap_feature_whoop_4_0_cap_bc142cb8">%1$s. GRITO 4.0: %2$s. WHOOP 5 ou MG: %3$s.</string>
     <string name="l10n_whoop_model_comparison_screen_close_bbfa773e">Fechar</string>
     <string name="l10n_whoop_model_comparison_screen_done_e9b450d1">Concluído</string>
@@ -1040,7 +1040,7 @@
     <string name="l10n_workouts_screen_filter_by_sport_bcbbcb3b">Filtrar por desporto</string>
     <string name="l10n_workouts_screen_g_count_247d8c10">%1$s</string>
     <string name="l10n_workouts_screen_gps_124667d8">·GPS</string>
-    <string name="l10n_workouts_screen_hr_zones_293d7175">Zonas de RH</string>
+    <string name="l10n_workouts_screen_hr_zones_293d7175">Zonas de FC</string>
     <string name="l10n_workouts_screen_merge_ea8f0d02">Mesclar</string>
     <string name="l10n_workouts_screen_most_active_cf01766b">Mais ativo</string>
     <string name="l10n_workouts_screen_name_the_merged_session_031b0d8b">Nomeie a sessão mesclada</string>
@@ -1127,7 +1127,7 @@
     <string name="l10n_app_changelog_classic_chart_colours_a_throwback_toggle_e8150db5">Cores clássicas do gráfico - uma alternância de retrocesso</string>
     <string name="l10n_app_changelog_cleaner_live_status_better_sync_diagnostics_00ad8d26">Estado Live mais limpo + melhor diagnóstico de sincronização</string>
     <string name="l10n_app_changelog_cleaner_score_rings_a_few_fixes_7094ae7b">Anéis de pontuação mais limpos + algumas correções</string>
-    <string name="l10n_app_changelog_clearer_answers_when_your_strap_isn_154c8923">Respostas mais claras quando a tua bracelete não tem histórico bancário</string>
+    <string name="l10n_app_changelog_clearer_answers_when_your_strap_isn_154c8923">Respostas mais claras quando a tua bracelete não tem histórico guardado</string>
     <string name="l10n_app_changelog_clearer_labels_a_journal_fix_and_96b91b2a">Rótulos mais claros, correção do diário e frequência cardíaca durante o sono mais estável</string>
     <string name="l10n_app_changelog_clearer_pairing_guidance_for_whoop_5_91a7736b">Orientação de emparelhamento mais clara para WHOOP 5.0/MG</string>
     <string name="l10n_app_changelog_clearer_sync_status_6431bf19">Estado de sincronização mais claro</string>
@@ -1219,7 +1219,7 @@
     <string name="l10n_app_changelog_new_first_run_onboarding_mac_android_243bc0ad">Nova integração inicial (Mac + Android)</string>
     <string name="l10n_app_changelog_new_use_an_apple_watch_with_4c2c29a6">Novidade: use um Apple Watch com NOOP</string>
     <string name="l10n_app_changelog_new_week_in_review_a_live_c1457e40">Novidade: análise da semana, consola de corpo em direto, gráficos mais recentes e muito mais</string>
-    <string name="l10n_app_changelog_no_more_hr_spike_when_you_7dc052ba">Não há mais picos de RH quando reabre a aplicação</string>
+    <string name="l10n_app_changelog_no_more_hr_spike_when_you_7dc052ba">Não há mais picos de FC quando reabre a aplicação</string>
     <string name="l10n_app_changelog_noop_grows_up_it_s_not_823bf2e7">NOOP cresce: já não é só para WHOOP</string>
     <string name="l10n_app_changelog_noop_has_a_new_home_01b87522">A NOOP tem uma nova casa</string>
     <string name="l10n_app_changelog_noop_now_tells_you_when_your_af259fbb">O NOOP avisa agora quando a tua bracelete não está a guardar o histórico - e como consertar</string>
@@ -1256,7 +1256,7 @@
     <string name="l10n_app_changelog_sleep_and_recovery_for_whoop_4_c8f44a56">Suspensão e recuperação para braceletes WHOOP 4.0 no firmware que não conseguimos ler</string>
     <string name="l10n_app_changelog_sleep_charge_and_workouts_cleaned_up_e21a5381">Sono, carga e exercício, limpos</string>
     <string name="l10n_app_changelog_sleep_debt_daytime_stress_a_recovery_a92853f3">Dívida de sono, stress diurno, previsão de recuperação e navegação diária</string>
-    <string name="l10n_app_changelog_sleep_figures_hr_zones_charging_calibration_b209b698">Números de sono, zonas de RH, carregamento e calibração – uma grande atualização orientada para a comunidade</string>
+    <string name="l10n_app_changelog_sleep_figures_hr_zones_charging_calibration_b209b698">Números de sono, zonas de FC, carregamento e calibração – uma grande atualização orientada para a comunidade</string>
     <string name="l10n_app_changelog_sleep_fix_for_whoop_4_0_c7a1b13d">Correção de sono para WHOOP 4.0 + passos precisos de WHOOP 5/MG</string>
     <string name="l10n_app_changelog_sleep_from_whoop_4_on_more_efe5fd60">Dormir do WHOOP 4 em mais firmware (Mac)</string>
     <string name="l10n_app_changelog_sleep_keep_real_nights_when_the_0acb206a">Sono: passe noites a sério quando a bracelete sai</string>
@@ -1265,7 +1265,7 @@
     <string name="l10n_app_changelog_sleep_that_was_stuck_in_the_1b6d1307">O sono que estava preso no ficheiro volta</string>
     <string name="l10n_app_changelog_smart_alarm_actually_works_on_android_c9bbf50a">Alarme inteligente funciona mesmo no Android</string>
     <string name="l10n_app_changelog_smart_alarm_the_time_you_set_6f5d260e">Alarme inteligente: a hora que define é a hora que dispara</string>
-    <string name="l10n_app_changelog_smoother_an_oura_live_hr_fix_e820bfb4">Mais suave, uma correção de RH em direto do Oura e uma grande pilha de melhorias</string>
+    <string name="l10n_app_changelog_smoother_an_oura_live_hr_fix_e820bfb4">Mais suave, uma correção de FC em direto do Oura e uma grande pilha de melhorias</string>
     <string name="l10n_app_changelog_smoother_during_long_history_syncs_mac_b31b616c">Mais suave durante longas sincronizações de histórico (Mac)</string>
     <string name="l10n_app_changelog_smoother_explore_charts_and_a_clearer_9598655d">Gráficos de exploração mais suaves e uma forma mais clara de ligar um WHOOP 5.0/MG</string>
     <string name="l10n_app_changelog_spanish_whoop_exports_now_import_6351a8c6">As exportações espanholas do WHOOP importam agora</string>
@@ -1302,7 +1302,7 @@
     <string name="l10n_app_changelog_today_tiles_no_longer_cut_their_3c167cc1">Hoje os azulejos já não reduzem o teu valor para "10…"</string>
     <string name="l10n_app_changelog_today_tiles_no_longer_truncate_their_2959ce81">Hoje os blocos já não truncam o teu valor (Android)</string>
     <string name="l10n_app_changelog_today_trends_stay_within_their_window_ba2e4c57">As tendências de hoje ficam dentro da janela (Mac)</string>
-    <string name="l10n_app_changelog_toggle_the_live_hr_dynamic_island_d3bd70cb">Alternar a Ilha Dinâmica de RH em direto</string>
+    <string name="l10n_app_changelog_toggle_the_live_hr_dynamic_island_d3bd70cb">Alternar a Ilha Dinâmica de FC em direto</string>
     <string name="l10n_app_changelog_track_a_workout_manually_2eb43402">Acompanhe um treino manualmente</string>
     <string name="l10n_app_changelog_trends_report_explains_its_scores_e338d1ee">Relatório de tendências explica as tuas pontuações</string>
     <string name="l10n_app_changelog_true_battery_a_sync_indicator_and_89037fc3">% real da bateria, um indicador de sincronização e FC nos treinos importados</string>
@@ -1430,7 +1430,7 @@
     <string name="l10n_live_screen_end_a2bb9d34">Fim</string>
     <string name="l10n_live_screen_end_workout_3e8d6238">Terminar treino</string>
     <string name="l10n_live_screen_history_synced_relativeago_at_0ece753a">Histórico sincronizado %1$s</string>
-    <string name="l10n_live_screen_hr_f187928f">RH</string>
+    <string name="l10n_live_screen_hr_f187928f">FC</string>
     <string name="l10n_live_screen_live_body_console_54838e06">Consola de corpo em direto</string>
     <string name="l10n_live_screen_pace_7a9a6226">Paz</string>
     <string name="l10n_live_screen_peak_c83dbbd3">Pico</string>
@@ -1558,8 +1558,8 @@
     <string name="l10n_settings_screen_shows_a_soft_sunrise_day_dusk_2d20b417">Mostra uma cena suave de nascer do sol, dia, anoitecer e noite por trás do ecrã Hoje. Desliga-a para um fundo escuro simples. Os teus cartões continuam igualmente legíveis.</string>
     <string name="l10n_settings_screen_sky_behind_cards_efbe5cb8">Céu atrás de cartas</string>
     <string name="l10n_settings_screen_sleep_sorting_scores_recording_and_where_832378b5">Classificação do sono, pontuações, gravação e de onde vêm os teus números.</string>
-    <string name="l10n_settings_screen_sleep_staging_v2_3a007e4a">Estadiamento do sono V2</string>
-    <string name="l10n_settings_screen_sleep_staging_v2_a4176770">Estadiamento do sono (V2)</string>
+    <string name="l10n_settings_screen_sleep_staging_v2_3a007e4a">Classificação das fases do sono V2</string>
+    <string name="l10n_settings_screen_sleep_staging_v2_a4176770">Classificação das fases do sono (V2)</string>
     <string name="l10n_settings_screen_some_phones_also_need_auto_start_79b7147b">Alguns telefones também precisam de arranque automático ativado – abra este ecrã</string>
     <string name="l10n_settings_screen_step_calibration_351c09bf">Calibração de etapas</string>
     <string name="l10n_settings_screen_steps_estimate_calibration_stepssummary_opens_the_d6fbf995">As etapas estimam a calibração. %1$s. Abre o ecrã de calibração.</string>
@@ -1701,7 +1701,7 @@
     <string name="l10n_today_screen_rest_b79e5f48">Descanso</string>
     <string name="l10n_today_screen_rest_hr_04005617">FC em repouso</string>
     <string name="l10n_today_screen_resting_heart_rate_348928d6">Frequência cardíaca em repouso</string>
-    <string name="l10n_today_screen_resting_hr_26677094">Descansando RH</string>
+    <string name="l10n_today_screen_resting_hr_26677094">FC em repouso</string>
     <string name="l10n_today_screen_show_item_metric_title_81803daf">Mostrar %1$s</string>
     <string name="l10n_today_screen_sleep_3cac34e6">Sono</string>
     <string name="l10n_today_screen_source_herosourcelabel_d3363687">Fonte: %1$s</string>
@@ -1720,7 +1720,7 @@
     <string name="l10n_trends_explore_screen_charge_d4e1aee4">Carga</string>
     <string name="l10n_trends_explore_screen_effort_8c974bc6">Esforço</string>
     <string name="l10n_trends_explore_screen_respiratory_rate_3fbb532f">Frequência respiratória</string>
-    <string name="l10n_trends_explore_screen_resting_hr_26677094">Descansando RH</string>
+    <string name="l10n_trends_explore_screen_resting_hr_26677094">FC em repouso</string>
     <string name="l10n_trends_explore_screen_sleep_3cac34e6">Sono</string>
     <string name="l10n_trends_explore_screen_sleep_efficiency_b4b5c293">Eficiência do sono</string>
     <string name="l10n_trends_report_a_clean_shareable_one_page_pdf_a3c4f889">Um PDF de uma página limpo e partilhável com a tua recuperação, sono, VFC e frequência cardíaca em repouso and strain over a date range. Built and saved on your phone - nothing leaves the device.</string>
@@ -1833,7 +1833,7 @@
     <string name="battery_stale_body">%1$d%% no último contacto do NOOP, há %2$s. Carrega-o antes desta noite.</string>
     <string name="battery_low_title">Bateria fraca</string>
     <string name="battery_low_body">Recarrega o teu WHOOP antes desta noite.</string>
-    <string name="battery_full_title">Correia totalmente carregada</string>
+    <string name="battery_full_title">Bracelete totalmente carregada</string>
     <string name="battery_full_body">O teu WHOOP está a 100%.</string>
 
     <!-- Foreground-service notification (WhoopConnectionService). Always on screen while the strap is
@@ -1847,7 +1847,7 @@
     <string name="fgs_detail_streaming">A transmitir em segundo plano</string>
     <string name="fgs_detail_keeping_link">A manter a ligação aberta</string>
     <string name="fgs_detail_recovery">Recuperação %1$d%%</string>
-    <string name="fgs_detail_battery">Correia %1$d%%</string>
+    <string name="fgs_detail_battery">Bracelete %1$d%%</string>
     <string name="fgs_action_disconnect">Desconectar</string>
     <string name="fgs_channel_name">Ligação da bracelete</string>
     <string name="fgs_channel_desc">Apresentado enquanto o NOOP mantém o teu WHOOP ligado em segundo plano.</string>
@@ -2042,7 +2042,7 @@
     <string name="skin_temp_delta_title">Temperatura da pele Δ</string>
     <string name="skin_temp_vs_baseline">vs referência</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Torna o NOOP teu — cores de destaque e fundos personalizados, mais quarenta desportos com percursos GPS e um mapa de calor de calorias</string>
-    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zonas de RH personalizadas</string>
+    <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zonas de FC personalizadas</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Define os batimentos em que cada zona começa. Desativa para repor as zonas predefinidas por percentagem da frequência máxima.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Início da zona %1$d</string>
     <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Adiciona a tua cintura para uma VO₂max mais precisa</string>
