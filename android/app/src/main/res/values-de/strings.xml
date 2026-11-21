@@ -2873,4 +2873,24 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="weekly_digest_balance_overreaching">Deine Belastung lag diese Woche über deiner Energie: Du bist in den roten Bereich gegangen. Achte auf einen Einbruch der Erholung.</string>
+    <string name="weekly_digest_balance_balanced">Belastung und Energie liefen diese Woche im Gleichschritt: eine nachhaltige Last.</string>
+    <string name="weekly_digest_balance_underloaded">Du hattest diese Woche mehr Energie, als du verbraucht hast: Es ist Luft nach oben, wenn du willst.</string>
+    <string name="weekly_digest_balance_insufficient">Diese Woche gibt es nicht genug Tage mit Belastung und Energie, um deine Balance zu beurteilen.</string>
+    <string name="weekly_digest_mover_up">%1$s ist gegenüber der Vorwoche um %2$s gestiegen (Ø %3$d statt %4$d)</string>
+    <string name="weekly_digest_mover_down">%1$s ist gegenüber der Vorwoche um %2$s gesunken (Ø %3$d statt %4$d)</string>
+    <string name="weekly_digest_mover_unchanged">%1$s ist gegenüber der Vorwoche unverändert (Ø %2$d statt %3$d)</string>
+    <string name="weekly_digest_points">%1$s Pkt.</string>
+    <string name="weekly_digest_steady_rest">Eine stabile Woche: Die Erholung blieb gleichmäßig (±%1$s Pkt.) und nichts hat sich stark verändert.</string>
+    <string name="weekly_digest_steady">Eine stabile Woche: Kein Wert hat sich gegenüber der Vorwoche nennenswert verändert.</string>
+    <string name="weekly_digest_good_sign">%1$s, ein gutes Zeichen.</string>
+    <string name="weekly_digest_worth_a_look">%1$s, einen Blick wert.</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="one">Erst %1$d Tag dieser Woche erfasst, zu früh für einen Trend gegenüber der Vorwoche.</item>
+        <item quantity="other">Erst %1$d Tage dieser Woche erfasst, zu früh für einen Trend gegenüber der Vorwoche.</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="one">Letzte Woche gab es nur %1$d Tag mit Daten, daher sind die Änderungen zur Vorwoche grob und kein Trend.</item>
+        <item quantity="other">Letzte Woche gab es nur %1$d Tage mit Daten, daher sind die Änderungen zur Vorwoche grob und kein Trend.</item>
+    </plurals>
 </resources>

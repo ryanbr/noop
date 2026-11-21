@@ -912,13 +912,20 @@ private struct TestModeRow: View {
                                                tzOffsetSeconds: TimeZone.current.secondsFromGMT())
     }
 
+    /// A registry title or blurb in the reader's language. `TestModeRegistry` lives in the platform-neutral
+    /// StrandAnalytics package as plain English, so the catalogue lookup happens here; text the catalogue
+    /// does not have passes through as written.
+    static func catalogText(_ english: String) -> String {
+        Bundle.main.localizedString(forKey: english, value: english, table: nil)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 Image(systemName: mode.icon)
                     .foregroundStyle(StrandPalette.accent).frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(mode.title).font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                    Text(Self.catalogText(mode.title)).font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
                     Text(TestCentreLayout.statusText(for: mode, active: on, elapsedSeconds: elapsed,
                                                      capturedUnits: capturedUnits))
                         .font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
@@ -927,7 +934,7 @@ private struct TestModeRow: View {
                 Toggle("", isOn: $on)
                     .labelsHidden()
                     .tint(StrandPalette.accent)
-                    .accessibilityLabel("\(mode.title) test mode")
+                    .accessibilityLabel("\(Self.catalogText(mode.title)) test mode")
                     .onChangeCompat(of: on) { isOn in
                         if isOn { TestCentre.activate(mode.domain) } else { TestCentre.deactivate(mode.domain) }
                         // Display & Performance owns a live frame monitor. It must run ONLY while the mode
@@ -938,7 +945,7 @@ private struct TestModeRow: View {
                         }
                     }
             }
-            Text(mode.blurb)
+            Text(Self.catalogText(mode.blurb))
                 .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
             // Live readout (Group E/F): the per-mode panel binding the registry's liveReadout ids. Shown

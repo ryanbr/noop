@@ -129,6 +129,71 @@ extension WeeklyMetric {
     }
 }
 
+// MARK: - Localized narration
+
+extension BalanceRead {
+    /// `sentence` in the current locale; `sentence` itself stays the English the package narrates.
+    var localizedSentence: String {
+        switch self {
+        case .overreaching:
+            return String(localized: "Your Effort outpaced your Charge this week: you leaned into the red. Watch for a recovery dip.")
+        case .balanced:
+            return String(localized: "Effort and Charge tracked together this week: a sustainable load.")
+        case .underloaded:
+            return String(localized: "You carried more Charge than you spent this week: there's room to push if you want it.")
+        case .insufficient:
+            return String(localized: "Not enough Effort and Charge days this week to read your balance.")
+        }
+    }
+}
+
+extension DigestFocalLine {
+    /// `englishText` in the current locale, built from the line's values rather than by translating the
+    /// English sentence.
+    var localizedText: String {
+        switch self {
+        case let .mover(metric, direction, magnitude, goodness, thisAverage, lastAverage):
+            let name = metric.localizedName
+            let amount: String
+            switch magnitude {
+            case .percent(let p):
+                amount = (Double(p) / 100).formatted(.percent.precision(.fractionLength(0)))
+            case let .amount(value, unit):
+                let number = value.formatted(.number.precision(.fractionLength(1)))
+                amount = unit.isEmpty ? String(localized: "\(number) pts") : "\(number) \(unit)"
+            }
+            let core: String
+            if direction > 0 {
+                core = String(localized: "\(name) is up \(amount) week over week (avg \(thisAverage) vs \(lastAverage))")
+            } else if direction < 0 {
+                core = String(localized: "\(name) is down \(amount) week over week (avg \(thisAverage) vs \(lastAverage))")
+            } else {
+                core = String(localized: "\(name) is unchanged week over week (avg \(thisAverage) vs \(lastAverage))")
+            }
+            switch goodness {
+            case 1:  return String(localized: "\(core), a good sign.")
+            case -1: return String(localized: "\(core), worth a look.")
+            default: return core + "."
+            }
+        case .balance(let b):
+            return b.localizedSentence
+        case .currentWeekSparse(let days):
+            return days == 1
+                ? String(localized: "Only 1 day into this week so far, too early to call a week-over-week trend yet.")
+                : String(localized: "Only \(days) days into this week so far, too early to call a week-over-week trend yet.")
+        case .previousWeekSparse(let days):
+            return days == 1
+                ? String(localized: "Last week only had 1 day of data, so week-over-week changes are rough, not a trend.")
+                : String(localized: "Last week only had \(days) days of data, so week-over-week changes are rough, not a trend.")
+        case .steadyRest(let sd):
+            let spread = sd.formatted(.number.precision(.fractionLength(1)))
+            return String(localized: "A steady week: Rest held even (±\(spread) pts) and nothing moved much.")
+        case .steady:
+            return String(localized: "A steady week: no metric moved meaningfully from last week.")
+        }
+    }
+}
+
 // MARK: - Shared content
 
 /// Compact, localized range shared by the standalone digest card and the Trends week navigator.
@@ -300,14 +365,14 @@ struct WeeklyDigestContent: View {
     @ViewBuilder
     private var detailCard: some View {
         let signals = secondarySignals
-        let hasFocal = !digest.focalPoints.isEmpty
+        let hasFocal = !digest.focalLines.isEmpty
         if hasFocal || !signals.isEmpty || !compact {
             NoopCard {
                 VStack(alignment: .leading, spacing: 14) {
                     if hasFocal {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(digest.focalPoints.enumerated()), id: \.offset) { _, line in
-                                focalRow(line)
+                            ForEach(Array(digest.focalLines.enumerated()), id: \.offset) { _, line in
+                                focalRow(line.localizedText)
                             }
                         }
                     }
@@ -406,7 +471,7 @@ struct WeeklyDigestContent: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
-            Text(digest.balance.sentence)
+            Text(digest.balance.localizedSentence)
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)

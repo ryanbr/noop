@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.BalanceRead
+import com.noop.analytics.DigestFocalLine
 import com.noop.analytics.RestScorer
 import com.noop.analytics.WeeklyDigest
 import com.noop.analytics.WeeklyDigestEngine
@@ -182,9 +183,9 @@ fun WeeklyDigestContent(digest: WeeklyDigest, compact: Boolean = false) {
         }
 
         // Focal points — the plain-English read, most salient first.
-        if (digest.focalPoints.isNotEmpty()) {
+        if (digest.focalLines.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                digest.focalPoints.forEach { FocalRow(it) }
+                digest.focalLines.forEach { FocalRow(it.localizedText()) }
             }
         }
 
@@ -207,7 +208,7 @@ fun WeeklyDigestContent(digest: WeeklyDigest, compact: Boolean = false) {
                         color = Palette.textTertiary,
                     )
                 }
-                Text(digest.balance.sentence, style = NoopType.footnote, color = Palette.textTertiary)
+                Text(digest.balance.localizedSentence(), style = NoopType.footnote, color = Palette.textTertiary)
                 Text(
                     uiString(R.string.l10n_weekly_digest_card_informational_only_not_medical_advice_593feb77),
                     style = NoopType.footnote,
@@ -326,6 +327,47 @@ private fun chipTone(s: WeeklyMetricSummary): Color = when {
     s.wowGoodness == 1 -> Palette.statusPositive
     s.wowGoodness == -1 -> Palette.statusCritical
     else -> Palette.textTertiary
+}
+
+/** [BalanceRead.sentence] in the current locale; the analytics type keeps the English. Mirrors Swift. */
+private fun BalanceRead.localizedSentence(): String = uiString(
+    when (this) {
+        BalanceRead.OVERREACHING -> R.string.weekly_digest_balance_overreaching
+        BalanceRead.BALANCED -> R.string.weekly_digest_balance_balanced
+        BalanceRead.UNDERLOADED -> R.string.weekly_digest_balance_underloaded
+        BalanceRead.INSUFFICIENT -> R.string.weekly_digest_balance_insufficient
+    },
+)
+
+/**
+ * [DigestFocalLine.englishText] in the current locale, built from the line's values rather than by
+ * translating the English sentence. Mirrors Swift `DigestFocalLine.localizedText`.
+ */
+private fun DigestFocalLine.localizedText(): String = when (this) {
+    is DigestFocalLine.Mover -> {
+        val name = uiString(metric.labelRes())
+        val amount = when (val m = magnitude) {
+            is DigestFocalLine.Magnitude.Percent ->
+                java.text.NumberFormat.getPercentInstance().format(m.value / 100.0)
+            is DigestFocalLine.Magnitude.Amount ->
+                if (m.unit.isEmpty()) uiString(R.string.weekly_digest_points, fmt1(m.value)) else "${fmt1(m.value)} ${m.unit}"
+        }
+        val core = when {
+            direction > 0 -> uiString(R.string.weekly_digest_mover_up, name, amount, thisAverage, lastAverage)
+            direction < 0 -> uiString(R.string.weekly_digest_mover_down, name, amount, thisAverage, lastAverage)
+            else -> uiString(R.string.weekly_digest_mover_unchanged, name, thisAverage, lastAverage)
+        }
+        when (goodness) {
+            1 -> uiString(R.string.weekly_digest_good_sign, core)
+            -1 -> uiString(R.string.weekly_digest_worth_a_look, core)
+            else -> "$core."
+        }
+    }
+    is DigestFocalLine.Balance -> read.localizedSentence()
+    is DigestFocalLine.CurrentWeekSparse -> uiPlural(R.plurals.weekly_digest_current_week_sparse, days, days)
+    is DigestFocalLine.PreviousWeekSparse -> uiPlural(R.plurals.weekly_digest_previous_week_sparse, days, days)
+    is DigestFocalLine.SteadyRest -> uiString(R.string.weekly_digest_steady_rest, fmt1(sd))
+    DigestFocalLine.Steady -> uiString(R.string.weekly_digest_steady)
 }
 
 /** The localized display name for a digest metric; [WeeklyMetric.label] stays English for narration. */

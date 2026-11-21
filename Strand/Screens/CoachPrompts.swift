@@ -14,4 +14,12 @@ enum CoachPrompts {
         String(localized: "Analyse my sleep"),
         String(localized: "Why am I run down?"),
     ]
+
+    /// Display text for a chip that comes from an English-only list: `CoachSuggestions` (StrandAnalytics)
+    /// and `AICoachEngine.followUpSuggestions` stay English because they are byte-identical to their
+    /// Android twins, so they are looked up in the String Catalog only here, at display time. The
+    /// localized text is also what a tap sends, so the coach is asked in the user's own language.
+    static func localized(_ prompt: String) -> String {
+        Bundle.main.localizedString(forKey: prompt, value: prompt, table: nil)
+    }
 }

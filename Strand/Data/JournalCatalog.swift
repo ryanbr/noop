@@ -341,9 +341,29 @@ struct JournalCatalogItem: Equatable, Codable, Identifiable {
 
     var id: String { canonical }
 
-    /// What the UI renders: the rename if present, else the verbatim canonical.
+    /// What the UI renders: the rename if present, else the starter question in the reader's language,
+    /// else the verbatim canonical (a custom or imported question, shown exactly as stored).
     var display: String {
-        displayName ?? canonical
+        displayName ?? Self.localizedStarterName(canonical) ?? canonical
+    }
+
+    /// The display translation of one of `JournalCatalogStore.starterQuestions`, nil for anything else.
+    /// Display only: the stored key stays the English canonical, so logged days, WHOOP imports and the
+    /// Android twin keep joining on the same string.
+    static func localizedStarterName(_ canonical: String) -> String? {
+        switch canonical {
+        case "Did you drink any alcohol?": return String(localized: "Did you drink any alcohol?")
+        case "Did you have caffeine late in the day?": return String(localized: "Did you have caffeine late in the day?")
+        case "Did you view a screen in bed?": return String(localized: "Did you view a screen in bed?")
+        case "Did you eat close to bedtime?": return String(localized: "Did you eat close to bedtime?")
+        case "Did you feel stressed?": return String(localized: "Did you feel stressed?")
+        case "Did you use a sauna?": return String(localized: "Did you use a sauna?")
+        case "Did you share your bed?": return String(localized: "Did you share your bed?")
+        case "Did you feel sick or ill?": return String(localized: "Did you feel sick or ill?")
+        case "Did you take magnesium?": return String(localized: "Did you take magnesium?")
+        case "Did you read before bed?": return String(localized: "Did you read before bed?")
+        default: return nil
+        }
     }
 
     init(canonical: String, displayName: String?, kind: JournalKind, group: JournalGroup,

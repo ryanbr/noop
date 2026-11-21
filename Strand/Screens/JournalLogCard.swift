@@ -170,7 +170,7 @@ struct JournalLogCard: View {
 
     @ViewBuilder private func itemRow(_ item: JournalCatalogItem) -> some View {
         HStack {
-            Text(verbatim: item.display)   // display = rename ?? canonical; data, not a UI literal
+            Text(verbatim: item.display)   // display = rename ?? translated starter ?? canonical; already resolved
                 .font(StrandFont.body)
                 .foregroundStyle(item.hidden ? StrandPalette.textTertiary : StrandPalette.textPrimary)
             Spacer()

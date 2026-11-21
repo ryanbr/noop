@@ -47,9 +47,13 @@ enum WorkoutSource: Equatable {
     /// concatenated camelCase (e.g. "TraditionalStrengthTraining"), which reads as one long
     /// unbreakable word and truncates badly — split it into words on the lower→Upper boundary so it
     /// renders "Traditional Strength Training". Already-spaced labels (manual/edited) pass through. (#175)
+    /// The result is shown in the reader's language when the String Catalog has the sport (every
+    /// `WorkoutCatalog` name and the common WHOOP / Apple Health ones); anything else passes through
+    /// as stored. Display only: compare and store with `editableSport` / `sportKey`.
     static func displaySport(_ sport: String) -> String {
         if sport == "detected" { return String(localized: "Activity") }
-        return splitCamelCase(sport)
+        let split = splitCamelCase(sport)
+        return Bundle.main.localizedString(forKey: split, value: split, table: nil)
     }
 
     /// The camelCase splitter shared by the display and KEY paths. Deliberately NOT localized: the

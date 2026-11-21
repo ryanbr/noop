@@ -55,7 +55,7 @@ struct CoachView: View {
     /// Contextual suggestion chips, derived from today's bands by `AICoachEngine.suggestions`
     /// (→ `CoachSuggestions`). Falls back to a stable generic set when there is no data. Recomputed
     /// on each body evaluation so a fresh sync immediately updates the chips.
-    private var suggestions: [String] { coach.suggestions }
+    private var suggestions: [String] { coach.suggestions.map(CoachPrompts.localized) }
 
     var body: some View {
         ScreenScaffold(title: "Coach",
@@ -713,7 +713,7 @@ struct CoachView: View {
     private var followUpChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(AICoachEngine.followUpSuggestions, id: \.self) { prompt in
+                ForEach(AICoachEngine.followUpSuggestions.map(CoachPrompts.localized), id: \.self) { prompt in
                     Button {
                         send(prompt)
                     } label: {

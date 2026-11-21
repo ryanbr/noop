@@ -2830,4 +2830,22 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="weekly_digest_balance_overreaching">本周你的消耗超过了能量：你已进入透支区。注意恢复可能下滑。</string>
+    <string name="weekly_digest_balance_balanced">本周消耗与能量同步：负荷可持续。</string>
+    <string name="weekly_digest_balance_underloaded">本周你的能量多于消耗：如果愿意，还有加量的空间。</string>
+    <string name="weekly_digest_balance_insufficient">本周有消耗和能量数据的天数不足，无法判断平衡。</string>
+    <string name="weekly_digest_mover_up">%1$s 环比上升 %2$s（平均 %3$d，上周 %4$d）</string>
+    <string name="weekly_digest_mover_down">%1$s 环比下降 %2$s（平均 %3$d，上周 %4$d）</string>
+    <string name="weekly_digest_mover_unchanged">%1$s 环比持平（平均 %2$d，上周 %3$d）</string>
+    <string name="weekly_digest_points">%1$s 分</string>
+    <string name="weekly_digest_steady_rest">平稳的一周：休息保持稳定（±%1$s 分），各项变化不大。</string>
+    <string name="weekly_digest_steady">平稳的一周：与上周相比，没有指标出现明显变化。</string>
+    <string name="weekly_digest_good_sign">%1$s，这是好兆头。</string>
+    <string name="weekly_digest_worth_a_look">%1$s，值得留意。</string>
+    <plurals name="weekly_digest_current_week_sparse">
+        <item quantity="other">本周目前只有 %1$d 天数据，判断环比趋势还为时过早。</item>
+    </plurals>
+    <plurals name="weekly_digest_previous_week_sparse">
+        <item quantity="other">上周只有 %1$d 天数据，因此环比变化只是粗略参考，不构成趋势。</item>
+    </plurals>
 </resources>
