@@ -834,8 +834,8 @@
     <string name="l10n_sleep_screen_spec_format_v_spec_unit_7a7f630c">%1$s %2$s</string>
     <string name="l10n_sleep_screen_spec_title_trend_chart_3085ac6e">%1$s gráfico de tendências</string>
     <string name="l10n_sleep_screen_stage_durationtext_minutes_percent_percent_of_477dbf14">%1$s: %2$s, %3$s por cento da noite</string>
-    <string name="l10n_sleep_screen_stages_c1d33ad5">Estágios</string>
-    <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Estágios versus típico</string>
+    <string name="l10n_sleep_screen_stages_c1d33ad5">Fases</string>
+    <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Fases face ao habitual</string>
     <string name="l10n_sleep_screen_tap_when_you_re_heading_to_1f401690">Toca quando fores para a cama ou quando acordares. Cada toque é registado com a hora. Não altera o sono detetado desta noite.</string>
     <string name="l10n_sleep_screen_this_metric_needs_at_least_two_2de1d37a">Esta métrica necessita de pelo menos duas noites de dados.</string>
     <string name="l10n_sleep_screen_undo_39fc7212">Desfazer</string>
@@ -1261,7 +1261,7 @@
     <string name="l10n_app_changelog_sleep_from_whoop_4_on_more_efe5fd60">Dormir do WHOOP 4 em mais firmware (Mac)</string>
     <string name="l10n_app_changelog_sleep_keep_real_nights_when_the_0acb206a">Sono: passe noites a sério quando a bracelete sai</string>
     <string name="l10n_app_changelog_sleep_properly_sorted_and_an_app_f5e348f0">Sono, devidamente classificado e uma aplicação que se explica</string>
-    <string name="l10n_app_changelog_sleep_stages_heal_themselves_after_a_e64a730f">Os estágios do sono curam-se após uma sincronização</string>
+    <string name="l10n_app_changelog_sleep_stages_heal_themselves_after_a_e64a730f">As fases do sono corrigem-se sozinhas após uma sincronização</string>
     <string name="l10n_app_changelog_sleep_that_was_stuck_in_the_1b6d1307">O sono que estava preso no ficheiro volta</string>
     <string name="l10n_app_changelog_smart_alarm_actually_works_on_android_c9bbf50a">Alarme inteligente funciona mesmo no Android</string>
     <string name="l10n_app_changelog_smart_alarm_the_time_you_set_6f5d260e">Alarme inteligente: a hora que define é a hora que dispara</string>
@@ -1639,8 +1639,8 @@
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Recalculando…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sono</string>
     <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">A deteção do sono foi novamente executada utilizando os dados disponíveis para esta noite.</string>
-    <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Análise do estágio</string>
-    <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Isto move a noite para um horário sem dados registados. Os estágios não podem ser derivados aí, pelo que pode aparecer como vazio até que os dados o cubram.</string>
+    <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Distribuição das fases</string>
+    <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Isto move a noite para um horário sem dados registados. As fases não podem ser calculadas aí, por isso a noite pode aparecer vazia até haver dados que a cubram.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Os teus dados noturnos estão disponíveis. Registar como se sentiu ajuda o NOOP a aprender o que impulsiona a tua melhor recuperação.</string>
     <string name="l10n_stress_screen_autonomic_balance_lf_hf_776cb6f7">Equilíbrio autónomo (LF/HF)</string>
     <string name="l10n_stress_screen_avg_a178769d">avg</string>

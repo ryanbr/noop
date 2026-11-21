@@ -33820,7 +33820,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os estágios de sono da Apple são fortes e impulsionam diretamente a tua pontuação de descanso."
+            "value": "As fases de sono da Apple são fiáveis e determinam diretamente a tua pontuação de Descanso."
           }
         },
         "ru": {
@@ -153560,7 +153560,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Análise do estágio"
+            "value": "Distribuição das fases"
           }
         },
         "ru": {
@@ -153624,7 +153624,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estágios"
+            "value": "Fases"
           }
         },
         "ru": {
@@ -153688,7 +153688,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estágios versus típico"
+            "value": "Fases face ao habitual"
           }
         },
         "ru": {
@@ -167849,7 +167849,7 @@
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Isto move a noite para um horário sem dados registados. Os estágios não podem ser derivados aí, pelo que podem aparecer como vazios até que os dados o cubram."
+            "value": "Isto move a noite para um horário sem dados registados. As fases não podem ser calculadas aí, por isso a noite pode aparecer vazia até haver dados que a cubram."
           }
         },
         "pl": {
@@ -219508,7 +219508,7 @@
         "Custom colour": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Eigene Farbe"}}, "es": {"stringUnit": {"state": "translated", "value": "Color personalizado"}}, "fr": {"stringUnit": {"state": "translated", "value": "Couleur personnalisée"}}, "it": {"stringUnit": {"state": "translated", "value": "Colore personalizzato"}}, "pl": {"stringUnit": {"state": "translated", "value": "Własny kolor"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Cor personalizada"}}, "ru": {"stringUnit": {"state": "translated", "value": "Свой цвет"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "自定义颜色"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "自訂顏色"}}}},
         "Date of birth": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Geburtsdatum"}}, "es": {"stringUnit": {"state": "translated", "value": "Fecha de nacimiento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Date de naissance"}}, "it": {"stringUnit": {"state": "translated", "value": "Data di nascita"}}, "pl": {"stringUnit": {"state": "translated", "value": "Data urodzenia"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Data de nascimento"}}, "ru": {"stringUnit": {"state": "translated", "value": "Дата рождения"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "出生日期"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "出生日期"}}}},
         "Day cycle": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Tageszyklus"}}, "es": {"stringUnit": {"state": "translated", "value": "Ciclo diario"}}, "fr": {"stringUnit": {"state": "translated", "value": "Cycle journalier"}}, "it": {"stringUnit": {"state": "translated", "value": "Ciclo giornaliero"}}, "pl": {"stringUnit": {"state": "translated", "value": "Cykl dobowy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ciclo diário"}}, "ru": {"stringUnit": {"state": "translated", "value": "Суточный цикл"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "每日周期"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "每日週期"}}}},
-        "Raw on-device stages": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Rohe Phasen vom Gerät"}}, "es": {"stringUnit": {"state": "translated", "value": "Fases sin procesar del dispositivo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Stades bruts de l'appareil"}}, "it": {"stringUnit": {"state": "translated", "value": "Fasi grezze dal dispositivo"}}, "pl": {"stringUnit": {"state": "translated", "value": "Surowe fazy z urządzenia"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Estágios brutos do dispositivo"}}, "ru": {"stringUnit": {"state": "translated", "value": "Исходные стадии с устройства"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "设备端原始睡眠阶段"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "裝置端原始睡眠階段"}}}},
+        "Raw on-device stages": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Rohe Phasen vom Gerät"}}, "es": {"stringUnit": {"state": "translated", "value": "Fases sin procesar del dispositivo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Stades bruts de l'appareil"}}, "it": {"stringUnit": {"state": "translated", "value": "Fasi grezze dal dispositivo"}}, "pl": {"stringUnit": {"state": "translated", "value": "Surowe fazy z urządzenia"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Fases brutas do dispositivo"}}, "ru": {"stringUnit": {"state": "translated", "value": "Исходные стадии с устройства"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "设备端原始睡眠阶段"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "裝置端原始睡眠階段"}}}},
         "Oura": {"shouldTranslate": false}
   },
   "version": "1.0"
