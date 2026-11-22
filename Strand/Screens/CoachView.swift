@@ -208,6 +208,10 @@ struct CoachView: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
 
+                // Apple's on-device model, no key needed.
+                AppleOnDeviceToggleRow()
+                Divider().overlay(StrandPalette.hairline)
+
                 Text("Coach uses your own API key. Pick a provider, paste a key, and choose a model. Your key is stored securely in the Keychain and never leaves \(Platform.deviceNounPhrase) except as the request you make.")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -395,7 +399,7 @@ struct CoachView: View {
 
     private var connectedHeader: some View {
         HStack(spacing: 10) {
-            StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
+            StatePill(LocalizedStringKey(coach.connectionLabel), tone: .accent, showsDot: true)
             Spacer()
             if coach.sending {
                 StatePill("Thinking", tone: .accent, pulsing: true)

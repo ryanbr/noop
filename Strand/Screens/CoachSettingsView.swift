@@ -47,7 +47,8 @@ struct CoachSettingsView: View {
                                .foregroundStyle(StrandPalette.accent)
                                .accessibilityLabel("Close coach settings")
                        }) {
-            modelBar
+            NoopCard(padding: 14, tint: StrandPalette.chargeColor) { AppleOnDeviceToggleRow() }
+            if !coach.appleOnDevice { modelBar }
             consentBar
             // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
             // new on-device signals (your strongest patterns + Lab Book) into the coach context.

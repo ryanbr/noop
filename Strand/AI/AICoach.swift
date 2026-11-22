@@ -241,6 +241,21 @@ final class AICoachEngine: ObservableObject {
         didSet { UserDefaults.standard.set(includeOnDeviceSignals, forKey: Self.onDeviceSignalsKey) }
     }
 
+    /// Answer with Apple's on-device model (Foundation Models) instead of the chosen
+    /// cloud provider. No key, no network. See `AppleOnDeviceAI`.
+    @Published var appleOnDevice: Bool = AppleOnDeviceAI.isEnabled {
+        didSet {
+            UserDefaults.standard.set(appleOnDevice, forKey: AppleOnDeviceAI.enabledKey)
+            errorText = nil
+            keyRejected = false
+        }
+    }
+
+    /// The label for the connected header.
+    var connectionLabel: String {
+        appleOnDevice ? "Apple on-device" : "\(provider.displayName) · \(model)"
+    }
+
     /// K11: THIRD opt-in — send a chart image alongside the text when using Gemini's multimodal
     /// API. OFF by default and gated behind `dataConsent` too. Only active when the provider is
     /// Gemini (the only provider with multimodal support in the app). When on, the Coach composer
@@ -406,11 +421,12 @@ final class AICoachEngine: ObservableObject {
     /// True once the coach can actually send: a stored key for the cloud providers, or, for the
     /// Custom (local) provider, a committed base URL (a key is optional there, as local servers
     /// usually need none). Gates the setup card vs. the live chat.
-    var isConfigured: Bool { provider == .custom ? customConnected : hasKey }
+    var isConfigured: Bool { appleOnDevice || (provider == .custom ? customConnected : hasKey) }
 
     /// The key to send with a request: the stored key, or an empty string for the keyless Custom
     /// provider. `nil` means "not configured", the caller surfaces `.noKey`.
     private var resolvedKey: String? {
+        if appleOnDevice { return "" }
         if let k = AIKeyStore.read() {
             // Only send the stored key to the provider it was SAVED for, never Bearer one provider's
             // key (e.g. a cloud OpenAI/Anthropic secret) to another provider's endpoint, above all the
@@ -443,6 +459,7 @@ final class AICoachEngine: ObservableObject {
     /// Disconnect entirely: forget any stored key and un-commit the Custom provider. The base URL is
     /// kept so reconnecting pre-fills it.
     func disconnect() {
+        appleOnDevice = false
         AIKeyStore.clear()
         customConnected = false
         // Retire the transcript with the connection. Kotlin has done this since the method existed
@@ -955,6 +972,8 @@ final class AICoachEngine: ObservableObject {
     /// when the second consent is on). Used when the user has granted data access.
     func buildFullContext() async -> String {
         var ctx = buildContext()
+        // The small on-device model reads a stated TODAY line far better than a table.
+        if appleOnDevice { ctx = appleHeader() + "\n\n" + ctx }
         ctx += "\n\n" + (await recentWorkoutsBlock())
         // Derived stress: a single Baevsky Stress Index summary line over today's R-R, computed the same
         // way StressView does. Gated here under `dataConsent` (the caller only reaches buildFullContext()
@@ -1045,7 +1064,8 @@ final class AICoachEngine: ObservableObject {
     /// Dispatch to the user's chosen provider client.
     private func callProvider(key: String,
                               messages: [(role: ChatMessage.Role, content: String)]) async throws -> String {
-        try await provider.client.send(
+        if appleOnDevice { return try await AppleOnDeviceAI.respond(messages: messages) }
+        return try await provider.client.send(
             key: key,
             model: model,
             systemPrompt: systemPrompt,
@@ -1062,6 +1082,10 @@ final class AICoachEngine: ObservableObject {
                                 messages: [(role: ChatMessage.Role, content: String)],
                                 inlineImage: String? = nil,
                                 onDelta: (String) -> Void) async throws {
+        if appleOnDevice {
+            onDelta(try await AppleOnDeviceAI.respond(messages: messages))
+            return
+        }
         try await provider.client.streamWithImage(
             key: key,
             model: model,
@@ -1253,6 +1277,23 @@ final class AICoachEngine: ObservableObject {
             lines.append(parts.joined(separator: ", "))
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// TODAY and THE WEEK, stated plainly for the on-device model.
+    func appleHeader() -> String {
+        let days = repo.days
+        guard let today = days.last else { return "TODAY: no data yet." }
+        var out = ["TODAY " + dayLine(today)]
+        let this7 = Array(days.suffix(7))
+        let prev7 = Array(days.dropLast(7).suffix(7))
+        func week(_ ds: [DailyMetric]) -> String {
+            "charge \(avgInt(ds.compactMap { $0.recovery })), effort \(avgOne(ds.compactMap { $0.strain })), "
+            + "sleep \(avgSleepHours(ds))h, HRV \(avgInt(ds.compactMap { $0.avgHrv }))ms, "
+            + "RHR \(avgInt(ds.compactMap { $0.restingHr.map(Double.init) }))bpm"
+        }
+        out.append("THE WEEK (7-day averages): " + week(this7))
+        if !prev7.isEmpty { out.append("THE WEEK BEFORE: " + week(prev7)) }
+        return out.joined(separator: "\n")
     }
 
     // MARK: Formatting helpers
