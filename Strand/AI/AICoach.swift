@@ -1281,18 +1281,36 @@ final class AICoachEngine: ObservableObject {
 
     /// TODAY and THE WEEK, stated plainly for the on-device model.
     func appleHeader() -> String {
-        let days = repo.days
-        guard let today = days.last else { return "TODAY: no data yet." }
-        var out = ["TODAY " + dayLine(today)]
-        let this7 = Array(days.suffix(7))
-        let prev7 = Array(days.dropLast(7).suffix(7))
+        appleHeader(days: repo.days, now: Date())
+    }
+
+    /// The header for `days` as of `now`. TODAY is the row for the same logical day the Today screen
+    /// shows (`Repository.logicalDayKey`), never simply the newest stored row, which after a gap is an
+    /// older day. The two weeks are CALENDAR windows (the 7 days ending today, and the 7 before), not
+    /// the last 7 and 14 stored rows, which on a gappy history span more than a week each.
+    /// `internal` so `AICoachAppleHeaderTests` can pin it with no repo reads.
+    func appleHeader(days: [DailyMetric], now: Date) -> String {
+        let todayKey = Repository.logicalDayKey(now)
+        let today = Repository.logicalDay(now)
+        func keyBack(_ n: Int) -> String {
+            Repository.localDayKey(Calendar.current.date(byAdding: .day, value: -n, to: today) ?? today)
+        }
+        let start7 = keyBack(6), start14 = keyBack(13)
+        var out: [String]
+        if let row = days.last(where: { $0.day == todayKey }) {
+            out = ["TODAY " + dayLine(row)]
+        } else {
+            out = ["TODAY (\(todayKey)): no data for today yet."]
+        }
+        let this7 = days.filter { $0.day >= start7 && $0.day <= todayKey }
+        let prev7 = days.filter { $0.day >= start14 && $0.day < start7 }
         func week(_ ds: [DailyMetric]) -> String {
             "charge \(avgInt(ds.compactMap { $0.recovery })), effort \(avgOne(ds.compactMap { $0.strain })), "
             + "sleep \(avgSleepHours(ds))h, HRV \(avgInt(ds.compactMap { $0.avgHrv }))ms, "
             + "RHR \(avgInt(ds.compactMap { $0.restingHr.map(Double.init) }))bpm"
         }
-        out.append("THE WEEK (7-day averages): " + week(this7))
-        if !prev7.isEmpty { out.append("THE WEEK BEFORE: " + week(prev7)) }
+        if !this7.isEmpty { out.append("THE WEEK (last 7 days, averages): " + week(this7)) }
+        if !prev7.isEmpty { out.append("THE WEEK BEFORE (the 7 days before): " + week(prev7)) }
         return out.joined(separator: "\n")
     }
 

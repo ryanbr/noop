@@ -5,9 +5,12 @@ import StrandDesign
 /// Coach settings. While it is on, the coach needs no key and the bring-your-own-model fields are hidden.
 struct AppleOnDeviceToggleRow: View {
     @EnvironmentObject var coach: AICoachEngine
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Re-read on return to the app: Apple Intelligence may have been turned on in Settings meanwhile.
+    @State private var status = AppleOnDeviceAI.status
 
     var body: some View {
-        let status = AppleOnDeviceAI.status
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "apple.intelligence")
@@ -24,9 +27,12 @@ struct AppleOnDeviceToggleRow: View {
                 Toggle("", isOn: $coach.appleOnDevice)
                     .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                     .accessibilityLabel("Use Apple on-device AI")
+                    // It can always be switched off, but on only once the model is there: otherwise
+                    // the coach would count as set up and every request would fail.
+                    .disabled(!coach.appleOnDevice && status != .available)
             }
             if status != .available {
-                Text(AppleOnDeviceAI.message(for: status))
+                Text(LocalizedStringKey(AppleOnDeviceAI.message(for: status)))
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.statusWarning)
                     .fixedSize(horizontal: false, vertical: true)
@@ -36,6 +42,10 @@ struct AppleOnDeviceToggleRow: View {
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .onAppear { status = AppleOnDeviceAI.status }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { status = AppleOnDeviceAI.status }
         }
     }
 }

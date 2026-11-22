@@ -18,6 +18,10 @@ enum AppleOnDeviceAI {
     static let maxInstructionChars = 3200
     static let maxPromptChars = 4200
 
+    /// A stalled generation must not leave the coach "Thinking" forever.
+    static let respondTimeoutSeconds: Double = 60
+    static let timeoutMessage = "Apple's on-device model took too long to answer. Try again, or ask a shorter question."
+
     enum Status: String {
         case available, notEnabled, notReady, deviceNotEligible, unsupportedOS, unavailable
     }
@@ -105,10 +109,13 @@ enum AppleOnDeviceAI {
             for attempt in 0..<2 {
                 let prompt = buildPrompt(messages: messages, budget: budget)
                 do {
-                    let session = LanguageModelSession(instructions: String(instructions.prefix(maxInstructionChars)))
-                    let response = try await session.respond(to: prompt,
-                                                             options: GenerationOptions(temperature: temperature))
-                    let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let rules = String(instructions.prefix(maxInstructionChars))
+                    let content = try await withTimeout(respondTimeoutSeconds) { () async throws -> String in
+                        let session = LanguageModelSession(instructions: rules)
+                        return try await session.respond(to: prompt,
+                                                         options: GenerationOptions(temperature: temperature)).content
+                    }
+                    let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { throw AICoachError.emptyReply("Apple's on-device model gave an empty reply. Try again.") }
                     return text
                 } catch let error as LanguageModelSession.GenerationError {
@@ -126,5 +133,44 @@ enum AppleOnDeviceAI {
         }
         #endif
         throw AICoachError.emptyReply(message(for: .unsupportedOS))
+    }
+
+    /// Runs `operation`, or throws `timeoutMessage` once `seconds` pass first. The caller is released
+    /// at the deadline even if the operation ignores cancellation, which a task-group race would not
+    /// do: the group waits for every child before it returns.
+    static func withTimeout<T>(_ seconds: Double,
+                               _ operation: @escaping () async throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<T, Error>) in
+            let once = ResumeOnce()
+            let work = Task {
+                do {
+                    let value = try await operation()
+                    if once.claim() { cont.resume(returning: value) }
+                } catch {
+                    if once.claim() { cont.resume(throwing: error) }
+                }
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                if once.claim() {
+                    work.cancel()
+                    cont.resume(throwing: AICoachError.emptyReply(timeoutMessage))
+                }
+            }
+        }
+    }
+
+    /// Lets exactly one of the answer and the deadline resume the continuation.
+    private final class ResumeOnce: @unchecked Sendable {
+        private let lock = NSLock()
+        private var claimed = false
+
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if claimed { return false }
+            claimed = true
+            return true
+        }
     }
 }
