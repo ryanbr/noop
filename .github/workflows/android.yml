@@ -49,17 +49,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up JDK 17
+      - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '25'
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v5
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        # API 37.1 supplies Compose's compileSdk; API 37 and build-tools 36.0.0 are the
+        # target/AGP floors for this toolchain.
+        run: sdkmanager "platforms;android-37.0" "platforms;android-37.1" "build-tools;36.0.0"
 
       - name: Build debug APK
         run: ./gradlew assembleFullDebug

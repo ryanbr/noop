@@ -33,9 +33,9 @@ on a phone with Bluetooth **and** an actual strap — say what you tested on har
 
 | Requirement | Version | Notes |
 |---|---|---|
-| **JDK** | 17 | The build targets `jvmTarget = "17"`. JDK 17 ships inside recent Android Studio (Jellyfish / Koala) — use *Settings → Build Tools → Gradle → Gradle JDK → 17*, or install Temurin 17. |
-| **Android SDK** | API 34 (compileSdk/targetSdk) | Install "Android 14 (UpsideDownCake)" + Platform-Tools via the SDK Manager. `minSdk` is 26 (Android 8.0). |
-| **Android Studio** | New enough for Gradle 8.7 (Ladybug 2024.2+ / recent Koala) | The project pins Gradle **8.7** + AGP **8.5.2** via the checked-in wrapper. |
+| **JDK** | 25 | Gradle daemon and Kotlin compilation toolchain use JDK 25 (pinned in `gradle/gradle-daemon-jvm.properties`). Emitted Kotlin/Java bytecode stays JVM 17-compatible. Use *Settings → Build Tools → Gradle → Gradle JVM → 25*, or install Temurin 25. |
+| **Android SDK** | API 37.0 and 37.1 (compileSdk 37.1 / targetSdk 37) | Install API 37.0 + 37.1 platforms and build-tools 36.0.0 via the SDK Manager. `minSdk` is 26 (Android 8.0). |
+| **Android Studio** | Current stable with AGP 9.5 support | The project pins Gradle **9.9.2** + AGP **9.5.2** via the checked-in wrapper. |
 | **A physical device** | Android 8.0+ with BLE | An emulator has no Bluetooth radio — you cannot test the strap link on it. |
 | **A WHOOP strap** | WHOOP 4.0 or 5.0/MG (both shipped/verified) | Required to exercise the protocol end-to-end. |
 
@@ -55,12 +55,15 @@ Android Studio writes this for you automatically when you open the project.
 
 These are fixed in the build files; keep them in lockstep if you upgrade:
 
-- **Android Gradle Plugin** 8.5.2 · **Gradle** 8.7 (wrapper)
-- **Kotlin** 1.9.24 · **KSP** 1.9.24-1.0.20 (KSP must always match the Kotlin version)
-- **Compose Compiler** extension 1.5.14 (matched to Kotlin 1.9.24)
-- **Compose BOM** 2024.06.00 · **Material3** (from the BOM)
-- **Room** 2.6.1 · **coroutines** 1.8.1
-- **minSdk** 26 · **compile/targetSdk** 34 · **JDK target** 17
+- **Android Gradle Plugin** 9.5.2 · **Gradle** 9.9.2 (wrapper)
+- **Kotlin** 2.4.21 (built into AGP 9) · **KSP** 2.3.14
+- **Compose Compiler** plugin 2.4.21 (matched to Kotlin, shipped with the Kotlin plugin)
+- **Compose BOM** 2026.11.01 · **Material3** (from the BOM)
+- **Room** 2.8.5 · **coroutines** 1.11.0
+- **minSdk** 26 · **compileSdk** 37.1 · **targetSdk** 37 · **build JDK** 25 · **bytecode target** 17
+
+AGP 9's built-in Kotlin support replaces the old `org.jetbrains.kotlin.android` plugin; do not
+reintroduce the legacy plugin or `kotlinCompilerExtensionVersion`.
 
 ### Updating dependencies safely
 
@@ -69,7 +72,7 @@ plugins, metadata, and artifacts against `gradle/verification-metadata.xml`. Whe
 library, BOM, or the Gradle wrapper:
 
 1. Make the version change in the relevant build file.
-2. Regenerate both security files with JDK 17:
+2. Regenerate both security files with JDK 25:
 
    ```bash
    ./gradlew :app:dependencies --write-locks --write-verification-metadata sha256
@@ -104,7 +107,7 @@ OS last regenerated it. CI runs on Linux, so a Linux-only file makes every macOS
 
 ```
 > Dependency verification failed for configuration ':app:detachedConfiguration2'
-  One artifact failed verification: aapt2-8.5.2-11315950-osx.jar
+  One artifact failed verification: aapt2-9.5.2-16666295-osx.jar
 ```
 
 The fix is **additive**: add the missing variant, never drop the one already there. This is the
@@ -113,7 +116,7 @@ checksum is still verified from the publisher before it is trusted, which is the
 the file. Verify it against Google's published digest, not against the build error:
 
 ```bash
-V=8.5.2-11315950
+V=9.5.2-16666295
 B=https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/$V
 curl -sS "$B/aapt2-$V-osx.jar.sha256"            # Google's published digest
 curl -sS -o /tmp/aapt2.jar "$B/aapt2-$V-osx.jar"
@@ -136,8 +139,8 @@ checksum already committed in the file.
 cd <your-noop-clone>/android
 
 # If intentionally regenerating the checked-in wrapper, use the pinned version + official checksum.
-./gradlew wrapper --gradle-version 8.7 \
-  --gradle-distribution-sha256-sum 544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d
+./gradlew wrapper --gradle-version 9.9.2 \
+  --gradle-distribution-sha256-sum 971fcd7150ca4ba04852c0b2ca0d2d0ab9468e14b03473eab19528809914c76b
 
 # Compile the real ("full" flavor) debug APK:
 ./gradlew assembleFullDebug
@@ -167,7 +170,7 @@ android/
 ├── gradle.properties            # AndroidX on, JVM args
 ├── gradlew / gradlew.bat        # checked-in wrapper launchers
 ├── gradle/verification-metadata.xml # SHA-256 allowlist for plugins + dependencies
-├── gradle/wrapper/…             # checked-in Gradle 8.7 wrapper + distribution checksum
+├── gradle/wrapper/…             # checked-in Gradle 9.9.2 wrapper + distribution checksum
 └── app/
     ├── build.gradle.kts         # android{} config + dependencies + locking policy
     ├── gradle.lockfile          # exact resolved versions for every Android variant
@@ -201,6 +204,9 @@ explicit, default-off network features (the AI Coach and Experimental self-hoste
 - **`INTERNET`** — lets those opt-in clients reach the endpoint the user selected. It is an
   install-time capability, not evidence of background telemetry; neither feature runs until
   configured.
+- **`ACCESS_LOCAL_NETWORK`** (API 37+) — Android 17 requires this runtime permission before an app
+  targeting 37 can open sockets to the user's LAN. It is requested only from the self-hosted push
+  setup and AI Coach custom-endpoint actions; offline strap collection never asks for it.
 
 - **`BLUETOOTH_SCAN`** (`neverForLocation`) + **`BLUETOOTH_CONNECT`** — Android 12+ (API 31+)
   runtime permissions. `neverForLocation` lets us skip the location grant on modern Android

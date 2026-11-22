@@ -108,6 +108,7 @@
     <string name="push_export_now">Esporta ora</string>
     <string name="push_export_now_detail">Avvia subito un recupero degli arretrati. L\'esportazione automatica deve essere attiva.</string>
     <string name="push_config_required">Salva un endpoint e un token validi prima di attivare.</string>
+    <string name="local_network_permission_required">È necessaria l\'autorizzazione alla rete locale per raggiungere questo endpoint.</string>
     <string name="push_status_title">Stato</string>
     <string name="push_status_detail">Le credenziali non vengono mai mostrate nello stato o nei metadati del processo.</string>
     <string name="push_never">Mai</string>

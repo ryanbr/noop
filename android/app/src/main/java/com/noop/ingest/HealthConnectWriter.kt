@@ -16,6 +16,7 @@ import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import com.noop.data.MetricSeriesRow
+import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Percentage
@@ -77,6 +78,10 @@ object HealthConnectWriter {
 
     /** How far back to write. Recomputation only ever touches recent nights; 60 days is generous. */
     private const val WINDOW_DAYS = 60L
+
+    // Health Connect 1.1 replaced the public Metadata constructor with factories that stamp a
+    // recording method. All writeback data here was measured by a worn strap.
+    private val STRAP_DEVICE = Device(Device.TYPE_FITNESS_BAND)
 
     private val WRITE_RECORDS: List<KClass<out Record>> = listOf(
         RestingHeartRateRecord::class,
@@ -204,10 +209,8 @@ object HealthConnectWriter {
         NoopPrefs.setHcWritebackStatus(context, result.statusCode, result.written, System.currentTimeMillis())
     }
 
-    private fun meta(metric: String, day: String, version: Long) = Metadata(
-        clientRecordId = "noop-$metric-$day",
-        clientRecordVersion = version,
-    )
+    private fun meta(metric: String, day: String, version: Long) =
+        Metadata.autoRecorded(STRAP_DEVICE, "noop-$metric-$day", version)
 
     /** Health Connect caps records per insert call; insert in batches to stay well under it. */
     private suspend fun insertChunked(client: HealthConnectClient, records: List<Record>, batch: Int = 1000): Int {
@@ -256,7 +259,7 @@ object HealthConnectWriter {
                 samples = c.points.map {
                     HeartRateRecord.Sample(time = Instant.ofEpochSecond(it.tsSec), beatsPerMinute = it.bpm.toLong())
                 },
-                metadata = Metadata(clientRecordId = c.clientId, clientRecordVersion = version),
+                metadata = Metadata.autoRecorded(STRAP_DEVICE, c.clientId, version),
             )
         }
         val n = insertChunked(client, records)
@@ -312,7 +315,7 @@ object HealthConnectWriter {
                         },
                     )
                 },
-                metadata = Metadata(clientRecordId = p.clientId, clientRecordVersion = p.endSec),
+                metadata = Metadata.autoRecorded(STRAP_DEVICE, p.clientId, p.endSec),
             )
         }
         // Clear absorbed fragments' old records BEFORE the merged upsert, so a night previously
@@ -448,7 +451,7 @@ object HealthConnectWriter {
             ExerciseSessionRecord(
                 startTime = start, startZoneOffset = offset, endTime = end, endZoneOffset = offset,
                 exerciseType = exerciseType, title = row.sport,
-                metadata = Metadata(clientRecordId = "noop-workout-${row.startTs}", clientRecordVersion = row.endTs),
+                metadata = Metadata.autoRecorded(STRAP_DEVICE, "noop-workout-${row.startTs}", row.endTs),
             ),
         )
         row.distanceM?.let {
@@ -456,7 +459,7 @@ object HealthConnectWriter {
                 DistanceRecord(
                     startTime = start, startZoneOffset = offset, endTime = end, endZoneOffset = offset,
                     distance = Length.meters(it),
-                    metadata = Metadata(clientRecordId = "noop-workout-dist-${row.startTs}", clientRecordVersion = row.endTs),
+                    metadata = Metadata.autoRecorded(STRAP_DEVICE, "noop-workout-dist-${row.startTs}", row.endTs),
                 ),
             )
         }

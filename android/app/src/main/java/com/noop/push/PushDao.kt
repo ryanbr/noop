@@ -67,7 +67,7 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
             )
             val sql = "SELECT rowid AS _pushRowId, ${spec.columns.joinToString()} FROM ${spec.sqlName} " +
                 "WHERE deviceId = ? AND rowid = ? LIMIT 1"
-            db.query(SimpleSQLiteQuery(sql, arrayOf(deviceId, rowId))).use { cursor ->
+            db.query(SimpleSQLiteQuery(sql, arrayOf<Any?>(deviceId, rowId))).use { cursor ->
                 if (cursor.moveToFirst()) cursor.appendRecord(spec) else null
             }
         }
@@ -89,7 +89,7 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
             )
             val sql = "SELECT rowid AS _pushRowId, ${spec.columns.joinToString()} FROM ${spec.sqlName} " +
                 "WHERE deviceId = ? AND rowid > ? ORDER BY rowid ASC LIMIT ?"
-            db.query(SimpleSQLiteQuery(sql, arrayOf(deviceId, afterRowId, limit))).use { cursor ->
+            db.query(SimpleSQLiteQuery(sql, arrayOf<Any?>(deviceId, afterRowId, limit))).use { cursor ->
                 buildList {
                     while (cursor.moveToNext()) add(cursor.appendRecord(spec))
                 }

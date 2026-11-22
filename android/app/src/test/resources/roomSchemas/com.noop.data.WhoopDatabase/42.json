@@ -17,26 +17,22 @@
           {
             "fieldPath": "mac",
             "columnName": "mac",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "name",
             "columnName": "name",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "firstSeen",
             "columnName": "firstSeen",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "lastSeen",
             "columnName": "lastSeen",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -44,9 +40,7 @@
           "columnNames": [
             "id"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "hrSample",
@@ -83,9 +77,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "rrInterval",
@@ -124,20 +116,17 @@
           {
             "fieldPath": "ord",
             "columnName": "ord",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "srcChannel",
             "columnName": "srcChannel",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "tsSuspect",
             "columnName": "tsSuspect",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -160,8 +149,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `rrInterval_source_suspect` ON `${TABLE_NAME}` (`srcChannel`, `tsSuspect`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "event",
@@ -205,9 +193,7 @@
             "ts",
             "kind"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "battery",
@@ -228,20 +214,17 @@
           {
             "fieldPath": "soc",
             "columnName": "soc",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "mv",
             "columnName": "mv",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "charging",
             "columnName": "charging",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "synced",
@@ -256,9 +239,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "spo2Sample",
@@ -301,9 +282,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "skinTempSample",
@@ -336,14 +315,12 @@
           {
             "fieldPath": "aux1Raw",
             "columnName": "aux1Raw",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "aux2Raw",
             "columnName": "aux2Raw",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -352,9 +329,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "stepSample",
@@ -381,8 +356,7 @@
           {
             "fieldPath": "activityClass",
             "columnName": "activityClass",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "synced",
@@ -397,9 +371,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "sleepStateSample",
@@ -426,8 +398,7 @@
           {
             "fieldPath": "rawByte",
             "columnName": "rawByte",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -436,9 +407,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "respSample",
@@ -475,9 +444,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "gravitySample",
@@ -522,8 +489,7 @@
           {
             "fieldPath": "dynAccel",
             "columnName": "dynAccel",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -532,9 +498,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "dailyMetric",
@@ -555,128 +519,107 @@
           {
             "fieldPath": "totalSleepMin",
             "columnName": "totalSleepMin",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "efficiency",
             "columnName": "efficiency",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "deepMin",
             "columnName": "deepMin",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "remMin",
             "columnName": "remMin",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "lightMin",
             "columnName": "lightMin",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "disturbances",
             "columnName": "disturbances",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "restingHr",
             "columnName": "restingHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "avgHrv",
             "columnName": "avgHrv",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "recovery",
             "columnName": "recovery",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "strain",
             "columnName": "strain",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "exerciseCount",
             "columnName": "exerciseCount",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "spo2Pct",
             "columnName": "spo2Pct",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "skinTempDevC",
             "columnName": "skinTempDevC",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "respRateBpm",
             "columnName": "respRateBpm",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "steps",
             "columnName": "steps",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "activeKcalEst",
             "columnName": "activeKcalEst",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "spo2Red",
             "columnName": "spo2Red",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "spo2Ir",
             "columnName": "spo2Ir",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "avgSdnn",
             "columnName": "avgSdnn",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "skinTempC",
             "columnName": "skinTempC",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "sleepHrOnly",
             "columnName": "sleepHrOnly",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -685,9 +628,7 @@
             "deviceId",
             "day"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "sleepSession",
@@ -714,26 +655,22 @@
           {
             "fieldPath": "efficiency",
             "columnName": "efficiency",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "restingHr",
             "columnName": "restingHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "avgHrv",
             "columnName": "avgHrv",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "stagesJSON",
             "columnName": "stagesJSON",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "userEdited",
@@ -744,26 +681,22 @@
           {
             "fieldPath": "startTsAdjusted",
             "columnName": "startTsAdjusted",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "motionJSON",
             "columnName": "motionJSON",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "sleepStateJSON",
             "columnName": "sleepStateJSON",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "stagingSparse",
             "columnName": "stagingSparse",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -772,9 +705,7 @@
             "deviceId",
             "startTs"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "metricSeries",
@@ -825,8 +756,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_metricSeries_device_key_day` ON `${TABLE_NAME}` (`deviceId`, `key`, `day`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "scoreInputProvenance",
@@ -875,8 +805,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_scoreInputProvenance_source` ON `${TABLE_NAME}` (`sourceId`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "journal",
@@ -909,14 +838,12 @@
           {
             "fieldPath": "notes",
             "columnName": "notes",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "numericValue",
             "columnName": "numericValue",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -926,9 +853,7 @@
             "day",
             "question"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "workout",
@@ -967,62 +892,52 @@
           {
             "fieldPath": "durationS",
             "columnName": "durationS",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "energyKcal",
             "columnName": "energyKcal",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "avgHr",
             "columnName": "avgHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "maxHr",
             "columnName": "maxHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "strain",
             "columnName": "strain",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "distanceM",
             "columnName": "distanceM",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "zonesJSON",
             "columnName": "zonesJSON",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "notes",
             "columnName": "notes",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "routePolyline",
             "columnName": "routePolyline",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "steps",
             "columnName": "steps",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -1032,9 +947,7 @@
             "startTs",
             "sport"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "dismissedWorkout",
@@ -1065,9 +978,7 @@
             "deviceId",
             "startTs"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "dismissedSleep",
@@ -1104,9 +1015,7 @@
             "deviceId",
             "startTs"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "appleDaily",
@@ -1127,50 +1036,42 @@
           {
             "fieldPath": "steps",
             "columnName": "steps",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "activeKcal",
             "columnName": "activeKcal",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "basalKcal",
             "columnName": "basalKcal",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "vo2max",
             "columnName": "vo2max",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "avgHr",
             "columnName": "avgHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "maxHr",
             "columnName": "maxHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "walkingHr",
             "columnName": "walkingHr",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "weightKg",
             "columnName": "weightKg",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -1179,9 +1080,7 @@
             "deviceId",
             "day"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "ppgHrSample",
@@ -1224,9 +1123,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "pairedDevice",
@@ -1253,14 +1150,12 @@
           {
             "fieldPath": "nickname",
             "columnName": "nickname",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "peripheralId",
             "columnName": "peripheralId",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "sourceKind",
@@ -1298,9 +1193,7 @@
           "columnNames": [
             "id"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "dayOwnership",
@@ -1330,9 +1223,7 @@
           "columnNames": [
             "day"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "labMarker",
@@ -1377,14 +1268,12 @@
           {
             "fieldPath": "value",
             "columnName": "value",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "valueText",
             "columnName": "valueText",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "unit",
@@ -1401,14 +1290,12 @@
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "referenceText",
             "columnName": "referenceText",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1451,8 +1338,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_labMarker_device_category` ON `${TABLE_NAME}` (`deviceId`, `category`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "liveSession",
@@ -1473,14 +1359,12 @@
           {
             "fieldPath": "endTs",
             "columnName": "endTs",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "chargeAtStart",
             "columnName": "chargeAtStart",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "floorBpm",
@@ -1537,9 +1421,7 @@
             "deviceId",
             "startTs"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "ppgWaveformSample",
@@ -1566,14 +1448,12 @@
           {
             "fieldPath": "burstIndex",
             "columnName": "burstIndex",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "baseCode",
             "columnName": "baseCode",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -1582,9 +1462,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "ecgWaveformSample",
@@ -1622,9 +1500,7 @@
             "ts",
             "sequence"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "v18AuxSample",
@@ -1655,9 +1531,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "appleStepHour",
@@ -1688,9 +1562,7 @@
             "deviceId",
             "ts"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "coachMessage",
@@ -1738,9 +1610,7 @@
           "columnNames": [
             "id"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "liftExercise",
@@ -1767,14 +1637,12 @@
           {
             "fieldPath": "primaryMuscle",
             "columnName": "primaryMuscle",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "secondaryMuscles",
             "columnName": "secondaryMuscles",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "createdAt",
@@ -1785,8 +1653,7 @@
           {
             "fieldPath": "lastUsedTs",
             "columnName": "lastUsedTs",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -1806,8 +1673,7 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftExercise_natural` ON `${TABLE_NAME}` (`deviceId`, `name`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "liftProgram",
@@ -1834,8 +1700,7 @@
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "createdAt",
@@ -1874,8 +1739,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_liftProgram_device_updatedAt` ON `${TABLE_NAME}` (`deviceId`, `updatedAt`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "liftProgramItem",
@@ -1914,44 +1778,37 @@
           {
             "fieldPath": "targetSets",
             "columnName": "targetSets",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "targetRepsLow",
             "columnName": "targetRepsLow",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "targetRepsHigh",
             "columnName": "targetRepsHigh",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "targetRpe",
             "columnName": "targetRpe",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "targetWeightKg",
             "columnName": "targetWeightKg",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "restSec",
             "columnName": "restSec",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -1980,8 +1837,7 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_liftProgramItem_program_ord` ON `${TABLE_NAME}` (`programId`, `ord`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "liftSession",
@@ -2008,8 +1864,7 @@
           {
             "fieldPath": "endTs",
             "columnName": "endTs",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "sport",
@@ -2020,26 +1875,22 @@
           {
             "fieldPath": "programId",
             "columnName": "programId",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "programName",
             "columnName": "programName",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "sessionRpe",
             "columnName": "sessionRpe",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -2060,8 +1911,7 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftSession_natural` ON `${TABLE_NAME}` (`deviceId`, `startTs`, `sport`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "liftSet",
@@ -2100,14 +1950,12 @@
           {
             "fieldPath": "primaryMuscle",
             "columnName": "primaryMuscle",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "secondaryMuscles",
             "columnName": "secondaryMuscles",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "setIndex",
@@ -2118,20 +1966,17 @@
           {
             "fieldPath": "weightKg",
             "columnName": "weightKg",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "reps",
             "columnName": "reps",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "rpe",
             "columnName": "rpe",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "isWarmup",
@@ -2143,26 +1988,22 @@
           {
             "fieldPath": "startTs",
             "columnName": "startTs",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "endTs",
             "columnName": "endTs",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "restSec",
             "columnName": "restSec",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "note",
             "columnName": "note",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -2192,11 +2033,9 @@
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `idx_liftSet_session_ord` ON `${TABLE_NAME}` (`sessionId`, `ord`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       }
     ],
-    "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
       "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a641357e666748e0d6ddda67b69b9325')"

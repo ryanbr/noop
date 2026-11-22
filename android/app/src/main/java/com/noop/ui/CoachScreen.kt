@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noop.ai.AiProvider
@@ -132,6 +133,14 @@ private fun CoachSetup(vm: CoachViewModel) {
     val error by vm.error.collectAsStateWithLifecycle()
     var keyInput by remember { mutableStateOf("") }
     val isCustom = provider == AiProvider.CUSTOM
+    // API 37 gates the custom provider's LAN sockets. The request stays in this opt-in Custom card:
+    // cloud providers never need local-network access and are never prompted for it.
+    val requestLocalNetwork = rememberLocalNetworkPermissionRequester()
+    val localNetworkPermissionMessage = stringResource(R.string.local_network_permission_required)
+    val localNetworkDenied = {
+        Toast.makeText(context, localNetworkPermissionMessage, Toast.LENGTH_LONG).show()
+        Unit
+    }
 
     NoopCard(padding = 20.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -204,7 +213,13 @@ private fun CoachSetup(vm: CoachViewModel) {
                         refreshing = refreshingModels,
                         // Cloud providers need a saved key to fetch; a local server just needs a URL.
                         enabled = if (isCustom) customBaseUrl.isNotBlank() else vm.hasKey(context),
-                        onClick = { vm.refreshModels(context) },
+                        onClick = {
+                            if (isCustom) {
+                                requestLocalNetwork({ vm.refreshModels(context) }, localNetworkDenied)
+                            } else {
+                                vm.refreshModels(context)
+                            }
+                        },
                     )
                 }
                 ModelDropdown(
@@ -231,8 +246,13 @@ private fun CoachSetup(vm: CoachViewModel) {
                     label = uiString(R.string.l10n_coach_screen_connect_b65463cb),
                     enabled = customBaseUrl.isNotBlank(),
                     onClick = {
-                        if (keyInput.isNotBlank()) vm.saveKey(context, keyInput)
-                        vm.connectCustom(context)
+                        requestLocalNetwork(
+                            {
+                                if (keyInput.isNotBlank()) vm.saveKey(context, keyInput)
+                                vm.connectCustom(context)
+                            },
+                            localNetworkDenied,
+                        )
                     },
                 )
             } else {
@@ -276,10 +296,23 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     val provider by vm.provider.collectAsStateWithLifecycle()
     val model by vm.model.collectAsStateWithLifecycle()
     val suggestions by vm.suggestions.collectAsStateWithLifecycle()
+    // A revoked API 37 local-network grant must not turn the Custom chat into a silent no-op.
+    val requestLocalNetwork = rememberLocalNetworkPermissionRequester()
+    val localNetworkPermissionMessage = stringResource(R.string.local_network_permission_required)
+    val localNetworkDenied = {
+        Toast.makeText(context, localNetworkPermissionMessage, Toast.LENGTH_LONG).show()
+        Unit
+    }
     // K15: the composer draft is persisted to SharedPreferences so it survives an app relaunch.
     // Restored on first composition, saved on every change. Keyed identically to the iOS twin.
     val draftPrefs = remember { context.getSharedPreferences("noop_coach_draft", android.content.Context.MODE_PRIVATE) }
     var input by remember { mutableStateOf(draftPrefs.getString("draft", "") ?: "") }
+    fun sendMessage() {
+        vm.send(context, input)
+        input = ""
+        // K15: clear the persisted draft on send.
+        draftPrefs.edit().remove("draft").apply()
+    }
     // K2: confirmation gate for the destructive "Clear conversation" action.
     var showClearConfirm by remember { mutableStateOf(false) }
     // The corrected key, typed into the editor the rejection message opens. Separate from `input` so a
@@ -490,10 +523,11 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
             },
             sending = sending,
             onSend = {
-                vm.send(context, input)
-                input = ""
-                // K15: clear the persisted draft on send.
-                draftPrefs.edit().remove("draft").apply()
+                if (provider == AiProvider.CUSTOM) {
+                    requestLocalNetwork({ sendMessage() }, localNetworkDenied)
+                } else {
+                    sendMessage()
+                }
             },
         )
 

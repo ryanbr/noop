@@ -75,7 +75,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -1324,31 +1325,21 @@ fun TodayScreen(
     }
     val canPullToSync =
         todayPullToSyncEnabled(liveSnap.connected, liveSnap.bonded, liveSnap.backfilling, liveSnap.historyReady)
-    // material3 1.2.1's rememberPullToRefreshState CAPTURES the `enabled` lambda ONCE (rememberSaveable,
-    // no rememberUpdatedState), so `{ canPullToSync }` would freeze the plain Boolean from the FIRST
-    // composition — and Today usually first composes before the strap has (re)connected, leaving the
-    // gesture permanently disabled for the session. Read the stable `liveSnap` State live inside the lambda
-    // instead, so each gesture check sees the current connected/bonded/backfilling. (syncNow is triple-gated
-    // anyway; this just makes the gesture actually enable once the strap is ready.)
-    val pullToSyncState = rememberPullToRefreshState(
-        enabled = {
-            todayPullToSyncEnabled(
-                liveSnap.connected, liveSnap.bonded, liveSnap.backfilling, liveSnap.historyReady,
-            )
-        },
-    )
-    LaunchedEffect(pullToSyncState.isRefreshing, canPullToSync) {
-        if (pullToSyncState.isRefreshing) {
-            if (canPullToSync) viewModel.syncNow()
-            // Historical offloads can run for a while; the existing sync chip/note owns ongoing progress.
-            pullToSyncState.endRefresh()
-        }
-    }
+    // Material3's current pullToRefresh modifier takes `enabled` as a plain Boolean and updates the
+    // modifier node on recomposition, so the live gate below is re-read as the strap connects. The
+    // gesture calls onRefresh at the threshold; syncNow is fire-and-forget, and the existing sync
+    // chip/note owns ongoing progress, so there is no separate refreshing state to drive here.
+    val pullToSyncState = rememberPullToRefreshState()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .nestedScroll(pullToSyncState.nestedScrollConnection),
+            .pullToRefresh(
+                state = pullToSyncState,
+                isRefreshing = false,
+                enabled = canPullToSync,
+                onRefresh = { if (canPullToSync) viewModel.syncNow() },
+            ),
     ) {
     LazyScreenScaffold(
         modifier = daySwipeModifier,
@@ -1967,13 +1958,14 @@ fun TodayScreen(
             )
         }
     }
-        // Material3's PullToRefreshContainer draws its indicator circle even at rest (progress 0, not
-        // refreshing), so an idle Today showed a permanent grey dot at the top (#582). Compose it only
-        // while a pull is in progress or a sync is running — the pull GESTURE flows through the Box's
-        // nestedScroll above, not this container, so gating the visual can't disable pull-to-sync.
-        if (pullToSyncState.progress > 0f || pullToSyncState.isRefreshing) {
-            PullToRefreshContainer(
+        // Material3's Indicator draws its circle even at rest (distanceFraction 0), so an idle Today
+        // would show a permanent grey dot at the top (#582). Compose it only while a pull is in progress
+        // — the gesture flows through the Box's pullToRefresh modifier above, not this indicator, so
+        // gating the visual can't disable pull-to-sync.
+        if (pullToSyncState.distanceFraction > 0f) {
+            PullToRefreshDefaults.Indicator(
                 state = pullToSyncState,
+                isRefreshing = false,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -5200,7 +5192,7 @@ private fun LazyItemScope.TodayReorderableSection(
                     // Non-dragged sections animate to their new slot as the lifted card crosses them — a
                     // calm, deterministic ease (the default placement spring read abrupt when a tall card
                     // displaced a short one; first on-device feedback).
-                    Modifier.animateItemPlacement(tween(durationMillis = 260, easing = FastOutSlowInEasing))
+                    Modifier.animateItem(placementSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing))
                 },
             )
             .pointerInput(key) {

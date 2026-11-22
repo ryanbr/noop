@@ -107,20 +107,25 @@ android/
 
 ### Version contract
 
-From `android/build.gradle.kts` and `android/app/build.gradle.kts` — keep these aligned; a Kotlin
-bump forces matching KSP and Compose-compiler bumps:
+From `android/build.gradle.kts` and `android/app/build.gradle.kts` — keep these aligned. AGP 9 has
+built-in Kotlin support: the app applies `com.android.application`, `org.jetbrains.kotlin.plugin.compose`
+and KSP directly, with no legacy `org.jetbrains.kotlin.android` plugin or
+`kotlinCompilerExtensionVersion`.
 
 | Component | Version | Notes |
 | --- | --- | --- |
-| Android Gradle Plugin | `8.5.2` | `com.android.application` |
-| Kotlin | `1.9.24` | `org.jetbrains.kotlin.android` |
-| KSP | `1.9.24-1.0.20` | `<kotlinVersion>-<kspVersion>`, must track Kotlin exactly |
-| Compose BOM | `2024.06.00` | pins all Compose artifacts in lockstep |
-| Compose compiler extension | `1.5.14` | matched to Kotlin 1.9.24 |
-| Room | `2.6.1` | `room-runtime`, `room-ktx`, `room-compiler` (via KSP) |
-| `compileSdk` / `targetSdk` | `34` | |
+| Android Gradle Plugin | `9.5.2` | `com.android.application`, built-in Kotlin support |
+| Gradle | `9.9.2` | pinned by the checked-in wrapper and its official SHA-256 |
+| Kotlin | `2.4.21` | supplied by AGP 9; must match the Compose compiler plugin |
+| KSP | `2.3.14` | independent of KGP version; supports AGP 9 and Kotlin 2.4 |
+| Compose BOM | `2026.11.01` | pins all Compose artifacts in lockstep |
+| Compose compiler plugin | `2.4.21` | `org.jetbrains.kotlin.plugin.compose`, matched to Kotlin |
+| Room | `2.8.5` | `room-runtime`, `room-ktx`, `room-compiler` (via KSP) |
+| `compileSdk` | `37.1` | minor API level selected through AGP 9's expanded SDK DSL |
+| `targetSdk` | `37` | Android 17 behavior changes apply |
 | `minSdk` | `26` | Android 8.0 — the floor for the current BLE permission split |
-| `sourceCompatibility` / `jvmTarget` | `17` | JDK 17 |
+| Build JDK / toolchain | `25` | pinned by Gradle daemon criteria and Kotlin toolchain |
+| `sourceCompatibility` / `jvmTarget` | `17` | emitted bytecode stays JVM 17-compatible |
 | `applicationId` | `com.noop.whoop` | `.debug` suffix on debug builds |
 
 The app declares `INTERNET` for its documented network features (see
@@ -174,10 +179,10 @@ This section maps the surface so contributors know where each piece lives.
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| JDK | **17** | AGP 8.5 / Kotlin 1.9 target JVM 17 |
-| Android SDK | API **34** platform + build-tools; `minSdk` 26 | install via Android Studio SDK Manager or `sdkmanager` |
-| Android Studio | current stable (Koala / Ladybug or newer) | optional but recommended; provides the SDK and emulator |
-| Gradle | provided by the committed wrapper (target ~8.7) | use `./gradlew`; do not rely on a global Gradle |
+| JDK | **25** | build JVM/toolchain; emitted bytecode remains JVM 17-compatible |
+| Android SDK | API **37.0** and **37.1** platforms + build-tools **36.0.0**; `minSdk` 26 | install via Android Studio SDK Manager or `sdkmanager` |
+| Android Studio | current stable with AGP 9.5 support | optional but recommended; provides the SDK and emulator |
+| Gradle | provided by the committed wrapper (**9.9.2**) | use `./gradlew`; do not rely on a global Gradle |
 | A physical WHOOP 4.0 or 5.0 strap | — | **required** for any real BLE validation; emulators have no BLE radio |
 | A physical Android device with BLE | Android 8.0+ (API 26+) | the emulator **cannot** reach a real strap |
 
@@ -199,15 +204,15 @@ or export `ANDROID_HOME` / `ANDROID_SDK_ROOT`.
 ```bash
 cd android
 
-# Run the pure-Kotlin unit tests (analytics). No device needed.
-./gradlew :app:testDebugUnitTest
+# Run the pure-Kotlin unit tests for the real ("full") flavor. No device needed.
+./gradlew :app:testFullDebugUnitTest
 
 # Assemble a debug APK.
-./gradlew assembleDebug
-# → app/build/outputs/apk/debug/app-debug.apk  (applicationId com.noop.whoop.debug)
+./gradlew assembleFullDebug
+# → app/build/outputs/apk/full/debug/app-full-debug.apk  (applicationId com.noop.whoop.debug)
 
 # Install onto a connected device and launch.
-./gradlew installDebug
+./gradlew installFullDebug
 adb shell am start -n com.noop.whoop.debug/com.noop.ui.MainActivity
 
 # Release builds — the two shipped flavours (R8 full mode + resource shrink are enabled).
@@ -630,7 +635,7 @@ there's no hard 5.0/MG gate — but because 5.0/MG HR is currently sparse, those
 
 The UI is Jetpack Compose (Material 3). The theme resources (`res/values/colors.xml`, `themes.xml`
 with `Theme.NOOP`, `strings.xml` with `app_name = "NOOP"`), `MainActivity`, and the screens are all
-in place. The dependency set in `app/build.gradle.kts` is wired for Compose (BOM `2024.06.00`,
+in place. The dependency set in `app/build.gradle.kts` is wired for Compose (BOM `2026.11.01`,
 Material 3, Material icons extended, `activity-compose`, `navigation-compose`,
 `lifecycle-viewmodel-compose`) and Coroutines.
 
@@ -657,6 +662,7 @@ Selected permissions from the manifest (the manifest is the complete list):
 | Permission | API range | Why |
 | --- | --- | --- |
 | `INTERNET` | all | documented network features; a [normal install-time permission](https://developer.android.com/reference/android/Manifest.permission#INTERNET), not a runtime consent prompt |
+| `ACCESS_LOCAL_NETWORK` | 37+ | required when targeting Android 17 for sockets to the user's LAN; requested at runtime only from the opt-in self-hosted push and AI Coach custom-endpoint surfaces |
 | `BLUETOOTH_SCAN` (`neverForLocation`) | 31+ | scan for the strap; opt out of location coupling |
 | `BLUETOOTH_CONNECT` | 31+ | connect / bond / GATT I/O |
 | `BLUETOOTH`, `BLUETOOTH_ADMIN` | ≤30 | legacy install-time BLE perms |
@@ -666,7 +672,9 @@ Selected permissions from the manifest (the manifest is the complete list):
 | `<uses-feature bluetooth_le required="true">` | — | BLE is mandatory hardware |
 
 On API 31+ you must **request `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` at runtime** before scanning
-or connecting. `android:allowBackup="false"` and the `data_extraction_rules.xml` keep the local DB
+or connecting. On API 37+, `ACCESS_LOCAL_NETWORK` is likewise requested, but only when the user
+sets up or uses a LAN endpoint; offline collection never asks for it. `android:allowBackup="false"`
+and the `data_extraction_rules.xml` keep the local DB
 out of cloud/device-transfer backups — consistent with "your data stays on your device."
 
 ---
@@ -684,10 +692,10 @@ should be re-verified against a real build, a real device, and a real strap befo
 - [x] Gradle wrapper committed (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.{jar,properties}`).
 - [x] Entry points present: `com/noop/NoopApplication.kt`, `com/noop/ui/MainActivity.kt`,
       `app/proguard-rules.pro`.
-- [x] `./gradlew :app:testDebugUnitTest` is green (analytics vectors).
-- [x] `./gradlew assembleDebug` produces `app-debug.apk`.
-- [x] `./gradlew assembleFullRelease` / `assembleDemoRelease` succeed with R8 full mode + resource shrinking.
-- [x] Manifest declares `INTERNET`; feature gates and payloads are documented in [Privacy & Security §1.1](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
+- [x] `./gradlew :app:testFullDebugUnitTest` is green (analytics vectors).
+- [x] `./gradlew assembleFullDebug` produces `app-full-debug.apk`.
+- [x] `./gradlew assembleFullRelease` / `assembleDemoRelease` succeed.
+- [x] Manifest declares `INTERNET` and, for API 37+, `ACCESS_LOCAL_NETWORK`; feature gates and payloads are documented in [Privacy & Security §1.1](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 
 **Protocol parity (JVM, no device)**
 
