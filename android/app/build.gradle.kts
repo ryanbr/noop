@@ -2,7 +2,8 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // AGP 9 has built-in Kotlin support; the legacy kotlin-android plugin is not compatible.
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
 
@@ -20,12 +21,18 @@ val requestedReleaseBuild = gradle.startParameter.taskNames.any {
 
 android {
     namespace = "com.noop"
-    compileSdk = 35
+    // Compose 2026.11.x and current AndroidX require compileSdk 37.1. Major API 37 is the
+    // highest level AGP 9.5 supports; minor API levels are selected with the expanded DSL.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
         applicationId = "com.noop.whoop"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 37
         versionCode = 558
         versionName = "12.1.0"
 
@@ -122,19 +129,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        // Build with JDK 25 but emit JVM 17 bytecode; jvmTarget below is explicit so the toolchain
+        // does not raise the bytecode level with it.
+        jvmToolchain(25)
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    composeOptions {
-        // Compose Compiler extension matched to Kotlin 1.9.24 (see the official
-        // Compose-to-Kotlin compatibility map). Bumping Kotlin requires bumping this.
-        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
     packaging {
@@ -249,7 +255,7 @@ dependencyLocking {
 
 dependencies {
     // --- Compose (BOM pins all Compose artifact versions in lockstep) ---
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -259,50 +265,46 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // --- Home-screen widget (1.1.x: last line compatible with compileSdk 34) ---
-    implementation("androidx.glance:glance-appwidget:1.1.1")
-    // Glance's own POM pins work-runtime 2.7.1 (Oct 2021) — pre-Android-14. Pin a current one
-    // explicitly so the widget scheduler runs on a WorkManager that's maintained for targetSdk 34.
-    // (2.10+ needs compileSdk 35; 2.9.x is the ceiling for this module.)
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    // --- Home-screen widget ---
+    implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.work:work-runtime-ktx:2.12.0")
 
     // --- Activity / lifecycle / navigation ---
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2") // collectAsStateWithLifecycle
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1") // collectAsStateWithLifecycle
+    implementation("androidx.navigation:navigation-compose:2.10.2")
 
     // --- Coroutines ---
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // --- Room (local-only persistence; on-device, nothing leaves the phone) ---
-    val roomVersion = "2.6.1"
+    val roomVersion = "2.8.5"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // --- AI Coach (opt-in, bring-your-own-key). HTTP client + Keystore-backed key storage. ---
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("com.squareup.okhttp3:okhttp:4.12.1")
+    implementation("androidx.security:security-crypto:1.1.0")
 
     // --- Health Connect (optional native Android import of steps/HR/HRV/sleep/etc.) ---
-    // Pinned to alpha07: alpha11+ require compileSdk 35; this module is compileSdk 34.
-    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+    implementation("androidx.health.connect:connect-client:1.1.0")
 
     // --- Unit / instrumentation tests ---
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jacoco:org.jacoco.core:0.8.12")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
-    testImplementation("org.json:json:20240303") // real org.json for JVM unit tests (android.jar ships throwing stubs)
+    testImplementation("org.jacoco:org.jacoco.core:0.8.16")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation("org.json:json:20260814") // real org.json for JVM unit tests (android.jar ships throwing stubs)
     testImplementation("net.sf.kxml:kxml2:2.3.0") // real XmlPullParser for JVM tests (android.util.Xml is a throwing stub)
-    testImplementation("org.xerial:sqlite-jdbc:3.41.2.2") // execute DAO aggregate SQL in plain-JVM tests
+    testImplementation("org.xerial:sqlite-jdbc:3.54.1.0") // execute DAO aggregate SQL in plain-JVM tests
     testImplementation("androidx.room:room-testing:$roomVersion") // create a prior DB from exported schemas
-    testImplementation("org.robolectric:robolectric:4.13") // run the real Room open/migration in Linux CI (#1803)
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    testImplementation("org.robolectric:robolectric:4.18.1") // run the real Room open/migration in Linux CI (#1803)
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 
     // --- Compose tooling (debug-only) ---

@@ -157,7 +157,7 @@ fun LazyItemScope.SleepReorderableSection(
                     }
                 } else {
                     // Non-dragged sections animate to their new slot as the lifted card crosses them.
-                    Modifier.animateItemPlacement(tween(durationMillis = 260, easing = FastOutSlowInEasing))
+                    Modifier.animateItem(placementSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing))
                 },
             )
             .pointerInput(itemKey) {

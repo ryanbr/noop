@@ -9,6 +9,12 @@
       NOOP server, telemetry, or network dependency is introduced by this permission.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 17+ (API 37) gates sockets to the user's local network for apps targeting 37.
+         Requested at runtime only from the two opt-in LAN surfaces (self-hosted push and AI Coach
+         custom endpoints); offline collection never asks for it. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_LOCAL_NETWORK"
+        tools:targetApi="37" />
 
     <!-- Android 12+ (API 31+) Bluetooth runtime permissions.
          neverForLocation: we do not derive physical location from BLE scans, so we

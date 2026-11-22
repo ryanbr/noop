@@ -113,6 +113,7 @@
     <string name="push_export_now">Export now</string>
     <string name="push_export_now_detail">Starts a catch-up now. Automatic export must be enabled.</string>
     <string name="push_config_required">Save a valid endpoint and token before enabling.</string>
+    <string name="local_network_permission_required">Local network permission is required to reach this endpoint.</string>
     <string name="push_status_title">Status</string>
     <string name="push_status_detail">Credentials are never shown in status or worker metadata.</string>
     <string name="push_never">Never</string>

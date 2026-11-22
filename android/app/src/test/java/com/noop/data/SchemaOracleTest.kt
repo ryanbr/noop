@@ -105,7 +105,9 @@ class SchemaOracleTest {
                 Col(
                     name = f.getString("columnName"),
                     affinity = sqliteAffinity(f.getString("affinity")),
-                    notNull = f.getBoolean("notNull"),
+                    // Room 2.8 omits `"notNull": false` instead of writing it explicitly. Absence means
+                    // nullable, which is the same fact the older exporter spelled out.
+                    notNull = f.optBoolean("notNull", false),
                     default = if (f.has("defaultValue")) f.getString("defaultValue") else null,
                 )
             }

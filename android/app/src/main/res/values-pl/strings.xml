@@ -2583,6 +2583,7 @@
     <string name="push_export_now">Eksportuj teraz</string>
     <string name="push_export_now_detail">Rozpoczyna uzupełnianie teraz. Automatyczny eksport musi być włączony.</string>
     <string name="push_config_required">Przed włączeniem zapisz prawidłowy endpoint i token.</string>
+    <string name="local_network_permission_required">Aby dotrzeć do tego punktu, wymagane jest zezwolenie na dostęp do sieci lokalnej.</string>
     <string name="push_status_title">Stan</string>
     <string name="push_status_detail">Dane logowania nigdy nie pojawiają się w stanie ani metadanych Workera.</string>
     <string name="push_never">Nigdy</string>

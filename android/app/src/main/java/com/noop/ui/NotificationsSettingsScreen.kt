@@ -909,13 +909,13 @@ internal fun TimeChip(
                     colors = TimePickerDefaults.colors(
                         clockDialColor = Palette.surfaceInset,
                         clockDialSelectedContentColor = Palette.surfaceBase,
-                        clockDialUnselectedContentColor = Palette.textPrimary,
+                        clockDialContentColor = Palette.textPrimary,
                         selectorColor = Palette.accent,
                         periodSelectorBorderColor = Palette.hairline,
                         timeSelectorSelectedContainerColor = Palette.accentMuted,
-                        timeSelectorUnselectedContainerColor = Palette.surfaceInset,
+                        timeSelectorContainerColor = Palette.surfaceInset,
                         timeSelectorSelectedContentColor = Palette.accent,
-                        timeSelectorUnselectedContentColor = Palette.textPrimary,
+                        timeSelectorContentColor = Palette.textPrimary,
                     ),
                 )
                 Row(

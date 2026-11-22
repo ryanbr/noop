@@ -106,6 +106,7 @@
     <string name="push_export_now">Экспортировать сейчас</string>
     <string name="push_export_now_detail">Запускает догоняющую отправку сейчас. Автоматический экспорт должен быть включён.</string>
     <string name="push_config_required">Сохраните корректный адрес и токен перед включением.</string>
+    <string name="local_network_permission_required">Для доступа к этому адресу требуется разрешение на доступ к локальной сети.</string>
     <string name="push_status_title">Статус</string>
     <string name="push_status_detail">Учётные данные никогда не показываются в статусе или метаданных обработчика.</string>
     <string name="push_never">Никогда</string>

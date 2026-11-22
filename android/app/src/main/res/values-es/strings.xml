@@ -2573,6 +2573,7 @@
     <string name="push_export_now">Exportar ahora</string>
     <string name="push_export_now_detail">Inicia ahora una puesta al día. La exportación automática debe estar activada.</string>
     <string name="push_config_required">Guarda un endpoint válido y un token antes de activar.</string>
+    <string name="local_network_permission_required">Se necesita el permiso de red local para acceder a este endpoint.</string>
     <string name="push_status_title">Estado</string>
     <string name="push_status_detail">Las credenciales nunca aparecen en el estado ni en los metadatos del Worker.</string>
     <string name="push_never">Nunca</string>

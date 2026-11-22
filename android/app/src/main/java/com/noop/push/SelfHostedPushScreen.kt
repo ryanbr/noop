@@ -28,6 +28,7 @@ import com.noop.ui.NoopButton
 import com.noop.ui.NoopButtonKind
 import com.noop.ui.NoopType
 import com.noop.ui.Palette
+import com.noop.ui.rememberLocalNetworkPermissionRequester
 import com.noop.ui.ScreenScaffold
 import com.noop.ui.SettingsCard
 import com.noop.ui.SettingsToggleRow
@@ -57,6 +58,63 @@ fun SelfHostedPushScreen() {
     var capabilityProbe by remember { mutableStateOf<CapabilityProbeUi>(CapabilityProbeUi.Idle) }
     var capabilityProbeGeneration by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val requestLocalNetwork = rememberLocalNetworkPermissionRequester()
+    val localNetworkDenied = { validationMessage = context.getString(R.string.local_network_permission_required) }
+
+    fun launchCapabilityProbe(
+        valid: PushEndpointPolicy.Result.Valid,
+        testToken: String,
+    ) {
+        val generation = capabilityProbeGeneration + 1
+        capabilityProbeGeneration = generation
+        val persistResult = token.isBlank() && valid.endpoint.url == snapshot.endpoint?.url
+        capabilityProbe = CapabilityProbeUi.Testing
+        scope.launch {
+            val result = PushConnectionTester().test(valid.endpoint, testToken)
+            if (capabilityProbeGeneration != generation) return@launch
+            capabilityProbe = when (result) {
+                is PushCapabilitiesResult.Available -> {
+                    val checkedAt = System.currentTimeMillis()
+                    if (persistResult) runCatching {
+                        settings.recordCapabilities(
+                            valid.endpoint,
+                            result.capabilities,
+                            checkedAt,
+                        )
+                    }
+                    snapshot = settings.snapshot()
+                    CapabilityProbeUi.Success(result.capabilities.wireNames, checkedAt)
+                }
+                is PushCapabilitiesResult.Rejected -> CapabilityProbeUi.Failure(
+                    result.failure ?: PushFailure(PushFailureCode.NETWORK_IO),
+                )
+            }
+        }
+    }
+
+    fun startCapabilityProbe() {
+        val valid = PushEndpointPolicy.validate(endpoint) as? PushEndpointPolicy.Result.Valid
+        val testToken = token.trim().takeIf(String::isNotEmpty) ?: settings.token()
+        if (valid == null || testToken == null) {
+            validationMessage = context.getString(R.string.push_config_required)
+        } else if (!canStartPushConnectionTest(
+                networkAvailable = isPushNetworkAvailable(
+                    context,
+                    wifiOnly = snapshot.wifiOnly,
+                ),
+                endpointValid = true,
+                tokenAvailable = true,
+            )
+        ) {
+            validationMessage = context.getString(R.string.push_test_network_required)
+        } else {
+            // All cheap local checks passed; only now is a LAN socket actually imminent.
+            requestLocalNetwork(
+                { launchCapabilityProbe(valid, testToken) },
+                localNetworkDenied,
+            )
+        }
+    }
 
     // WorkManager runs outside this composition. Refresh while visible so progress and completion do
     // not require navigating away and back (and avoid retaining a UI listener in process globals).
@@ -125,17 +183,23 @@ fun SelfHostedPushScreen() {
                         when (val result = settings.saveEndpoint(endpoint)) {
                             is PushEndpointPolicy.Result.Invalid ->
                                 validationMessage = pushEndpointProblemMessage(context, result.problem)
-                            is PushEndpointPolicy.Result.Valid -> {
-                                val destinationChanged = snapshot.endpoint?.url != result.endpoint.url
-                                endpoint = result.endpoint.url
-                                if (token.isNotBlank()) settings.saveToken(token)
-                                token = ""
-                                snapshot = settings.snapshot()
-                                if (destinationChanged && snapshot.ready) {
-                                    SelfHostedPushScheduler.destinationChanged(context)
-                                }
-                                validationMessage = context.getString(R.string.push_saved)
-                            }
+                            is PushEndpointPolicy.Result.Valid ->
+                                // Saving a destination can immediately schedule a background POST. API 37
+                                // needs the grant BEFORE that worker runs, since it has no Activity to ask.
+                                requestLocalNetwork(
+                                    {
+                                        val destinationChanged = snapshot.endpoint?.url != result.endpoint.url
+                                        endpoint = result.endpoint.url
+                                        if (token.isNotBlank()) settings.saveToken(token)
+                                        token = ""
+                                        snapshot = settings.snapshot()
+                                        if (destinationChanged && snapshot.ready) {
+                                            SelfHostedPushScheduler.destinationChanged(context)
+                                        }
+                                        validationMessage = context.getString(R.string.push_saved)
+                                    },
+                                    localNetworkDenied,
+                                )
                         }
                     },
                 )
@@ -148,49 +212,7 @@ fun SelfHostedPushScreen() {
                     kind = NoopButtonKind.Secondary,
                     fullWidth = true,
                     enabled = endpointValid && tokenAvailable && capabilityProbe != CapabilityProbeUi.Testing,
-                    onClick = {
-                        val valid = PushEndpointPolicy.validate(endpoint) as? PushEndpointPolicy.Result.Valid
-                        val testToken = token.trim().takeIf(String::isNotEmpty) ?: settings.token()
-                        if (valid == null || testToken == null) {
-                            validationMessage = context.getString(R.string.push_config_required)
-                        } else if (!canStartPushConnectionTest(
-                                networkAvailable = isPushNetworkAvailable(
-                                    context,
-                                    wifiOnly = snapshot.wifiOnly,
-                                ),
-                                endpointValid = true,
-                                tokenAvailable = true,
-                            )
-                        ) {
-                            validationMessage = context.getString(R.string.push_test_network_required)
-                        } else {
-                            val generation = capabilityProbeGeneration + 1
-                            capabilityProbeGeneration = generation
-                            val persistResult = token.isBlank() && valid.endpoint.url == snapshot.endpoint?.url
-                            capabilityProbe = CapabilityProbeUi.Testing
-                            scope.launch {
-                                val result = PushConnectionTester().test(valid.endpoint, testToken)
-                                if (capabilityProbeGeneration != generation) return@launch
-                                capabilityProbe = when (result) {
-                                    is PushCapabilitiesResult.Available -> {
-                                        val checkedAt = System.currentTimeMillis()
-                                        if (persistResult) runCatching {
-                                            settings.recordCapabilities(
-                                                valid.endpoint,
-                                                result.capabilities,
-                                                checkedAt,
-                                            )
-                                        }
-                                        snapshot = settings.snapshot()
-                                        CapabilityProbeUi.Success(result.capabilities.wireNames, checkedAt)
-                                    }
-                                    is PushCapabilitiesResult.Rejected -> CapabilityProbeUi.Failure(
-                                        result.failure ?: PushFailure(PushFailureCode.NETWORK_IO),
-                                    )
-                                }
-                            }
-                        }
-                    },
+                    onClick = { startCapabilityProbe() },
                 )
                 Text(
                     stringResource(R.string.push_test_connection_detail),
@@ -277,12 +299,24 @@ fun SelfHostedPushScreen() {
                         if (!requested) {
                             settings.setEnabled(false)
                             SelfHostedPushScheduler.cancel(context)
+                            snapshot = settings.snapshot()
                         } else if (!settings.setEnabled(true)) {
                             validationMessage = context.getString(R.string.push_config_required)
+                            snapshot = settings.snapshot()
                         } else {
-                            SelfHostedPushScheduler.enqueueLaunchCatchUp(context)
+                            requestLocalNetwork(
+                                {
+                                    SelfHostedPushScheduler.enqueueLaunchCatchUp(context)
+                                    snapshot = settings.snapshot()
+                                },
+                                {
+                                    // Do not leave an enabled switch that cannot actually push.
+                                    settings.setEnabled(false)
+                                    snapshot = settings.snapshot()
+                                    localNetworkDenied()
+                                },
+                            )
                         }
-                        snapshot = settings.snapshot()
                     },
                 )
                 NoopButton(
@@ -291,8 +325,13 @@ fun SelfHostedPushScreen() {
                     fullWidth = true,
                     enabled = snapshot.ready,
                     onClick = {
-                        SelfHostedPushScheduler.enqueueManualCatchUp(context)
-                        snapshot = settings.snapshot()
+                        requestLocalNetwork(
+                            {
+                                SelfHostedPushScheduler.enqueueManualCatchUp(context)
+                                snapshot = settings.snapshot()
+                            },
+                            localNetworkDenied,
+                        )
                     },
                 )
                 Text(

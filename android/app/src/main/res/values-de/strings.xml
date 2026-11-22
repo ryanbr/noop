@@ -2586,6 +2586,7 @@
     <string name="push_export_now">Jetzt exportieren</string>
     <string name="push_export_now_detail">Startet jetzt einen Abgleich. Der automatische Export muss aktiviert sein.</string>
     <string name="push_config_required">Speichere vor dem Aktivieren einen gültigen Endpunkt und ein Token.</string>
+    <string name="local_network_permission_required">Für diesen Endpunkt ist die Berechtigung für den lokalen Netzwerkzugriff erforderlich.</string>
     <string name="push_status_title">Status</string>
     <string name="push_status_detail">Zugangsdaten erscheinen nie im Status oder in Worker-Metadaten.</string>
     <string name="push_never">Nie</string>

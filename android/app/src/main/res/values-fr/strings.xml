@@ -2572,6 +2572,7 @@
     <string name="push_export_now">Exporter maintenant</string>
     <string name="push_export_now_detail">Lance un rattrapage maintenant. L’export automatique doit être activé.</string>
     <string name="push_config_required">Enregistrez un point valide et un jeton avant l’activation.</string>
+    <string name="local_network_permission_required">L’autorisation d’accès au réseau local est requise pour atteindre ce point.</string>
     <string name="push_status_title">État</string>
     <string name="push_status_detail">Les identifiants ne figurent jamais dans l’état ni les métadonnées du Worker.</string>
     <string name="push_never">Jamais</string>

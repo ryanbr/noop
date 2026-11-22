@@ -45,11 +45,13 @@ class IntelligenceEngineJacocoBudgetTest {
         // The margin is deliberate and roughly 1.9 K: enough for an ordinary change (the pass-1 sliding
         // read windows need about 825), small enough that a large regression fails here rather than at the
         // JVM's 64 KB wall. If a change genuinely needs more, extract — this file already shows the shape
-        // twice over.
-        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 55_700)
-        // Untouched: 6,415 against 12,000. Slack, but it has not been creeping, and ratcheting a method
-        // nobody is pressing against would be tightening for its own sake.
-        assertExactMethodBudget(lengths, "persistFitnessVitalityAndSteps", 12_000)
+        // three times over: the Kotlin 2.4 upgrade lifted the method to 49,099 instrumented bytes, and
+        // lifting the pass-1 loop into a local class plus the day/HRV/workout diagnostic helpers banked
+        // that below a 51,000 budget with the intended margin restored.
+        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 51_000)
+        // Kotlin 2.4 also widened this helper from 6,415 to 9,867 instrumented bytes. It was untouched by
+        // the extraction, so ratchet the budget down to 10,800 rather than leave the old 12,000 slack.
+        assertExactMethodBudget(lengths, "persistFitnessVitalityAndSteps", 10_800)
     }
 
     @Test

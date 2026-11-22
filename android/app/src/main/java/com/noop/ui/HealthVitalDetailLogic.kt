@@ -315,7 +315,7 @@ internal fun projectStepsDetail(
     val accessibility = if (buckets.isEmpty()) {
         resolveString(com.noop.R.string.steps_no_data, emptyArray())
     } else {
-        resolveString(com.noop.R.string.steps_chart_summary, arrayOf(buckets.size, labels.zip(buckets).joinToString(
+        resolveString(com.noop.R.string.steps_chart_summary, arrayOf<Any>(buckets.size, labels.zip(buckets).joinToString(
             separator = "; ",
         ) { (label, bucket) ->
             "$label, ${stepsBucketValueLabel(bucket.mean.toDouble(), granularity, resolveString)}"

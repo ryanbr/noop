@@ -2479,6 +2479,7 @@
     <string name="push_export_now">立即导出</string>
     <string name="push_export_now_detail">立即开始补发。必须先启用自动导出。</string>
     <string name="push_config_required">启用前请保存有效端点和令牌。</string>
+    <string name="local_network_permission_required">需要本地网络权限才能访问此端点。</string>
     <string name="push_status_title">状态</string>
     <string name="push_status_detail">凭据绝不会出现在状态或 Worker 元数据中。</string>
     <string name="push_never">从未</string>
