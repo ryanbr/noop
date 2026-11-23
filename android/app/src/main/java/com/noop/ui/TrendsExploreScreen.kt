@@ -173,7 +173,8 @@ private val builtInMetrics: List<MetricSpec> = listOf(
     MetricSpec(
         key = "efficiency", title = uiString(R.string.l10n_trends_explore_screen_sleep_efficiency_b4b5c293), unit = "%", category = uiString(R.string.explore_category_rest),
         accent = Palette.accent, higherIsBetter = true, decimals = 0,
-        dailyPick = { it.efficiency },
+        // Through the resolver's column map, not `it.efficiency`: the column is a 0–1 fraction, this is a "%".
+        dailyPick = { WhoopRepository.dailyColumn("sleep_efficiency", it) },
     ),
     MetricSpec(
         key = "spo2", title = uiString(R.string.l10n_trends_explore_screen_blood_oxygen_a8ad9ff5), unit = "%", category = uiString(R.string.explore_category_health),

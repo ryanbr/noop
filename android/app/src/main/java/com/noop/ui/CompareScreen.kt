@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.data.DailyMetric
 import com.noop.data.MoodStore
+import com.noop.data.WhoopRepository
 import com.noop.ingest.NutritionCsvImporter
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -216,7 +217,8 @@ private object CompareCatalog {
         "spo2" -> { d -> d.spo2Pct }
         "skin_temp" -> { d -> d.skinTempDevC }
         "sleep_total_min" -> { d -> d.totalSleepMin }
-        "sleep_efficiency" -> { d -> d.efficiency }
+        // Through the resolver's column map, not `d.efficiency`: the column is a 0–1 fraction, this is a "%".
+        "sleep_efficiency" -> { d -> WhoopRepository.dailyColumn("sleep_efficiency", d) }
         "sleep_deep_min" -> { d -> d.deepMin }
         "sleep_rem_min" -> { d -> d.remMin }
         "sleep_light_min" -> { d -> d.lightMin }
