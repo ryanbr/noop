@@ -2836,6 +2836,14 @@ class WhoopRepository(
          * source of truth [com.noop.analytics.RestScorer.restFromDaily] (the SAME composite the series
          * carries), so the day resolves to its own Rest. Consistency is left to the scorer's neutral
          * default here (the daily row carries no regularity term).
+         *
+         * `sleep_efficiency` changes unit on the way out. A metricSeries point for this key is WHOOP's
+         * 0–100 percentage and the catalogs label it "%", but the column stores the 0–1 asleep ÷ in-bed
+         * fraction, so passing it through drew every such day as "1 %". The column is not uniformly a
+         * fraction, though: the Fitbit / Oura-export / Mi Band importers and the demo seeder write a
+         * percentage, so a bare `* 100` would trade "1 %" for "8900 %". Above 1.5 the value is already a
+         * percentage, the split [WhoopDatabase.EFFICIENCY_HEAL_MIGRATION_SQL] uses: no genuine fraction
+         * exceeds it and no real night is that inefficient.
          */
         internal fun dailyColumn(key: String, d: DailyMetric): Double? = when (key) {
             "recovery" -> d.recovery
@@ -2846,7 +2854,7 @@ class WhoopRepository(
             "spo2" -> d.spo2Pct
             "skin_temp" -> d.skinTempDevC
             "sleep_total_min", "asleep_min" -> d.totalSleepMin
-            "sleep_efficiency" -> d.efficiency
+            "sleep_efficiency" -> d.efficiency?.let { if (it > 1.5) it else it * 100 }
             "sleep_deep_min", "deep_min" -> d.deepMin
             "sleep_rem_min", "rem_min" -> d.remMin
             "sleep_light_min", "core_min" -> d.lightMin

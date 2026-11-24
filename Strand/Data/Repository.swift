@@ -2550,6 +2550,14 @@ final class Repository: ObservableObject {
     /// scorer's neutral default here (the daily row carries no regularity term). Mirrors Android
     /// WhoopRepository.dailyColumn / RestScorer.restFromDaily.
     ///
+    /// `sleep_efficiency` changes unit on the way out. The imported metricSeries point this layer sits
+    /// under is WHOOP's 0–100 percentage and the catalog labels the key "%", but the column stores the
+    /// 0–1 asleep ÷ in-bed fraction, so passing it through drew every strap-only day as "1 %" beside
+    /// imported days in the 90s. The column is not uniformly a fraction, though: the Fitbit / Oura-export /
+    /// Mi Band importers and the demo seeder write a percentage, so a bare `* 100` would trade "1 %" for
+    /// "8900 %". Above 1.5 the value is already a percentage, the split the v26 efficiency heal uses: no
+    /// genuine fraction exceeds it and no real night is that inefficient.
+    ///
     /// Internal + nonisolated (not private) so the pure `EditMergePrecedenceTests` can exercise the #614
     /// derivation directly off the main actor, the same way Android's `internal fun dailyColumn` is
     /// unit-tested. No non-test caller outside this type.
@@ -2563,7 +2571,7 @@ final class Repository: ObservableObject {
         case "spo2":             return d.spo2Pct
         case "skin_temp":        return d.skinTempDevC
         case "sleep_total_min", "asleep_min": return d.totalSleepMin
-        case "sleep_efficiency": return d.efficiency
+        case "sleep_efficiency": return d.efficiency.map { $0 > 1.5 ? $0 : $0 * 100 }
         case "sleep_deep_min", "deep_min": return d.deepMin
         case "sleep_rem_min", "rem_min":   return d.remMin
         case "sleep_light_min", "core_min": return d.lightMin
