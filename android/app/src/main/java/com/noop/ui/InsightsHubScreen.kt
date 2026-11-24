@@ -481,13 +481,14 @@ internal enum class InsightsOutcome(
     val key: String,
     val higherIsBetter: Boolean,
     val domain: DomainTheme,
-    val pick: (DailyMetric) -> Double?,
+    /** The day's value. The second argument is [insightsRestByDay]: the Rest score is not a column. */
+    val pick: (DailyMetric, Map<String, Double>) -> Double?,
     val format: (Double) -> String,
 ) {
-    Recovery("Charge", "Charge", "recovery", true, DomainTheme.Charge, { it.recovery }, { "${it.roundToInt()}%" }),
-    Hrv("HRV", "HRV", "hrv", true, DomainTheme.Rest, { it.avgHrv }, { "${it.roundToInt()} ms" }),
-    Sleep("Rest", "Rest", "sleep_performance", true, DomainTheme.Rest, { it.efficiency }, { "${it.roundToInt()}%" }),
-    Rhr("RHR", "Resting HR", "rhr", false, DomainTheme.Stress, { it.restingHr?.toDouble() }, { "${it.roundToInt()} bpm" }),
+    Recovery("Charge", "Charge", "recovery", true, DomainTheme.Charge, { d, _ -> d.recovery }, { "${it.roundToInt()}%" }),
+    Hrv("HRV", "HRV", "hrv", true, DomainTheme.Rest, { d, _ -> d.avgHrv }, { "${it.roundToInt()} ms" }),
+    Sleep("Rest", "Rest", "sleep_performance", true, DomainTheme.Rest, { d, restByDay -> restByDay[d.day] }, { "${it.roundToInt()}%" }),
+    Rhr("RHR", "Resting HR", "rhr", false, DomainTheme.Stress, { d, _ -> d.restingHr?.toDouble() }, { "${it.roundToInt()} bpm" }),
 }
 
 // MARK: - Dose card view-data
@@ -569,6 +570,20 @@ internal class InsightsHubViewModel {
             "Resting HR" -> "rhr"
             else -> "recovery"
         }
+
+        /** outcome key → day → value. Pure, so the Rest outcome's metric and scale are JVM-testable. */
+        fun outcomeDays(
+            days: List<DailyMetric>,
+            restByDay: Map<String, Double>,
+        ): Map<String, Map<String, Double>> {
+            val outcomeByKey = HashMap<String, Map<String, Double>>()
+            for (o in InsightsOutcome.entries) {
+                val dict = HashMap<String, Double>()
+                for (d in days) o.pick(d, restByDay)?.let { dict[d.day] = it }
+                outcomeByKey[o.key] = dict
+            }
+            return outcomeByKey
+        }
     }
 
     suspend fun load(vm: AppViewModel, days: List<DailyMetric>) {
@@ -588,13 +603,9 @@ internal class InsightsHubViewModel {
         val behaviours = byBehaviour.mapValues { it.value.toSet() }
         val controls = controlsByBehaviour.mapValues { it.value.toSet() }
 
-        // Outcome series straight off the cached DailyMetric rows (the guaranteed Android source).
-        val outcomeByKey = HashMap<String, Map<String, Double>>()
-        for (o in InsightsOutcome.entries) {
-            val dict = HashMap<String, Double>()
-            for (d in days) o.pick(d)?.let { dict[d.day] = it }
-            outcomeByKey[o.key] = dict
-        }
+        // Outcome series straight off the cached DailyMetric rows (the guaranteed Android source), except
+        // Rest, which is a metricSeries.
+        val outcomeByKey = outcomeDays(days, insightsRestByDay(vm.repo, vm.activeStrapId))
 
         // Dose rows per dosed behaviour, under the dedicated dose source; logged "yes" days
         // back-fill dose = 1, explicit dose rows override (matches the Swift contract).

@@ -101,24 +101,25 @@ private enum class Outcome(
      *  Behaviour Effects section sits in one world (Charge→green, HRV/Rest→indigo,
      *  RHR→Stress teal), mirroring the Swift Outcome.domain. */
     val domain: DomainTheme,
-    val pick: (DailyMetric) -> Double?,
+    /** The day's value. The second argument is [insightsRestByDay]: the Rest score is not a column. */
+    val pick: (DailyMetric, Map<String, Double>) -> Double?,
     val format: (Double) -> String,
 ) {
     Recovery(
         label = uiString(R.string.l10n_insights_screen_charge_d4e1aee4), outcomeName = "Charge", higherIsBetter = true, domain = DomainTheme.Charge,
-        pick = { it.recovery }, format = { "${it.roundToInt()}%" },
+        pick = { d, _ -> d.recovery }, format = { "${it.roundToInt()}%" },
     ),
     Hrv(
         label = "HRV", outcomeName = "HRV", higherIsBetter = true, domain = DomainTheme.Rest,
-        pick = { it.avgHrv }, format = { "${it.roundToInt()} ms" },
+        pick = { d, _ -> d.avgHrv }, format = { "${it.roundToInt()} ms" },
     ),
     Sleep(
         label = uiString(R.string.l10n_insights_screen_rest_b79e5f48), outcomeName = "Rest", higherIsBetter = true, domain = DomainTheme.Rest,
-        pick = { it.efficiency }, format = { "${it.roundToInt()}%" },
+        pick = { d, restByDay -> restByDay[d.day] }, format = { "${it.roundToInt()}%" },
     ),
     Rhr(
         label = uiString(R.string.l10n_insights_screen_rhr_04edf9b3), outcomeName = "Resting HR", higherIsBetter = false, domain = DomainTheme.Stress,
-        pick = { it.restingHr?.toDouble() }, format = { "${it.roundToInt()} bpm" },
+        pick = { d, _ -> d.restingHr?.toDouble() }, format = { "${it.roundToInt()} bpm" },
     ),
 }
 
@@ -282,10 +283,16 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
     var experimentDurationDays by remember { mutableStateOf(loadExperimentInt(ctx, EXP_DURATION, ExperimentLength.TwoWeeks.days)) }
     var experimentBaselineDays by remember { mutableStateOf(loadExperimentInt(ctx, EXP_BASELINE, ExperimentLength.TwoWeeks.days)) }
 
+    // The Rest outcome is a metricSeries, not a DailyMetric column, so it is read beside `days`.
+    var restByDay by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    androidx.compose.runtime.LaunchedEffect(days) {
+        restByDay = insightsRestByDay(vm.repo, vm.activeStrapId)
+    }
+
     // Build outcome day-maps + ordered series off the cached daily metrics. Cheap and
-    // recomputed only when `days` changes (not on every recomposition).
-    val model = remember(days, behaviours, controls, numericJournalSeries) {
-        buildModel(days, behaviours, controls, numericJournalSeries)
+    // recomputed only when an input changes (not on every recomposition).
+    val model = remember(days, restByDay, behaviours, controls, numericJournalSeries) {
+        buildModel(days, restByDay, behaviours, controls, numericJournalSeries)
     }
 
     // Ranked behaviour effects for the current outcome (recomputed when outcome/data change).
@@ -1574,6 +1581,7 @@ private fun RBar(r: Double, color: Color) {
 /** Build the per-outcome day maps + ordered series from cached daily metrics. */
 private fun buildModel(
     days: List<DailyMetric>,
+    restByDay: Map<String, Double>,
     behaviours: Map<String, Set<String>>,
     controls: Map<String, Set<String>>,
     numericJournalSeries: Map<String, Map<String, Double>> = emptyMap(),
@@ -1582,7 +1590,7 @@ private fun buildModel(
     val seriesByOutcome = mutableMapOf<Outcome, List<Pair<String, Double>>>()
     for (o in Outcome.entries) {
         // Oldest → newest; one value per day (DailyMetric PK is (deviceId, day)).
-        val series = days.mapNotNull { d -> o.pick(d)?.let { d.day to it } }
+        val series = days.mapNotNull { d -> o.pick(d, restByDay)?.let { d.day to it } }
         seriesByOutcome[o] = series
         outcomeByDay[o] = series.toMap()
     }
