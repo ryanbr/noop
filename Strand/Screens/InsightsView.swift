@@ -388,18 +388,12 @@ struct InsightsView: View {
         let mergedDays = repo.days
 
         // Outcome series (Whoop) → both [day:value] dictionaries and ordered series. The imported
-        // metricSeries only exists after a CSV import; fill the days it doesn't cover from the
-        // merged daily metrics so an account-free user's logging still gets effects
-        // (recovery/hrv/rhr have daily columns; sleep_performance stays import-only).
+        // metricSeries only exists after a CSV import; the shared read fills the days it doesn't
+        // cover so an account-free user's logging still gets effects.
         var byKey: [String: [String: Double]] = [:]
         var seriesMap: [String: [(day: String, value: Double)]] = [:]
         for key in outcomeKeys {
-            let s = await repo.series(key: key, source: "my-whoop")
-            var dict: [String: Double] = [:]
-            for row in s { dict[row.day] = row.value }
-            for d in mergedDays where dict[d.day] == nil {
-                if let v = Self.dailyOutcome(key: key, day: d) { dict[d.day] = v }
-            }
+            let dict = await repo.insightsOutcomeDays(key: key, mergedDays: mergedDays)
             byKey[key] = dict
             seriesMap[key] = dict.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
         }
@@ -476,18 +470,6 @@ struct InsightsView: View {
         loaded = true
         recomputeRanked()
         recomputeRelationships()
-    }
-
-    /// The merged DailyMetric column backing an outcome key, for days the imported metricSeries
-    /// doesn't cover (strap-only users). sleep_performance has no daily column, so it stays
-    /// import-only, never seeded here.
-    private static func dailyOutcome(key: String, day d: DailyMetric) -> Double? {
-        switch key {
-        case "recovery": return d.recovery
-        case "hrv":      return d.avgHrv
-        case "rhr":      return d.restingHr.map(Double.init)
-        default:         return nil
-        }
     }
 
     // MARK: - Activity Cost input shaping (#439)
