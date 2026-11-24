@@ -716,7 +716,7 @@ object WearableExportImporter {
     // Persist
     // ------------------------------------------------------------------------
 
-    private suspend fun persist(repo: WhoopRepository, brand: Brand, parsed: Parsed): ImportSummary {
+    internal suspend fun persist(repo: WhoopRepository, brand: Brand, parsed: Parsed): ImportSummary {
         val deviceId = brand.sourceId
         repo.upsertDevice(deviceId, name = "${brand.label} import")
 
@@ -724,7 +724,8 @@ object WearableExportImporter {
             DailyMetric(
                 deviceId = deviceId, day = d.day,
                 totalSleepMin = d.totalSleepMin,
-                efficiency = d.efficiencyPct ?: sleepEfficiency(d.totalSleepMin, d.awakeMin),
+                efficiency = WhoopCsvImporter.efficiencyFractionFromPct(d.efficiencyPct)
+                    ?: sleepEfficiency(d.totalSleepMin, d.awakeMin),
                 deepMin = d.deepMin, remMin = d.remMin, lightMin = d.lightMin,
                 restingHr = d.restingHr, avgHrv = d.avgHrvMs,
                 respRateBpm = d.respRateBpm,   // imported night resp now reaches the day rollup (#17)
@@ -739,7 +740,8 @@ object WearableExportImporter {
         val sleepRows = parsed.sleeps.map { s ->
             SleepSession(
                 deviceId = deviceId, startTs = s.startTs, endTs = s.endTs,
-                efficiency = s.efficiencyPct ?: efficiencyFromStages(s.stagesJson, s.startTs, s.endTs),
+                efficiency = WhoopCsvImporter.efficiencyFractionFromPct(s.efficiencyPct)
+                    ?: efficiencyFromStages(s.stagesJson, s.startTs, s.endTs),
                 restingHr = s.lowestHr ?: s.avgHr, avgHrv = s.avgHrvMs, stagesJSON = s.stagesJson,
             )
         }
@@ -773,12 +775,14 @@ object WearableExportImporter {
         )
     }
 
+    /** Asleep fraction (0–1) of in-bed time, when the export gave no efficiency. */
     private fun sleepEfficiency(total: Double?, awake: Double?): Double? {
         if (total == null || total <= 0) return null
         val inBed = total + (awake ?: 0.0)
-        return if (inBed > 0) minOf(100.0, total / inBed * 100.0) else null
+        return if (inBed > 0) minOf(1.0, total / inBed) else null
     }
 
+    /** Asleep fraction (0–1) from the hypnogram segments (non-wake ÷ in-bed span). */
     private fun efficiencyFromStages(stagesJson: String?, start: Long, end: Long): Double? {
         if (stagesJson == null || end <= start) return null
         val arr = runCatching { JSONArray(stagesJson) }.getOrNull() ?: return null
@@ -788,7 +792,7 @@ object WearableExportImporter {
             if (SleepStageVocabulary.isWake(o.optString("stage"))) continue
             asleep += (o.optLong("end") - o.optLong("start")).coerceAtLeast(0)
         }
-        return minOf(100.0, asleep.toDouble() / (end - start) * 100.0)
+        return minOf(1.0, asleep.toDouble() / (end - start))
     }
 
     // ------------------------------------------------------------------------

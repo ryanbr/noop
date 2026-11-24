@@ -145,7 +145,7 @@ object DemoSeeder {
             daily.add(
                 DailyMetric(
                     deviceId = WHOOP, day = day,
-                    totalSleepMin = round1(totalSleep), efficiency = round1(efficiency),
+                    totalSleepMin = round1(totalSleep), efficiency = round1(efficiency) / 100.0,
                     deepMin = round1(deep), remMin = round1(rem), lightMin = round1(light),
                     disturbances = disturbances, restingHr = rhr, avgHrv = round1(hrv),
                     recovery = round1(recovery), strain = round1(strain), exerciseCount = nWorkouts,
@@ -159,7 +159,7 @@ object DemoSeeder {
             sleeps.add(
                 SleepSession(
                     deviceId = WHOOP, startTs = onset, endTs = onset + inBedSec,
-                    efficiency = round1(efficiency), restingHr = rhr, avgHrv = round1(hrv),
+                    efficiency = round1(efficiency) / 100.0, restingHr = rhr, avgHrv = round1(hrv),
                     stagesJSON = stagesJson(deep, rem, light, disturbances),
                 )
             )

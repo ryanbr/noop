@@ -260,6 +260,13 @@ struct XiaomiBandView: View {
 
     // MARK: - Last sleep (hypnogram)
 
+    /// A stored session efficiency as a whole percent. The column is a 0–1 fraction; a night imported
+    /// before the Mi Band importer wrote one still holds a percentage until it is re-imported, and above
+    /// 1.5 a value can only be that (the split the v26 efficiency heal uses).
+    static func efficiencyPercent(_ stored: Double) -> Int {
+        Int((stored > 1.5 ? stored : stored * 100).rounded())
+    }
+
     /// The most recent imported night that carries a per-epoch hypnogram, drawn with the same
     /// `Hypnogram` component the WHOOP Sleep screen uses. Empty when no Mi sleep has stages.
     @ViewBuilder
@@ -274,7 +281,7 @@ struct XiaomiBandView: View {
                 ChartCard(
                     title: "Stage breakdown",
                     subtitle: night.efficiency.map { eff in
-                        String(localized: "\(durationString(Double(night.endTs - night.startTs) / 60)) in bed · \(Int(eff.rounded()))% efficiency")
+                        String(localized: "\(durationString(Double(night.endTs - night.startTs) / 60)) in bed · \(Self.efficiencyPercent(eff))% efficiency")
                     } ?? String(localized: "\(durationString(Double(night.endTs - night.startTs) / 60)) in bed"),
                     trailing: durationString(s.asleepMin),
                     height: NoopMetrics.chartHeight,

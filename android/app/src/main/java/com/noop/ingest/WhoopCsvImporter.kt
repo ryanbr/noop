@@ -74,7 +74,7 @@ object WhoopCsvImporter {
      * the WRITE boundary — the verbatim parsed value stays untouched, same shape as the Day Strain
      * rescale above. Keep byte-identical to Swift (WhoopExportImporter.fractionFromImportedEfficiencyPct).
      */
-    private fun efficiencyFractionFromPct(pct: Double?): Double? = pct?.let { it / 100.0 }
+    internal fun efficiencyFractionFromPct(pct: Double?): Double? = pct?.let { it / 100.0 }
 
     private val DAY_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
