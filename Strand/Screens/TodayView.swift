@@ -5299,7 +5299,10 @@ struct TodayView: View {
     /// duration is banked, and to nil so the tile shows no caption line at all when neither exists.
     private func restCaption(_ d: DailyMetric?) -> String? {
         if d?.totalSleepMin != nil { return sleepValue(d) }
-        return d?.efficiency.map { String(format: String(localized: "%.0f%% eff"), locale: AppLanguage.activeLocale, $0) }
+        // The column is a 0–1 fraction, though rows from older imports can still hold a percentage.
+        return d?.efficiency.map {
+            String(format: String(localized: "%.0f%% eff"), locale: AppLanguage.activeLocale, $0 > 1.5 ? $0 : $0 * 100)
+        }
     }
 
     /// Short "it's coming, not broken" caption for an unscored Effort/Rest tile on TODAY only. The

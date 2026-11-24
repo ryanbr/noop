@@ -7929,7 +7929,10 @@ private fun sleepValue(d: DailyMetric?): String {
  */
 private fun restCaption(d: DailyMetric?): String? = when {
     d?.totalSleepMin != null -> sleepValue(d)
-    d?.efficiency != null -> String.format(Locale.getDefault(), "%.0f%% eff", d.efficiency)
+    // The column is a 0–1 fraction, though rows from older imports can still hold a percentage.
+    d?.efficiency != null -> String.format(
+        Locale.getDefault(), "%.0f%% eff", if (d.efficiency > 1.5) d.efficiency else d.efficiency * 100.0,
+    )
     else -> null
 }
 

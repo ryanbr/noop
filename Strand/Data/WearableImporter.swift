@@ -30,7 +30,8 @@ enum WearableImporter {
             metrics.append(DailyMetric(
                 day: d.day,
                 totalSleepMin: d.totalSleepMin,
-                efficiency: d.efficiencyPct ?? sleepEfficiency(total: d.totalSleepMin, awake: d.awakeMin),
+                efficiency: WhoopExportImporter.fractionFromImportedEfficiencyPct(d.efficiencyPct)
+                    ?? sleepEfficiency(total: d.totalSleepMin, awake: d.awakeMin),
                 deepMin: d.deepMin,
                 remMin: d.remMin,
                 lightMin: d.lightMin,
@@ -64,7 +65,8 @@ enum WearableImporter {
             sessions.append(CachedSleepSession(
                 startTs: startTs,
                 endTs: endTs,
-                efficiency: s.efficiencyPct ?? efficiency(segs: segs, start: startTs, end: endTs),
+                efficiency: WhoopExportImporter.fractionFromImportedEfficiencyPct(s.efficiencyPct)
+                    ?? efficiency(segs: segs, start: startTs, end: endTs),
                 restingHr: s.lowestHr ?? s.avgHr,   // sleeping-min HR ≈ resting; falls back to avg
                 avgHrv: s.avgHrvMs,
                 stagesJSON: json))
@@ -118,16 +120,16 @@ enum WearableImporter {
         return result
     }
 
-    /// Asleep fraction of in-bed time, from the daily stage minutes (when the export gave no efficiency).
-    private static func sleepEfficiency(total: Double?, awake: Double?) -> Double? {
+    /// Asleep fraction (0–1) of in-bed time, from the daily stage minutes (when the export gave no efficiency).
+    static func sleepEfficiency(total: Double?, awake: Double?) -> Double? {
         guard let total, total > 0 else { return nil }
         let awake = awake ?? 0
         let inBed = total + awake
-        return inBed > 0 ? min(100, total / inBed * 100) : nil
+        return inBed > 0 ? min(1, total / inBed) : nil
     }
 
-    /// Asleep fraction from the hypnogram segments (non-wake ÷ in-bed span).
-    private static func efficiency(segs: [[String: Any]], start: Int, end: Int) -> Double? {
+    /// Asleep fraction (0–1) from the hypnogram segments (non-wake ÷ in-bed span).
+    static func efficiency(segs: [[String: Any]], start: Int, end: Int) -> Double? {
         guard end > start, !segs.isEmpty else { return nil }
         var asleep = 0
         for seg in segs {
@@ -135,6 +137,6 @@ enum WearableImporter {
                   let stage = seg["stage"] as? String, !SleepStageVocabulary.isWake(stage) else { continue }
             asleep += max(0, e - s)
         }
-        return min(100, Double(asleep) / Double(end - start) * 100)
+        return min(1, Double(asleep) / Double(end - start))
     }
 }
