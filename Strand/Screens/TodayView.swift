@@ -2537,7 +2537,7 @@ struct TodayView: View {
             // Renders from the shared SleepModel built in loadAll() (same inputs as the Sleep tab). Until the
             // async build lands — or with no usable latest night — show the graceful placeholder, as above.
             if let m = hostedSleepModel {
-                NightDetailCard(model: m)
+                NightDetailCard(model: m, night: m.night)
             } else {
                 VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                     SectionHeader("Night detail", overline: "Metrics")

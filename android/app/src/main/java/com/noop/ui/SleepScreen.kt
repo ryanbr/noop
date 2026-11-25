@@ -533,7 +533,7 @@ fun SleepScreen(
 
     // The HERO follows the selected night (its stage breakdown comes from that day's row); the
     // at-a-glance TILES, the debt ledger, the personal need and the trend stay full-history /
-    // latest-anchored, matching iOS SleepView. `selectedDay` re-points only the hero. Model is null
+    // latest-anchored, matching iOS SleepView. Efficiency follows the selected hero night. Model is null
     // when the selected day has no stage minutes. (#5)
     val model = remember(days, night, imported, napSleepMinByDay, sleeps, is24h) {
         buildSleepModel(days, night?.session, imported, selectedDay = night?.dayKey,
@@ -938,7 +938,9 @@ fun SleepScreen(
                         SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
                             Column {
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
-                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it })
+                                // A fallback tiles model may belong to another night; only its history is shared.
+                                NightDetailHostCard(m, onMetricClick = { detailMetricKey = it },
+                                    efficiencyText = display?.efficiencyText ?: "—")
                             }
                         }
                     }

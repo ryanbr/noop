@@ -27,6 +27,14 @@ struct Stages {
 struct Night {
     let session: CachedSleepSession
     let stages: Stages
+    /// Resolve against this night’s local wake day, never the latest daily row.
+    func efficiencyPct(days: [DailyMetric]) -> Double? {
+        let wakeDay = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(session.endTs)))
+        return nightEfficiencyPct(sessionEfficiency: session.efficiency,
+                                  dayEfficiency: days.last(where: { $0.day == wakeDay })?.efficiency,
+                                  asleep: stages.asleep, timeInBed: timeInBed)
+    }
+
     /// The REAL per-segment timeline for on-device computed nights (nil for imported nights,
     /// whose export carries totals only — those keep the synthetic reconstruction below). (#77)
     var realSegments: [SleepInterval]? = nil

@@ -479,7 +479,7 @@ struct SleepView: View {
         case .sleepMarks:      SleepMarkCard()
         case .stages:          hero(model)
         case .bodyClock:       bodyClockDial(model)
-        case .nightDetail:     NightDetailCard(model: model)
+        case .nightDetail:     NightDetailCard(model: model, night: nightOffset == 0 ? model.night : navNight)
         case .sleepDebt:       SleepDebtLedgerCard(model: model)
         case .stagesVsTypical: StagesVsTypicalCard(model: model)
         case .asleepDuration:  durationTrend(model)
@@ -1017,7 +1017,7 @@ struct SleepView: View {
     /// reads honestly). (#H9)
     private func stageStagingIsLowConfidence(_ night: Night) -> Bool {
         let s = night.stages
-        guard let effPct = efficiencyPct(night) else { return false }
+        guard let effPct = night.efficiencyPct(days: repo.days) else { return false }
         return SleepView.isStagingLowConfidence(
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
@@ -2101,18 +2101,8 @@ struct SleepView: View {
     // `debtSigned`) moved to `SleepDebtLedgerCard` with the card; they had no other caller in SleepView.
 
     private func efficiencyText(_ night: Night) -> String {
-        let e = efficiencyPct(night)
+        let e = night.efficiencyPct(days: repo.days)
         return e.map { "\(Int($0.rounded()))%" } ?? "—"
-    }
-
-    /// Efficiency in percent. Prefer the stored session value, else asleep / time-in-bed.
-    private func efficiencyPct(_ night: Night) -> Double? {
-        if let stored = night.session.efficiency ?? repo.today?.efficiency {
-            return stored <= 1.0 ? stored * 100 : stored
-        }
-        let bed = night.timeInBed
-        guard bed > 0 else { return nil }
-        return Swift.min(100, night.stages.asleep / bed * 100)
     }
 
     private func durationText(_ minutes: Double) -> String {

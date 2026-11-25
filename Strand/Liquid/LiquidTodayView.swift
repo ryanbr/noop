@@ -870,7 +870,7 @@ struct LiquidTodayView: View {
             // Renders from the same shared SleepModel built in load(). Until that async build lands — or on a
             // device with no usable latest night — show the graceful placeholder, mirroring stagesVsTypical.
             if let m = hostedSleepModel {
-                NightDetailCard(model: m)
+                NightDetailCard(model: m, night: m.night)
             } else {
                 hostedNightDetailPlaceholder
             }

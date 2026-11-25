@@ -7,7 +7,7 @@ import WhoopStore
 //
 // The Sleep tab's "Night detail" metric grid, extracted into a standalone view so it can ALSO be hosted
 // in the Today tab. Both the Sleep tab and the Today host render THIS view from the SAME `SleepModel`, so
-// the per-metric latest value / sparkline / typical caption can never diverge between the two surfaces
+// the daily history / sparkline / typical caption can never diverge between the two surfaces
 // (the parity contract). The card body + its `pctValue` / `rrValue` / `vsTypical` / `debtCaption` /
 // `debtColor` / `spark` helpers are a verbatim lift of the former `SleepView.metricGrid` (and the helpers
 // only it used); the seven series are computed once in `SleepModel.build` and read here.
@@ -17,11 +17,14 @@ import WhoopStore
 /// rendered from the shared [SleepModel].
 struct NightDetailCard: View {
     let model: SleepModel
+    // Explicit at each host: nil means the selected night has no decoded stages.
+    let night: Night?
+    @EnvironmentObject var repo: Repository
 
     private let tileColumns = [GridItem(.adaptive(minimum: 168), spacing: NoopMetrics.gap)]
 
     var body: some View {
-        // Per-tile latest value + history series (for the sparkline) + typical mean.
+        // Daily history for sparklines and typical means. Efficiency's value follows the displayed night.
         // All seven series are computed ONCE in the model build (each is a full pass over
         // repo.days/repo.sleeps) — here we only read the memoized results.
         let perf  = model.performance
@@ -61,7 +64,7 @@ struct NightDetailCard: View {
 
                 StatTile(
                     label: "Efficiency",
-                    value: pctValue(eff.latest),
+                    value: pctValue(night?.efficiencyPct(days: repo.days)),
                     caption: tileCaption(latestDay: eff.latestDay, latest: eff.latest,
                                          typical: eff.typical, suffix: "%"),
                     accent: StrandPalette.statusPositive,

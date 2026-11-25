@@ -25,8 +25,8 @@ internal fun heroDisplay(model: SleepModel?, night: HeroNight?): HeroDisplay? {
     }
     val segments = night?.realSegments ?: return null
     val stages = stagesFromSegments(segments) ?: return null
-    val eff = night.session.efficiency
-        ?.let { e -> "${(if (e <= 1.0) e * 100.0 else e).roundToInt()}%" } ?: "—"
+    val eff = nightEfficiencyPct(night.session.efficiency, null, stages.asleep, stages.total)
+        ?.let { "${it.roundToInt()}%" } ?: "—"
     // Timestamped segments for the FILLED chart on the fallback path too: the group's full-night segments
     // when the night is fragmented, else this session's persisted array.
     val tsSegments = night.groupSegments ?: parsePersistedSegments(night.session.stagesJSON)
@@ -140,8 +140,8 @@ internal fun buildSleepModel(
     // The HERO night = the selected day's stage-bearing row. The TILE / debt / need / trend
     // window, by contrast, is the FULL history (latest-anchored) — matching iOS SleepView, which
     // builds every tile series + the debt ledger + the personal need from `repo.days` regardless
-    // of which night the hero is browsing. Browsing a past night only re-points the hero, never
-    // the at-a-glance tiles or the "Last 14 nights" ledger. One cross-platform definition. (#5)
+    // of which night the hero is browsing. Efficiency follows the displayed night; browsing
+    // otherwise only re-points the hero, never the at-a-glance tiles or the "Last 14 nights" ledger. One cross-platform definition. (#5)
     val latest = days.lastOrNull {
         it.day == effectiveDay && (it.deepMin ?: 0.0) + (it.remMin ?: 0.0) + (it.lightMin ?: 0.0) > 0.0
     }
@@ -284,7 +284,10 @@ internal fun buildSleepModel(
     return SleepModel(
         stages = stages,
         clockLabel = clockLabel(latest, session, is24h),
-        efficiencyText = efficiency.latest?.let { "${it.roundToInt()}%" } ?: "—",
+        efficiencyText = nightEfficiencyPct(
+            session?.takeIf { AnalyticsEngine.dayString(it.endTs) == effectiveDay || localDayString(it.endTs) == effectiveDay }?.efficiency,
+            latest.efficiency, stages.asleep, stages.total,
+        )?.let { "${it.roundToInt()}%" } ?: "—",
         performance = performance,
         efficiency = efficiency,
         consistency = consistency,
