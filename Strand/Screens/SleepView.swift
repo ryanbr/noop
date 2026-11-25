@@ -479,7 +479,7 @@ struct SleepView: View {
         case .sleepMarks:      SleepMarkCard()
         case .stages:          hero(model)
         case .bodyClock:       bodyClockDial(model)
-        case .nightDetail:     NightDetailCard(model: model, night: heroNight(model))
+        case .nightDetail:     NightDetailCard(model: model, night: nightOffset == 0 ? model.night : navNight)
         case .sleepDebt:       SleepDebtLedgerCard(model: model)
         case .stagesVsTypical: StagesVsTypicalCard(model: model)
         case .asleepDuration:  durationTrend(model)

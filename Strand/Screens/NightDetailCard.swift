@@ -17,8 +17,8 @@ import WhoopStore
 /// rendered from the shared [SleepModel].
 struct NightDetailCard: View {
     let model: SleepModel
-    // Sleep supplies the carousel night; Today uses the model's latest night.
-    var night: Night? = nil
+    // Explicit at each host: nil means the selected night has no decoded stages.
+    let night: Night?
     @EnvironmentObject var repo: Repository
 
     private let tileColumns = [GridItem(.adaptive(minimum: 168), spacing: NoopMetrics.gap)]
@@ -64,7 +64,7 @@ struct NightDetailCard: View {
 
                 StatTile(
                     label: "Efficiency",
-                    value: pctValue((night ?? model.night).efficiencyPct(days: repo.days)),
+                    value: pctValue(night?.efficiencyPct(days: repo.days)),
                     caption: tileCaption(latestDay: eff.latestDay, latest: eff.latest,
                                          typical: eff.typical, suffix: "%"),
                     accent: StrandPalette.statusPositive,
