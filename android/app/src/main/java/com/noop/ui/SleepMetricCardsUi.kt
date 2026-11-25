@@ -61,12 +61,16 @@ import kotlin.math.roundToInt
  * so the tiles render read-only when hosted.
  */
 @Composable
-internal fun NightDetailHostCard(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
-    MetricGrid(m, onMetricClick = onMetricClick)
+internal fun NightDetailHostCard(
+    m: SleepModel, onMetricClick: (String) -> Unit = {}, efficiencyText: String = m.efficiencyText,
+) {
+    MetricGrid(m, onMetricClick = onMetricClick, efficiencyText = efficiencyText)
 }
 
 @Composable
-private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
+private fun MetricGrid(
+    m: SleepModel, onMetricClick: (String) -> Unit = {}, efficiencyText: String = m.efficiencyText,
+) {
     val tiles = listOf<@Composable (Modifier) -> Unit>(
         { mod ->
             SparkTile(
@@ -81,7 +85,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
         { mod ->
             SparkTile(
                 mod, "Efficiency",
-                value = pctValue(m.efficiency.latest),
+                value = efficiencyText,
                 caption = tileCaption(m.efficiency.latestDay, m.efficiency.latest, m.efficiency.typical, "%"),
                 accent = Palette.statusPositive,
                 spark = m.efficiency.series, sparkColor = Palette.statusPositive,
